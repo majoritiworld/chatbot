@@ -1,0 +1,22 @@
+<!--
+  Dashboard > Authentication > Emails > Magic Link
+  Subject: Tu código de acceso a Majoriti
+
+  Only {{ .Token }}. Do not add ConfirmationURL: scanners click that
+  link, burn the OTP, and the 6-digit code dies with it.
+-->
+<h2>Tu código de acceso</h2>
+
+<p>Escribe este código en el portal para entrar:</p>
+
+<p
+  style="font-size: 28px; font-weight: 700; letter-spacing: 6px; font-family: monospace;"
+>
+  {{ .Token }}
+</p>
+
+<p>El código vence en una hora y solo sirve una vez.</p>
+
+<p style="color: #666; font-size: 13px;">
+  Si no pediste este acceso, ignora este correo.
+</p>

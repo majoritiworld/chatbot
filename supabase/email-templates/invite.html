@@ -1,0 +1,30 @@
+<!--
+  Supabase Dashboard > Authentication > Emails > Invite user
+
+  Paste this as the template body. Subject: "Te invitamos al portal de Majoriti".
+
+  The link uses `{{ .TokenHash }}` against our own /auth/callback on purpose.
+  The default `{{ .ConfirmationURL }}` is a PKCE link: it only opens in the
+  browser that triggered it, so an invite read on a phone dies. A hashed token
+  works from any device.
+
+  If the link ever fails anyway, the portal login asks for a fresh code, so the
+  invited person is never stuck.
+-->
+<h2>Te damos acceso al portal</h2>
+
+<p>Majoriti te invitó al portal de consultoría.</p>
+
+<p>
+  <a
+    href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=invite"
+    style="display: inline-block; padding: 12px 20px; background: #111; color: #fff; border-radius: 8px; text-decoration: none;"
+  >
+    Entrar al portal
+  </a>
+</p>
+
+<p style="color: #666; font-size: 13px;">
+  Si el enlace no funciona, entra al portal, escribe este mismo correo y te
+  enviamos un código para acceder.
+</p>

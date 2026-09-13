@@ -1,84 +1,182 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { z } from "zod";
+import {
+  buscarInvitacion,
+  ensureAuthUser,
+  ensureUsuarioPerfil,
+  esCuentaMajoriti,
+  normalizarEmail,
+} from "@/lib/consultoria/auth";
+import { landingPathForCurrentUser } from "@/lib/consultoria/portal";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
-import { createUser, getUser } from "@/lib/db/queries";
+const ERROR_GENERICO =
+  "No pudimos enviarte el código. Intenta de nuevo o escribe a Majoriti.";
 
-import { signIn } from "./auth";
-
-const authFormSchema = z.object({
-  email: z.email(),
-  password: z.string().min(6),
+const emailSchema = z.object({
+  email: z.string().email(),
 });
 
-export type LoginActionState = {
-  status: "idle" | "in_progress" | "success" | "failed" | "invalid_data";
+const codigoSchema = z.object({
+  codigo: z.string().regex(/^\d{6}$/),
+  email: z.string().email(),
+});
+
+const adminLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+const ERROR_ADMIN_LOGIN = "Email o contraseña incorrectos.";
+
+export type AuthActionState = {
+  status: "idle" | "invalid_data" | "failed" | "sent";
+  message?: string;
+  /** Echoed back so the code step can address the user and allow a resend. */
+  email?: string;
 };
 
-export const login = async (
-  _: LoginActionState,
+function esLimiteDeEnvios(error: { status?: number; message: string }) {
+  return (
+    error.status === 429 || /rate limit|security purposes/i.test(error.message)
+  );
+}
+
+/**
+ * Step 1: mail a 6-digit sign-in code to an invited address.
+ *
+ * The Magic Link template in the Supabase dashboard must contain
+ * `{{ .Token }}` and must not contain `{{ .ConfirmationURL }}`. A link in
+ * that mail is prefetched by scanners, burns the OTP, and is what users
+ * receive instead of the code. See supabase/email-templates/magic-link.html.
+ *
+ * Sent via the admin client so this request is not bound to PKCE cookies
+ * from the browser that asked for the code.
+ */
+export async function solicitarCodigo(
+  _prev: AuthActionState,
   formData: FormData
-): Promise<LoginActionState> => {
-  try {
-    const validatedData = authFormSchema.parse({
-      email: formData.get("email"),
-      password: formData.get("password"),
-    });
+): Promise<AuthActionState> {
+  const parsed = emailSchema.safeParse({
+    email: formData.get("email"),
+  });
 
-    await signIn("credentials", {
-      email: validatedData.email,
-      password: validatedData.password,
-      redirect: false,
-    });
-
-    return { status: "success" };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { status: "invalid_data" };
-    }
-
-    return { status: "failed" };
+  if (!parsed.success) {
+    return { message: "Escribe un email válido", status: "invalid_data" };
   }
-};
 
-export type RegisterActionState = {
-  status:
-    | "idle"
-    | "in_progress"
-    | "success"
-    | "failed"
-    | "user_exists"
-    | "invalid_data";
-};
+  const email = normalizarEmail(parsed.data.email);
+  const invitacion = await buscarInvitacion(email);
 
-export const register = async (
-  _: RegisterActionState,
+  if (!invitacion) {
+    return {
+      email,
+      message:
+        "Este correo no está en el portal. Escribe a Majoriti para que te den acceso.",
+      status: "failed",
+    };
+  }
+
+  const cuenta = await ensureAuthUser({ email, nombre: invitacion.nombre });
+  const admin = createAdminClient();
+
+  if (!(cuenta.ok && admin)) {
+    return { email, message: ERROR_GENERICO, status: "failed" };
+  }
+
+  const { error } = await admin.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: false,
+    },
+  });
+
+  if (error) {
+    return {
+      email,
+      message: esLimiteDeEnvios(error)
+        ? "Ya te enviamos un código hace un momento. Revisa tu correo (y la carpeta de spam) antes de pedir otro."
+        : ERROR_GENERICO,
+      status: "failed",
+    };
+  }
+
+  return { email, status: "sent" };
+}
+
+/** Step 2: exchange the code for a session and land on the right home. */
+export async function verificarCodigo(
+  _prev: AuthActionState,
   formData: FormData
-): Promise<RegisterActionState> => {
-  try {
-    const validatedData = authFormSchema.parse({
-      email: formData.get("email"),
-      password: formData.get("password"),
-    });
+): Promise<AuthActionState> {
+  const emailRaw = String(formData.get("email") ?? "");
+  const parsed = codigoSchema.safeParse({
+    codigo: String(formData.get("codigo") ?? "").replace(/\D/g, ""),
+    email: emailRaw,
+  });
 
-    const [user] = await getUser(validatedData.email);
-
-    if (user) {
-      return { status: "user_exists" } as RegisterActionState;
-    }
-    await createUser(validatedData.email, validatedData.password);
-    await signIn("credentials", {
-      email: validatedData.email,
-      password: validatedData.password,
-      redirect: false,
-    });
-
-    return { status: "success" };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { status: "invalid_data" };
-    }
-
-    return { status: "failed" };
+  if (!parsed.success) {
+    return {
+      email: normalizarEmail(emailRaw),
+      message: "El código tiene 6 dígitos",
+      status: "invalid_data",
+    };
   }
-};
+
+  const email = normalizarEmail(parsed.data.email);
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.verifyOtp({
+    email,
+    token: parsed.data.codigo,
+    type: "email",
+  });
+
+  if (error || !data.user) {
+    return {
+      email,
+      message: "Ese código no es válido o ya venció. Pide uno nuevo.",
+      status: "failed",
+    };
+  }
+
+  await ensureUsuarioPerfil(data.user);
+
+  redirect(await landingPathForCurrentUser());
+}
+
+/** Majoriti only. Clients cannot obtain a session through this form. */
+export async function iniciarSesionAdmin(
+  _prev: AuthActionState,
+  formData: FormData
+): Promise<AuthActionState> {
+  const parsed = adminLoginSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  if (!parsed.success) {
+    return { message: "Escribe email y contraseña", status: "invalid_data" };
+  }
+
+  const email = normalizarEmail(parsed.data.email);
+
+  if (!(await esCuentaMajoriti(email))) {
+    return { email, message: ERROR_ADMIN_LOGIN, status: "failed" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password: parsed.data.password,
+  });
+
+  if (error || !data.user) {
+    return { email, message: ERROR_ADMIN_LOGIN, status: "failed" };
+  }
+
+  await ensureUsuarioPerfil(data.user);
+  redirect("/admin");
+}

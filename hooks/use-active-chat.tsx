@@ -30,6 +30,8 @@ import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 
 type ActiveChatContextValue = {
   chatId: string;
+  /** True when the chat is pinned to an interview (client portal embed). */
+  esEntrevista: boolean;
   messages: ChatMessage[];
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
   sendMessage: UseChatHelpers<ChatMessage>["sendMessage"];
@@ -56,7 +58,17 @@ function extractChatId(pathname: string): string | null {
   return match ? match[1] : null;
 }
 
-export function ActiveChatProvider({ children }: { children: ReactNode }) {
+export function ActiveChatProvider({
+  children,
+  entrevistaId,
+  mensajesIniciales,
+}: {
+  children: ReactNode;
+  /** Pins the chat to one interview. Used by the client portal embed. */
+  entrevistaId?: string;
+  /** Transcript already stored for this interview, replayed on reload. */
+  mensajesIniciales?: ChatMessage[];
+}) {
   const pathname = usePathname();
   const { setDataStream, setWaitingStatus } = useDataStream();
   const { mutate } = useSWRConfig();
@@ -71,7 +83,11 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
   }
   prevPathnameRef.current = pathname;
 
-  const chatId = chatIdFromUrl ?? newChatIdRef.current;
+  const chatId = chatIdFromUrl ?? entrevistaId ?? newChatIdRef.current;
+  const esEntrevista = Boolean(entrevistaId);
+
+  const entrevistaIdRef = useRef(entrevistaId);
+  entrevistaIdRef.current = entrevistaId;
 
   const [currentModelId, setCurrentModelId] = useState(DEFAULT_CHAT_MODEL);
   const currentModelIdRef = useRef(currentModelId);
@@ -90,8 +106,9 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
     { revalidateOnFocus: false }
   );
 
+  const initialMessagesRef = useRef(mensajesIniciales);
   const initialMessages: ChatMessage[] = isNewChat
-    ? []
+    ? (initialMessagesRef.current ?? [])
     : (chatData?.messages ?? []);
   const visibility: VisibilityType = isNewChat
     ? "private"
@@ -123,8 +140,11 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
       } else if (error instanceof ChatbotError) {
         toast({ description: error.message, type: "error" });
       } else {
+        const fallback = esEntrevista
+          ? "Ocurrió un error. Inténtalo de nuevo."
+          : "Oops, an error occurred!";
         toast({
-          description: error.message || "Oops, an error occurred!",
+          description: error.message || fallback,
           type: "error",
         });
       }
@@ -149,23 +169,13 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
       fetch: fetchWithErrorHandlers,
       prepareSendMessagesRequest(request) {
         const lastMessage = request.messages.at(-1);
-        const isToolApprovalContinuation =
-          lastMessage?.role !== "user" ||
-          request.messages.some((msg) =>
-            msg.parts?.some((part) => {
-              const { state } = part as { state?: string };
-              return (
-                state === "approval-responded" || state === "output-denied"
-              );
-            })
-          );
 
         return {
           body: {
             id: request.id,
-            ...(isToolApprovalContinuation
-              ? { messages: request.messages }
-              : { message: lastMessage }),
+            entrevistaId: entrevistaIdRef.current,
+            message: lastMessage?.role === "user" ? lastMessage : undefined,
+            messages: request.messages,
             selectedChatModel: currentModelIdRef.current,
             selectedVisibilityType: visibility,
             ...request.body,
@@ -221,6 +231,9 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
 
   const hasAppendedQueryRef = useRef(false);
   useEffect(() => {
+    if (esEntrevista) {
+      return;
+    }
     const params = new URLSearchParams(window.location.search);
     const query = params.get("query");
     if (query && !hasAppendedQueryRef.current) {
@@ -235,7 +248,25 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
         role: "user" as const,
       });
     }
-  }, [sendMessage, chatId]);
+  }, [sendMessage, chatId, esEntrevista]);
+
+  // The interview opens itself: with no transcript to replay, ask the agent
+  // for its greeting and first question instead of waiting on the user.
+  const kickoffRef = useRef(false);
+  useEffect(() => {
+    if (!esEntrevista || kickoffRef.current) {
+      return;
+    }
+    if (messages.length > 0) {
+      kickoffRef.current = true;
+      return;
+    }
+    if (status !== "ready") {
+      return;
+    }
+    kickoffRef.current = true;
+    sendMessage();
+  }, [esEntrevista, messages.length, status, sendMessage]);
 
   useAutoResume({
     autoResume: !isNewChat && !!chatData,
@@ -247,7 +278,7 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
   const isReadonly = isNewChat ? false : (chatData?.isReadonly ?? false);
 
   const { data: votes } = useSWR<Vote[]>(
-    !isReadonly && messages.length >= 2
+    !(isReadonly || esEntrevista) && messages.length >= 2
       ? `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/vote?chatId=${chatId}`
       : null,
     fetcher,
@@ -259,6 +290,7 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
       addToolApprovalResponse,
       chatId,
       currentModelId,
+      esEntrevista,
       input,
       isLoading: !isNewChat && isLoading,
       isReadonly,
@@ -277,6 +309,7 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
     }),
     [
       chatId,
+      esEntrevista,
       messages,
       setMessages,
       sendMessage,

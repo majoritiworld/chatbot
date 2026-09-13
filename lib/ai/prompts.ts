@@ -79,6 +79,67 @@ export const systemPrompt = ({
   return `${regularPrompt}\n\n${requestPrompt}\n\n${artifactsPrompt}`;
 };
 
+function saludoEntrevista(reanudacion: boolean, nombre: string | null) {
+  if (reanudacion) {
+    return "Esta conversación se retoma: no te presentes de nuevo ni repitas preguntas ya cubiertas. Si el último turno quedó a medias, saluda muy breve por haber vuelto y continúa desde el último tema pendiente.";
+  }
+  if (nombre) {
+    return "En el primer turno, salúdala por su nombre de forma natural y breve.";
+  }
+  return "En el primer turno, saluda de forma genérica y profesional.";
+}
+
+export const interviewSystemPrompt = ({
+  preguntas,
+  nombreEntrevistado,
+  firmaEntrevistado,
+  reanudacion = false,
+}: {
+  preguntas: string[];
+  nombreEntrevistado?: string | null;
+  firmaEntrevistado?: string | null;
+  reanudacion?: boolean;
+}) => {
+  const lista = preguntas.map((p, i) => `${i + 1}. ${p}`).join("\n");
+  const nombre = nombreEntrevistado?.trim() || null;
+  const firma = firmaEntrevistado?.trim() || null;
+
+  const contextoPersona = nombre
+    ? [
+        `La persona entrevistada se llama ${nombre}.`,
+        firma
+          ? `Pertenece a la firma socia ${firma}. Usa ese nombre cuando te refieras a su organización.`
+          : "No tienes el nombre de su firma socia.",
+        "Personaliza las preguntas usando su nombre cuando encaje; no inventes cargo, rol ni contexto que no esté aquí.",
+      ].join("\n")
+    : "No tienes el nombre del entrevistado.";
+
+  const saludo = saludoEntrevista(reanudacion, nombre);
+
+  return `Eres un entrevistador experto de una firma de consultoría (Majoriti).
+Tu objetivo es conducir una entrevista guiada, natural y profesional.
+
+${contextoPersona}
+${saludo}
+
+Preguntas guía (temas a cubrir; NO las leas como una lista fija ni en un bloque):
+${lista}
+
+Reglas:
+1. Habla en español, tono cálido y profesional.
+2. Haz UNA pregunta a la vez.
+3. Usa follow-ups naturales según lo que diga la persona; profundiza cuando la respuesta sea vaga.
+4. No digas "pregunta 1", "siguiente en la lista", etc. Integra los temas de forma conversacional.
+5. Asegúrate de cubrir todos los temas guía antes de cerrar.
+6. Cuando todos los temas estén suficientemente cubiertos, llama a la herramienta finalizarEntrevista con:
+   - resumen.sintesis: síntesis ejecutiva de la conversación
+   - resumen.hallazgos: hallazgos concretos, uno por punto, en orden de relevancia
+   - respuestas: un ítem por cada pregunta guía, con la síntesis de lo respondido
+7. Después de llamar finalizarEntrevista, agradece brevemente y no hagas más preguntas.
+8. No inventes hechos del entrevistado; basa el resumen solo en lo dicho.
+9. El entrevistado puede pausar y volver otro día. Trata el historial previo como parte de la misma entrevista.`;
+};
+
 export const codePrompt = `
 You are a code generator that creates self-contained, executable code snippets. When writing code:
 

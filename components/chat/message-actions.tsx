@@ -13,12 +13,14 @@ import { CopyIcon, PencilEditIcon, ThumbDownIcon, ThumbUpIcon } from "./icons";
 
 export function PureMessageActions({
   chatId,
+  esEntrevista,
   message,
   vote,
   isLoading,
   onEdit,
 }: {
   chatId: string;
+  esEntrevista?: boolean;
   message: ChatMessage;
   vote: Vote | undefined;
   isLoading: boolean;
@@ -35,13 +37,15 @@ export function PureMessageActions({
 
   const handleCopy = useCallback(async () => {
     if (!textFromParts) {
-      toast.error("There's no text to copy!");
+      toast.error(
+        esEntrevista ? "No hay texto que copiar." : "There's no text to copy!"
+      );
       return;
     }
 
     await copyToClipboard(textFromParts);
-    toast.success("Copied to clipboard!");
-  }, [copyToClipboard, textFromParts]);
+    toast.success(esEntrevista ? "Copiado" : "Copied to clipboard!");
+  }, [copyToClipboard, esEntrevista, textFromParts]);
 
   const handleUpvote = useCallback(() => {
     const upvote = fetch(
@@ -146,7 +150,7 @@ export function PureMessageActions({
               className="size-7 text-muted-foreground/50 hover:text-foreground"
               data-testid="message-edit-button"
               onClick={onEdit}
-              tooltip="Edit"
+              tooltip={esEntrevista ? "Editar" : "Edit"}
             >
               <PencilEditIcon />
             </Action>
@@ -154,7 +158,7 @@ export function PureMessageActions({
           <Action
             className="size-7 text-muted-foreground/50 hover:text-foreground"
             onClick={handleCopy}
-            tooltip="Copy"
+            tooltip={esEntrevista ? "Copiar" : "Copy"}
           >
             <CopyIcon />
           </Action>
@@ -168,30 +172,34 @@ export function PureMessageActions({
       <Action
         className="text-muted-foreground/50 hover:text-foreground"
         onClick={handleCopy}
-        tooltip="Copy"
+        tooltip={esEntrevista ? "Copiar" : "Copy"}
       >
         <CopyIcon />
       </Action>
 
-      <Action
-        className="text-muted-foreground/50 hover:text-foreground"
-        data-testid="message-upvote"
-        disabled={vote?.isUpvoted}
-        onClick={handleUpvote}
-        tooltip="Upvote Response"
-      >
-        <ThumbUpIcon />
-      </Action>
+      {esEntrevista ? null : (
+        <>
+          <Action
+            className="text-muted-foreground/50 hover:text-foreground"
+            data-testid="message-upvote"
+            disabled={vote?.isUpvoted}
+            onClick={handleUpvote}
+            tooltip="Upvote Response"
+          >
+            <ThumbUpIcon />
+          </Action>
 
-      <Action
-        className="text-muted-foreground/50 hover:text-foreground"
-        data-testid="message-downvote"
-        disabled={vote && !vote.isUpvoted}
-        onClick={handleDownvote}
-        tooltip="Downvote Response"
-      >
-        <ThumbDownIcon />
-      </Action>
+          <Action
+            className="text-muted-foreground/50 hover:text-foreground"
+            data-testid="message-downvote"
+            disabled={vote && !vote.isUpvoted}
+            onClick={handleDownvote}
+            tooltip="Downvote Response"
+          >
+            <ThumbDownIcon />
+          </Action>
+        </>
+      )}
     </Actions>
   );
 }
@@ -203,6 +211,9 @@ export const MessageActions = memo(
       return false;
     }
     if (prevProps.isLoading !== nextProps.isLoading) {
+      return false;
+    }
+    if (prevProps.esEntrevista !== nextProps.esEntrevista) {
       return false;
     }
 

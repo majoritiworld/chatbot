@@ -1,71 +1,36 @@
-import { geolocation, ipAddress } from "@vercel/functions";
 import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  generateId,
   isStepCount,
   streamText,
+  tool,
   toUIMessageStream,
 } from "ai";
-import { checkBotId } from "botid/server";
-import { after } from "next/server";
-import { createResumableStreamContext } from "resumable-stream";
-import { auth, type UserType } from "@/app/(auth)/auth";
-import { entitlementsByUserType } from "@/lib/ai/entitlements";
+import { z } from "zod";
+import { auth } from "@/app/(auth)/auth";
+import {
+  canWriteEntrevista,
+  guardarRespuestasEntrevista,
+  registrarTurnosEntrevista,
+  resolveEntrevista,
+} from "@/lib/consultoria/entrevistas";
+import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
+import { interviewSystemPrompt } from "@/lib/ai/prompts";
 import {
   allowedModelIds,
   chatModels,
   DEFAULT_CHAT_MODEL,
   getCapabilities,
-  getModelAvailability,
 } from "@/lib/ai/models";
-import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
-import { createDocument } from "@/lib/ai/tools/create-document";
-import { editDocument } from "@/lib/ai/tools/edit-document";
-import { getWeather } from "@/lib/ai/tools/get-weather";
-import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
-import { updateDocument } from "@/lib/ai/tools/update-document";
 import { isProductionEnvironment } from "@/lib/constants";
-import {
-  createStreamId,
-  deleteChatById,
-  getChatById,
-  getMessageCountByUserId,
-  getMessagesByChatId,
-  saveChat,
-  saveMessages,
-  updateChatTitleById,
-  updateMessage,
-} from "@/lib/db/queries";
-import type { DBMessage } from "@/lib/db/schema";
 import { ChatbotError } from "@/lib/errors";
-import { checkIpRateLimit } from "@/lib/ratelimit";
-import type { ChatMessage, WaitingStatusData } from "@/lib/types";
-import { convertToUIMessages, generateUUID } from "@/lib/utils";
-import { generateTitleFromUserMessage } from "../../actions";
+import type { ChatMessage } from "@/lib/types";
+import { generateUUID } from "@/lib/utils";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 
 export const maxDuration = 60;
-
-const HEALTH_CHECK_DELAY_MS = 9000;
-
-function isModelStreamActivity(chunk: { type: string }) {
-  return !["start", "start-step", "finish-step", "finish", "raw"].includes(
-    chunk.type
-  );
-}
-
-function getStreamContext() {
-  try {
-    return createResumableStreamContext({ waitUntil: after });
-  } catch {
-    return null;
-  }
-}
-
-export { getStreamContext };
 
 export async function POST(request: Request) {
   let requestBody: PostRequestBody;
@@ -78,221 +43,109 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { id, message, messages, selectedChatModel, selectedVisibilityType } =
-      requestBody;
-
-    const [botIdResult, session] = await Promise.all([
-      checkBotId().catch(() => null),
-      auth(),
-    ]);
-
-    if (botIdResult?.isBot) {
-      return new ChatbotError("forbidden:api").toResponse();
-    }
+    const { message, messages, selectedChatModel, entrevistaId } = requestBody;
+    const session = await auth();
 
     if (!session?.user) {
       return new ChatbotError("unauthorized:chat").toResponse();
+    }
+
+    if (session.user.role === "comite") {
+      return new ChatbotError("forbidden:chat").toResponse();
     }
 
     const chatModel = allowedModelIds.has(selectedChatModel)
       ? selectedChatModel
       : DEFAULT_CHAT_MODEL;
 
-    await checkIpRateLimit(ipAddress(request));
+    const entrevista = await resolveEntrevista(entrevistaId);
+    if (!entrevista) {
+      return new ChatbotError(
+        "bad_request:api",
+        "No hay entrevista abierta para este usuario"
+      ).toResponse();
+    }
 
-    const userType: UserType = session.user.type;
+    if (!(await canWriteEntrevista(entrevista))) {
+      return new ChatbotError(
+        "forbidden:chat",
+        "Solo puedes responder tu propia entrevista"
+      ).toResponse();
+    }
 
-    const messageCount = await getMessageCountByUserId({
-      differenceInHours: 1,
-      id: session.user.id,
+    if (entrevista.estado !== "abierta") {
+      return new ChatbotError(
+        "bad_request:api",
+        "La entrevista ya está completada"
+      ).toResponse();
+    }
+
+    let uiMessages: ChatMessage[] = [];
+
+    if (messages && messages.length > 0) {
+      uiMessages = messages as ChatMessage[];
+    } else if (message) {
+      uiMessages = [message as ChatMessage];
+    }
+
+    if (
+      message &&
+      !uiMessages.some((existing) => existing.id === message.id)
+    ) {
+      uiMessages = [...uiMessages, message as ChatMessage];
+    }
+
+    // Written before the model runs so a failed turn still counts as activity.
+    await registrarTurnosEntrevista({
+      entrevistaId: entrevista.id,
+      turnos: mensajesATurnos(uiMessages),
     });
-
-    if (messageCount > entitlementsByUserType[userType].maxMessagesPerHour) {
-      return new ChatbotError("rate_limit:chat").toResponse();
-    }
-
-    const isToolApprovalFlow = Boolean(messages);
-
-    const chat = await getChatById({ id });
-    let messagesFromDb: DBMessage[] = [];
-    let titlePromise: Promise<string> | null = null;
-
-    if (chat) {
-      if (chat.userId !== session.user.id) {
-        return new ChatbotError("forbidden:chat").toResponse();
-      }
-      messagesFromDb = await getMessagesByChatId({ id });
-    } else if (message?.role === "user") {
-      await saveChat({
-        id,
-        title: "New chat",
-        userId: session.user.id,
-        visibility: selectedVisibilityType,
-      });
-      titlePromise = generateTitleFromUserMessage({ message });
-    }
-
-    let uiMessages: ChatMessage[];
-
-    if (isToolApprovalFlow && messages) {
-      const dbMessages = convertToUIMessages(messagesFromDb);
-      const approvalStates = new Map(
-        messages.flatMap(
-          (m) =>
-            m.parts
-              ?.filter(
-                (p: Record<string, unknown>) =>
-                  p.state === "approval-responded" ||
-                  p.state === "output-denied"
-              )
-              .map((p: Record<string, unknown>) => [
-                String(p.toolCallId ?? ""),
-                p,
-              ]) ?? []
-        )
-      );
-      uiMessages = dbMessages.map((msg) => ({
-        ...msg,
-        parts: msg.parts.map((part) => {
-          if (
-            "toolCallId" in part &&
-            approvalStates.has(String(part.toolCallId))
-          ) {
-            return { ...part, ...approvalStates.get(String(part.toolCallId)) };
-          }
-          return part;
-        }),
-      })) as ChatMessage[];
-    } else {
-      uiMessages = [
-        ...convertToUIMessages(messagesFromDb),
-        message as ChatMessage,
-      ];
-    }
-
-    const { longitude, latitude, city, country } = geolocation(request);
-
-    const requestHints: RequestHints = {
-      city,
-      country,
-      latitude,
-      longitude,
-    };
-
-    if (message?.role === "user") {
-      await saveMessages({
-        messages: [
-          {
-            attachments: [],
-            chatId: id,
-            createdAt: new Date(),
-            id: message.id,
-            parts: message.parts,
-            role: "user",
-          },
-        ],
-      });
-    }
 
     const modelConfig = chatModels.find((m) => m.id === chatModel);
     const modelCapabilities = await getCapabilities();
     const capabilities = modelCapabilities[chatModel];
     const isReasoningModel = capabilities?.reasoning === true;
-    const supportsTools = capabilities?.tools === true;
-
-    const modelMessages = await convertToModelMessages(uiMessages);
+    // The portal opens the interview with no user turn: the agent speaks
+    // first. This opener is never persisted to the transcript.
+    const modelMessages =
+      uiMessages.length > 0
+        ? await convertToModelMessages(uiMessages)
+        : [
+            {
+              content:
+                "Estoy listo para comenzar. Preséntate, salúdame y haz la primera pregunta.",
+              role: "user" as const,
+            },
+          ];
 
     const stream = createUIMessageStream({
       execute: async ({ writer: dataStream }) => {
-        const modelName = modelConfig?.name ?? chatModel;
-        let hasModelActivity = false;
-        let healthCheckTimer: ReturnType<typeof setTimeout> | undefined;
-
-        const clearHealthCheckTimer = () => {
-          if (healthCheckTimer) {
-            clearTimeout(healthCheckTimer);
-          }
-        };
-
-        const writeWaitingStatus = (
-          phase: WaitingStatusData["phase"],
-          messageText: string
-        ) => {
-          if (hasModelActivity && phase !== "thinking") {
-            return;
-          }
-          dataStream.write({
-            data: {
-              message: messageText,
-              modelId: chatModel,
-              modelName,
-              phase,
-            },
-            transient: true,
-            type: "data-waiting-status",
-          });
-        };
-
-        writeWaitingStatus("waiting", "Waiting...");
-
-        healthCheckTimer = setTimeout(() => {
-          getModelAvailability(chatModel)
-            .then((availability) => {
-              if (availability === "impacted") {
-                writeWaitingStatus(
-                  "health",
-                  `${modelName} may be slow or unavailable right now...`
-                );
-              } else {
-                writeWaitingStatus("still-waiting", "Still waiting...");
-              }
-            })
-            .catch(() => {
-              writeWaitingStatus("still-waiting", "Still waiting...");
-            });
-        }, HEALTH_CHECK_DELAY_MS);
-
-        const markModelActive = () => {
-          if (hasModelActivity) {
-            return;
-          }
-          hasModelActivity = true;
-          clearHealthCheckTimer();
-          writeWaitingStatus("thinking", "Thinking...");
-        };
-
-        const stopWaitingStatus = () => {
-          hasModelActivity = true;
-          clearHealthCheckTimer();
-        };
-
         const result = streamText({
-          activeTools:
-            isReasoningModel && !supportsTools
-              ? []
-              : [
-                  "getWeather",
-                  "createDocument",
-                  "editDocument",
-                  "updateDocument",
-                  "requestSuggestions",
-                ],
-          instructions: systemPrompt({ requestHints, supportsTools }),
+          activeTools: ["finalizarEntrevista"],
+          instructions: interviewSystemPrompt({
+            firmaEntrevistado: entrevista.stakeholder_firma,
+            nombreEntrevistado: entrevista.stakeholder_nombre,
+            preguntas: entrevista.preguntas,
+            reanudacion: uiMessages.length > 0,
+          }),
           messages: modelMessages,
           model: getLanguageModel(chatModel),
-          onAbort() {
-            stopWaitingStatus();
-          },
-          onChunk({ chunk }) {
-            if (isModelStreamActivity(chunk)) {
-              markModelActive();
-            }
-          },
-          onEnd() {
-            stopWaitingStatus();
-          },
-          onError() {
-            stopWaitingStatus();
+          onEnd: async ({ steps }) => {
+            await registrarTurnosEntrevista({
+              entrevistaId: entrevista.id,
+              turnos: steps.flatMap((step) => {
+                const texto = step.text.trim();
+                return texto
+                  ? [
+                      {
+                        at: new Date().toISOString(),
+                        rol: "entrevistador" as const,
+                        texto,
+                      },
+                    ]
+                  : [];
+              }),
+            });
           },
           providerOptions: {
             ...(modelConfig?.gatewayOrder && {
@@ -302,28 +155,58 @@ export async function POST(request: Request) {
               openai: { reasoningEffort: modelConfig.reasoningEffort },
             }),
           },
-          stopWhen: isStepCount(5),
+          stopWhen: isStepCount(8),
           telemetry: {
-            functionId: "stream-text",
+            functionId: "entrevista-guiada",
             isEnabled: isProductionEnvironment,
           },
           tools: {
-            createDocument: createDocument({
-              dataStream,
-              modelId: chatModel,
-              session,
-            }),
-            editDocument: editDocument({ dataStream, session }),
-            getWeather,
-            requestSuggestions: requestSuggestions({
-              dataStream,
-              modelId: chatModel,
-              session,
-            }),
-            updateDocument: updateDocument({
-              dataStream,
-              modelId: chatModel,
-              session,
+            finalizarEntrevista: tool({
+              description:
+                "Cierra la entrevista cuando todos los temas guía estén cubiertos. Genera un resumen estructurado y las respuestas por pregunta.",
+              execute: async ({ resumen, respuestas }) => {
+                await guardarRespuestasEntrevista({
+                  entrevistaId: entrevista.id,
+                  resumen: { ...resumen, respuestas },
+                  respuestas,
+                });
+                dataStream.write({
+                  data: {
+                    entrevistaId: entrevista.id,
+                    resumen: resumen.sintesis,
+                  },
+                  type: "data-entrevista-completada",
+                });
+                return {
+                  ok: true,
+                  message:
+                    "Entrevista guardada. Gracias por tu tiempo.",
+                };
+              },
+              inputSchema: z.object({
+                resumen: z
+                  .object({
+                    hallazgos: z
+                      .array(z.string())
+                      .describe(
+                        "Hallazgos concretos, uno por punto, en orden de relevancia"
+                      ),
+                    sintesis: z
+                      .string()
+                      .describe("Síntesis ejecutiva de la conversación"),
+                  })
+                  .describe("Resumen estructurado de la entrevista"),
+                respuestas: z
+                  .array(
+                    z.object({
+                      pregunta: z.string(),
+                      respuesta_texto: z.string(),
+                    })
+                  )
+                  .describe(
+                    "Una entrada por cada pregunta guía cubierta, con la síntesis de lo respondido"
+                  ),
+              }),
             }),
           },
         });
@@ -334,137 +217,24 @@ export async function POST(request: Request) {
             stream: result.stream,
           })
         );
-
-        if (titlePromise) {
-          try {
-            const title = await titlePromise;
-            dataStream.write({ data: title, type: "data-chat-title" });
-            updateChatTitleById({ chatId: id, title });
-          } catch {
-            /* non-fatal */
-          }
-        }
       },
       generateId: generateUUID,
-      onEnd: async ({ messages: finishedMessages }) => {
-        if (isToolApprovalFlow) {
-          await Promise.all(
-            finishedMessages.map(async (finishedMsg) => {
-              const existingMsg = uiMessages.find(
-                (m) => m.id === finishedMsg.id
-              );
-              if (existingMsg) {
-                await updateMessage({
-                  id: finishedMsg.id,
-                  parts: finishedMsg.parts,
-                });
-                return;
-              }
-
-              await saveMessages({
-                messages: [
-                  {
-                    attachments: [],
-                    chatId: id,
-                    createdAt: new Date(),
-                    id: finishedMsg.id,
-                    parts: finishedMsg.parts,
-                    role: finishedMsg.role,
-                  },
-                ],
-              });
-            })
-          );
-        } else if (finishedMessages.length > 0) {
-          await saveMessages({
-            messages: finishedMessages.map((currentMessage) => ({
-              attachments: [],
-              chatId: id,
-              createdAt: new Date(),
-              id: currentMessage.id,
-              parts: currentMessage.parts,
-              role: currentMessage.role,
-            })),
-          });
-        }
-      },
       onError: (error) => {
-        if (
-          error instanceof Error &&
-          error.message?.includes(
-            "AI Gateway requires a valid credit card on file to service requests"
-          )
-        ) {
-          return "AI Gateway requires a valid credit card on file to service requests. Please visit https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai%3Fmodal%3Dadd-credit-card to add a card and unlock your free credits.";
-        }
-        return "Oops, an error occurred!";
+        console.error("entrevista chat error", error);
+        return "Error en la entrevista";
       },
-      originalMessages: isToolApprovalFlow ? uiMessages : undefined,
     });
 
-    return createUIMessageStreamResponse({
-      async consumeSseStream({ stream: sseStream }) {
-        if (!process.env.REDIS_URL) {
-          return;
-        }
-        try {
-          const streamContext = getStreamContext();
-          if (streamContext) {
-            const streamId = generateId();
-            await createStreamId({ chatId: id, streamId });
-            await streamContext.createNewResumableStream(
-              streamId,
-              () => sseStream
-            );
-          }
-        } catch {
-          /* non-critical */
-        }
-      },
-      stream,
-    });
+    return createUIMessageStreamResponse({ stream });
   } catch (error) {
-    const vercelId = request.headers.get("x-vercel-id");
-
+    console.error(error);
     if (error instanceof ChatbotError) {
       return error.toResponse();
     }
-
-    if (
-      error instanceof Error &&
-      error.message?.includes(
-        "AI Gateway requires a valid credit card on file to service requests"
-      )
-    ) {
-      return new ChatbotError("bad_request:activate_gateway").toResponse();
-    }
-
-    console.error("Unhandled error in chat API:", error, { vercelId });
     return new ChatbotError("offline:chat").toResponse();
   }
 }
 
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-
-  if (!id) {
-    return new ChatbotError("bad_request:api").toResponse();
-  }
-
-  const session = await auth();
-
-  if (!session?.user) {
-    return new ChatbotError("unauthorized:chat").toResponse();
-  }
-
-  const chat = await getChatById({ id });
-
-  if (chat?.userId !== session.user.id) {
-    return new ChatbotError("forbidden:chat").toResponse();
-  }
-
-  const deletedChat = await deleteChatById({ id });
-
-  return Response.json(deletedChat, { status: 200 });
+export async function DELETE() {
+  return new Response("Method not needed for interview MVP", { status: 405 });
 }

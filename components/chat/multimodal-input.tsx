@@ -8,6 +8,8 @@ import {
   BrainIcon,
   EyeIcon,
   LockIcon,
+  MicIcon,
+  SquareIcon,
   WrenchIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -64,6 +66,13 @@ import {
 import { SuggestedActions } from "./suggested-actions";
 import type { VisibilityType } from "./visibility-selector";
 
+function placeholderTexto(esEntrevista: boolean | undefined, editando: boolean) {
+  if (esEntrevista) {
+    return editando ? "Editar tu mensaje…" : "Escribe tu respuesta…";
+  }
+  return editando ? "Edit your message..." : "Ask anything...";
+}
+
 function setCookie(name: string, value: string) {
   const maxAge = 60 * 60 * 24 * 365;
   // biome-ignore lint/suspicious/noDocumentCookie: needed for client-side cookie setting
@@ -72,6 +81,7 @@ function setCookie(name: string, value: string) {
 
 function PureMultimodalInput({
   chatId,
+  esEntrevista,
   input,
   setInput,
   status,
@@ -90,6 +100,7 @@ function PureMultimodalInput({
   isLoading,
 }: {
   chatId: string;
+  esEntrevista?: boolean;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
   status: UseChatHelpers<ChatMessage>["status"];
@@ -146,13 +157,105 @@ function PureMultimodalInput({
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState("");
   const [slashIndex, setSlashIndex] = useState(0);
+  const [voiceState, setVoiceState] = useState<
+    "idle" | "recording" | "transcribing"
+  >("idle");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const stopVoiceRecording = useCallback(async () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      setVoiceState("idle");
+      return;
+    }
+    recorder.stop();
+  }, []);
+
+  const startVoiceRecording = useCallback(async () => {
+    if (voiceState !== "idle") {
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        setVoiceState("transcribing");
+        try {
+          const blob = new Blob(audioChunksRef.current, { type: mimeType });
+          const formData = new FormData();
+          formData.append(
+            "audio",
+            new File([blob], `voice.${mimeType.includes("webm") ? "webm" : "m4a"}`, {
+              type: mimeType,
+            })
+          );
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/transcribe`,
+            { body: formData, method: "POST" }
+          );
+          const json = (await response.json()) as {
+            text?: string;
+            error?: string;
+          };
+          if (!response.ok) {
+            throw new Error(json.error ?? "Error al transcribir");
+          }
+          const text = (json.text ?? "").trim();
+          if (text) {
+            setInput((prev) => (prev ? `${prev.trim()} ${text}` : text));
+            textareaRef.current?.focus();
+          }
+        } catch (error) {
+          toast.error(
+            error instanceof Error ? error.message : "No se pudo transcribir"
+          );
+        } finally {
+          setVoiceState("idle");
+          mediaRecorderRef.current = null;
+          audioChunksRef.current = [];
+        }
+      };
+
+      recorder.start();
+      setVoiceState("recording");
+    } catch {
+      toast.error("No se pudo acceder al micrófono");
+      setVoiceState("idle");
+    }
+  }, [setInput, voiceState]);
+
+  const toggleVoiceRecording = useCallback(() => {
+    if (voiceState === "recording") {
+      void stopVoiceRecording();
+      return;
+    }
+    if (voiceState === "idle") {
+      void startVoiceRecording();
+    }
+  }, [startVoiceRecording, stopVoiceRecording, voiceState]);
 
   const handleInput = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
       const val = event.target.value;
       setInput(val);
 
-      if (val.startsWith("/") && !val.includes(" ")) {
+      if (!esEntrevista && val.startsWith("/") && !val.includes(" ")) {
         setSlashOpen(true);
         setSlashQuery(val.slice(1));
         setSlashIndex(0);
@@ -160,7 +263,7 @@ function PureMultimodalInput({
         setSlashOpen(false);
       }
     },
-    [setInput]
+    [esEntrevista, setInput]
   );
 
   const handleSlashSelect = useCallback(
@@ -458,19 +561,18 @@ function PureMultimodalInput({
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
       {editingMessage && onCancelEdit ? (
         <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-          <span>Editing message</span>
+          <span>{esEntrevista ? "Editando mensaje" : "Editing message"}</span>
           <button
             className="rounded px-1.5 py-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
             onMouseDown={handleCancelEditMouseDown}
             type="button"
           >
-            Cancel
+            {esEntrevista ? "Cancelar" : "Cancel"}
           </button>
         </div>
       ) : null}
 
-      {!editingMessage &&
-        !isLoading &&
+      {!(editingMessage || isLoading || esEntrevista) &&
         messages.length === 0 &&
         attachments.length === 0 &&
         uploadQueue.length === 0 && (
@@ -537,23 +639,56 @@ function PureMultimodalInput({
           data-testid="multimodal-input"
           onChange={handleInput}
           onKeyDown={handleTextareaKeyDown}
-          placeholder={
-            editingMessage ? "Edit your message..." : "Ask anything..."
-          }
+          placeholder={placeholderTexto(esEntrevista, Boolean(editingMessage))}
           ref={textareaRef}
           value={input}
         />
         <PromptInputFooter className="px-3 pb-3">
           <PromptInputTools>
-            <AttachmentsButton
-              fileInputRef={fileInputRef}
-              selectedModelId={selectedModelId}
-              status={status}
-            />
-            <ModelSelectorCompact
-              onModelChange={onModelChange}
-              selectedModelId={selectedModelId}
-            />
+            {esEntrevista ? null : (
+              <AttachmentsButton
+                fileInputRef={fileInputRef}
+                selectedModelId={selectedModelId}
+                status={status}
+              />
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  className={cn(
+                    "h-7 w-7 rounded-xl",
+                    voiceState === "recording" && "bg-red-500/15 text-red-500",
+                    voiceState === "transcribing" && "opacity-60"
+                  )}
+                  disabled={
+                    status !== "ready" || voiceState === "transcribing"
+                  }
+                  onClick={toggleVoiceRecording}
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                >
+                  {voiceState === "recording" ? (
+                    <SquareIcon className="size-3.5" />
+                  ) : (
+                    <MicIcon className="size-3.5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {voiceState === "recording"
+                  ? "Detener y transcribir"
+                  : voiceState === "transcribing"
+                    ? "Transcribiendo..."
+                    : "Dictar por voz"}
+              </TooltipContent>
+            </Tooltip>
+            {esEntrevista ? null : (
+              <ModelSelectorCompact
+                onModelChange={onModelChange}
+                selectedModelId={selectedModelId}
+              />
+            )}
           </PromptInputTools>
 
           {status === "submitted" ? (
@@ -602,6 +737,9 @@ export const MultimodalInput = memo(
       return false;
     }
     if (prevProps.isLoading !== nextProps.isLoading) {
+      return false;
+    }
+    if (prevProps.esEntrevista !== nextProps.esEntrevista) {
       return false;
     }
     if (prevProps.messages.length !== nextProps.messages.length) {

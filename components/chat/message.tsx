@@ -22,9 +22,10 @@ import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
 
-function WaitingText() {
+function WaitingText({ esEntrevista }: { esEntrevista?: boolean }) {
   const { waitingStatus } = useDataStream();
-  const waitingText = waitingStatus?.message ?? "Waiting...";
+  const fallback = esEntrevista ? "Pensando…" : "Waiting...";
+  const waitingText = waitingStatus?.message ?? fallback;
 
   return (
     <div className="flex min-h-[calc(13px*1.65)] min-w-0 items-center text-[13px] leading-[1.65]">
@@ -84,6 +85,7 @@ function ToolApprovalActions({
 const PurePreviewMessage = ({
   addToolApprovalResponse,
   chatId,
+  esEntrevista,
   message,
   vote,
   isLoading,
@@ -95,6 +97,7 @@ const PurePreviewMessage = ({
 }: {
   addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
   chatId: string;
+  esEntrevista?: boolean;
   message: ChatMessage;
   vote: Vote | undefined;
   isLoading: boolean;
@@ -344,6 +347,7 @@ const PurePreviewMessage = ({
   const actions = !isReadonly && (
     <MessageActions
       chatId={chatId}
+      esEntrevista={esEntrevista}
       isLoading={isLoading}
       key={`action-${message.id}`}
       message={message}
@@ -353,7 +357,7 @@ const PurePreviewMessage = ({
   );
 
   const content = isThinking ? (
-    <WaitingText />
+    <WaitingText esEntrevista={esEntrevista} />
   ) : (
     <>
       {attachments}
@@ -395,7 +399,11 @@ const PurePreviewMessage = ({
 
 export const PreviewMessage = PurePreviewMessage;
 
-export const ThinkingMessage = () => (
+export const ThinkingMessage = ({
+  esEntrevista,
+}: {
+  esEntrevista?: boolean;
+}) => (
   <div
     className="group/message w-full"
     data-role="assistant"
@@ -408,7 +416,7 @@ export const ThinkingMessage = () => (
         </div>
       </div>
 
-      <WaitingText />
+      <WaitingText esEntrevista={esEntrevista} />
     </div>
   </div>
 );

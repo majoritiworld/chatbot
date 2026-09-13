@@ -1,99 +1,43 @@
-import { compare } from "bcrypt-ts";
-import NextAuth, { type DefaultSession } from "next-auth";
-import type { DefaultJWT } from "next-auth/jwt";
-import Credentials from "next-auth/providers/credentials";
-import { DUMMY_PASSWORD } from "@/lib/constants";
-import { createGuestUser, getUser } from "@/lib/db/queries";
-import { authConfig } from "./auth.config";
+import type { UserRole } from "@/lib/supabase/types";
+import { getUsuarioPerfil } from "@/lib/consultoria/entrevistas";
 
+/** Kept for template entitlements compatibility. Authenticated users are "regular". */
 export type UserType = "guest" | "regular";
 
-declare module "next-auth" {
-  interface Session extends DefaultSession {
-    user: {
-      id: string;
-      type: UserType;
-    } & DefaultSession["user"];
-  }
-
-  interface User {
-    email?: string | null;
-    id?: string;
-    type: UserType;
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT extends DefaultJWT {
+export type AppSession = {
+  user: {
     id: string;
+    email?: string | null;
+    name?: string | null;
     type: UserType;
+    /** Null until Majoriti assigns a profile; treated as no access. */
+    role: UserRole | null;
+  };
+};
+
+export async function auth(): Promise<AppSession | null> {
+  const context = await getUsuarioPerfil();
+  if (!context?.user) {
+    return null;
   }
+
+  return {
+    user: {
+      id: context.user.id,
+      email: context.user.email,
+      name: context.perfil?.nombre ?? context.user.email ?? null,
+      type: "regular",
+      role: context.rol,
+    },
+  };
 }
 
-export const {
-  handlers: { GET, POST },
-  auth,
-  signIn,
-  signOut,
-} = NextAuth({
-  ...authConfig,
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) {
-        token.id = user.id as string;
-        token.type = user.type;
-      }
-
-      return token;
-    },
-    session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id;
-        session.user.type = token.type;
-      }
-
-      return session;
-    },
-  },
-  providers: [
-    Credentials({
-      async authorize(credentials) {
-        const email = String(credentials.email ?? "");
-        const password = String(credentials.password ?? "");
-        const users = await getUser(email);
-
-        if (users.length === 0) {
-          await compare(password, DUMMY_PASSWORD);
-          return null;
-        }
-
-        const [user] = users;
-
-        if (!user.password) {
-          await compare(password, DUMMY_PASSWORD);
-          return null;
-        }
-
-        const passwordsMatch = await compare(password, user.password);
-
-        if (!passwordsMatch) {
-          return null;
-        }
-
-        return { ...user, type: "regular" };
-      },
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-    }),
-    Credentials({
-      async authorize() {
-        const [guestUser] = await createGuestUser();
-        return { ...guestUser, type: "guest" };
-      },
-      credentials: {},
-      id: "guest",
-    }),
-  ],
-});
+export async function signOut() {
+  const { borrarCookiesImpersonacion } = await import(
+    "@/lib/consultoria/impersonar"
+  );
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  await borrarCookiesImpersonacion();
+}

@@ -1,11 +1,11 @@
-export const DEFAULT_CHAT_MODEL = "moonshotai/kimi-k2.5";
+export const DEFAULT_CHAT_MODEL = "xai/grok-4.1-fast-non-reasoning";
 
 export const titleModel = {
   description: "Fast model for title generation",
-  gatewayOrder: ["fireworks", "bedrock"],
-  id: "moonshotai/kimi-k2.5",
-  name: "Kimi K2.5",
-  provider: "moonshotai",
+  gatewayOrder: ["xai"],
+  id: "xai/grok-4.1-fast-non-reasoning",
+  name: "Grok 4.1 Fast",
+  provider: "xai",
 };
 
 export type ModelCapabilities = {

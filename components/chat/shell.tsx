@@ -29,6 +29,7 @@ import { MultimodalInput } from "./multimodal-input";
 export function ChatShell() {
   const {
     chatId,
+    esEntrevista,
     messages,
     setMessages,
     sendMessage,
@@ -52,7 +53,8 @@ export function ChatShell() {
     null
   );
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
+  const artifactVisible = useArtifactSelector((state) => state.isVisible);
+  const isArtifactVisible = artifactVisible && !esEntrevista;
   const { setArtifact } = useArtifact();
 
   const stopRef = useRef(stop);
@@ -112,23 +114,38 @@ export function ChatShell() {
 
   return (
     <>
-      <div className="flex h-dvh w-full flex-row overflow-hidden">
+      <div
+        className={cn(
+          "flex w-full flex-row overflow-hidden",
+          esEntrevista ? "h-full" : "h-dvh"
+        )}
+      >
         <div
           className={cn(
-            "flex min-w-0 flex-col bg-sidebar transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+            "flex min-w-0 flex-col transition-[width] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+            !esEntrevista && "bg-sidebar",
             isArtifactVisible ? "w-[40%]" : "w-full"
           )}
         >
-          <ChatHeader
-            chatId={chatId}
-            isReadonly={isReadonly}
-            selectedVisibilityType={visibilityType}
-          />
+          {esEntrevista ? null : (
+            <ChatHeader
+              chatId={chatId}
+              isReadonly={isReadonly}
+              selectedVisibilityType={visibilityType}
+            />
+          )}
 
-          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background md:rounded-tl-[12px] md:border-t md:border-l md:border-border/40">
+          <div
+            className={cn(
+              "relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+              !esEntrevista &&
+                "md:rounded-tl-[12px] md:border-t md:border-l md:border-border/40"
+            )}
+          >
             <Messages
               addToolApprovalResponse={addToolApprovalResponse}
               chatId={chatId}
+              esEntrevista={esEntrevista}
               isArtifactVisible={isArtifactVisible}
               isLoading={isLoading}
               isReadonly={isReadonly}
@@ -141,12 +158,18 @@ export function ChatShell() {
               votes={votes}
             />
 
-            <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
+            <div
+              className={cn(
+                "sticky bottom-0 z-1 mx-auto flex w-full gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4",
+                esEntrevista ? "max-w-[760px]" : "max-w-4xl"
+              )}
+            >
               {!isReadonly && (
                 <MultimodalInput
                   attachments={attachments}
                   chatId={chatId}
                   editingMessage={editingMessage}
+                  esEntrevista={esEntrevista}
                   input={input}
                   isLoading={isLoading}
                   messages={messages}
@@ -168,24 +191,26 @@ export function ChatShell() {
           </div>
         </div>
 
-        <Artifact
-          addToolApprovalResponse={addToolApprovalResponse}
-          attachments={attachments}
-          chatId={chatId}
-          input={input}
-          isReadonly={isReadonly}
-          messages={messages}
-          regenerate={regenerate}
-          selectedModelId={currentModelId}
-          selectedVisibilityType={visibilityType}
-          sendMessage={sendMessage}
-          setAttachments={setAttachments}
-          setInput={setInput}
-          setMessages={setMessages}
-          status={status}
-          stop={stop}
-          votes={votes}
-        />
+        {esEntrevista ? null : (
+          <Artifact
+            addToolApprovalResponse={addToolApprovalResponse}
+            attachments={attachments}
+            chatId={chatId}
+            input={input}
+            isReadonly={isReadonly}
+            messages={messages}
+            regenerate={regenerate}
+            selectedModelId={currentModelId}
+            selectedVisibilityType={visibilityType}
+            sendMessage={sendMessage}
+            setAttachments={setAttachments}
+            setInput={setInput}
+            setMessages={setMessages}
+            status={status}
+            stop={stop}
+            votes={votes}
+          />
+        )}
       </div>
 
       <DataStreamHandler />
