@@ -21,7 +21,7 @@ const emailSchema = z.object({
 });
 
 const codigoSchema = z.object({
-  codigo: z.string().regex(/^\d{6}$/),
+  codigo: z.string().regex(/^\d{8}$/),
   email: z.string().email(),
 });
 
@@ -46,7 +46,7 @@ function esLimiteDeEnvios(error: { status?: number; message: string }) {
 }
 
 /**
- * Step 1: mail a 6-digit sign-in code to an invited address.
+ * Step 1: mail an 8-digit sign-in code to an invited address.
  *
  * The Magic Link template in the Supabase dashboard must contain
  * `{{ .Token }}` and must not contain `{{ .ConfirmationURL }}`. A link in
@@ -121,7 +121,7 @@ export async function verificarCodigo(
   if (!parsed.success) {
     return {
       email: normalizarEmail(emailRaw),
-      message: "El código tiene 6 dígitos",
+      message: "El código tiene 8 dígitos",
       status: "invalid_data",
     };
   }

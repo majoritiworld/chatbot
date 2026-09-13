@@ -20,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const CODIGO_LARGO = 6;
+/** Must match Authentication → Settings → Mailer OTP Length in Supabase. */
+const CODIGO_LARGO = 8;
 const ESPERA_REENVIO_S = 60;
 const initialState: AuthActionState = { status: "idle" };
 
@@ -167,7 +168,7 @@ export function LoginForm({
               inputMode="numeric"
               name="codigo"
               onChange={handleCodigoChange}
-              placeholder="······"
+              placeholder="········"
               value={codigo}
             />
           </div>

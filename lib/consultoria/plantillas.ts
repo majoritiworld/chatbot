@@ -146,9 +146,9 @@ async function mapLotes<T, R>(
     return [];
   }
 
-  const hechos = await Promise.all(items.slice(0, size).map(fn));
-  const resto = await mapLotes(items.slice(size), size, fn);
-  return hechos.concat(resto);
+  const hechos: R[] = await Promise.all(items.slice(0, size).map(fn));
+  const resto: R[] = await mapLotes(items.slice(size), size, fn);
+  return [...hechos, ...resto];
 }
 
 export type ResultadoEnvioPlantilla = {
