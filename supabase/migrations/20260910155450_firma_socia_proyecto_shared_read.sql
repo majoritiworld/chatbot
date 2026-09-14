@@ -1,6 +1,3 @@
--- Applied via Supabase MCP (firma_socia_proyecto_shared_read).
--- Source of truth mirror for local reference.
---
 -- firma_socia: read project/phases/tasks by usuario.proyecto_id OR email match
 -- (keeps Ana/ACME working). Shared SELECT on stakeholder + entrevista within
 -- the project; writes remain own-stakeholder only.
@@ -73,6 +70,7 @@ CREATE POLICY entrevista_firma_select ON public.entrevista
     )
   );
 
+-- UPDATE stays own-only (policies already correct; reassert for clarity)
 DROP POLICY IF EXISTS entrevista_firma_update ON public.entrevista;
 CREATE POLICY entrevista_firma_update ON public.entrevista
   FOR UPDATE

@@ -1,8 +1,4 @@
--- Applied via Supabase MCP (entrevista_plantilla).
--- Source of truth mirror for local reference.
---
--- The interview skill lives once per project/phase. Sending it clones
--- `entrevista` rows (snapshot of preguntas) and invites each recipient.
+-- Agentic interview template: one skill per project/phase, cloned per recipient.
 
 CREATE TABLE public.entrevista_plantilla (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

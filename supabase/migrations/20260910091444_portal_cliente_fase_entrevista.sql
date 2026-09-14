@@ -1,6 +1,3 @@
--- Applied via Supabase MCP (portal_cliente_fase_entrevista).
--- Source of truth mirror for local reference.
-
 -- Link a Fase to an Entrevista through its Tarea.
 ALTER TABLE public.tarea
   ADD COLUMN IF NOT EXISTS tipo text NOT NULL DEFAULT 'general',

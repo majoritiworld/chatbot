@@ -1,6 +1,4 @@
--- Applied via Supabase MCP (entrevista_onboarding_consentimiento).
 -- Stamp when the respondent accepted the interview onboarding.
-
 ALTER TABLE public.entrevista
   ADD COLUMN IF NOT EXISTS consentimiento_en timestamptz;
 

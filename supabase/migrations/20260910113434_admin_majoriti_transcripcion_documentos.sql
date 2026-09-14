@@ -1,6 +1,3 @@
--- Applied via Supabase MCP (admin_majoriti_transcripcion_documentos,
--- admin_majoriti_storage_documentos). Source of truth mirror for local reference.
-
 -- Interview transcript + structured summary + activity clock.
 ALTER TABLE public.entrevista
   ADD COLUMN IF NOT EXISTS transcripcion jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -31,19 +28,3 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.fase;
   END IF;
 END $$;
-
--- Private bucket for phase documents. Access is always through signed URLs.
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('documentos', 'documentos', false)
-ON CONFLICT (id) DO NOTHING;
-
-DROP POLICY IF EXISTS documentos_majoriti_all ON storage.objects;
-CREATE POLICY documentos_majoriti_all ON storage.objects
-  FOR ALL
-  TO authenticated
-  USING (bucket_id = 'documentos' AND public.is_majoriti())
-  WITH CHECK (bucket_id = 'documentos' AND public.is_majoriti());
-
--- Majoriti operator account.
-UPDATE public.usuario SET rol = 'majoriti'
-WHERE lower(email) = 'hello@majoriti.world';
