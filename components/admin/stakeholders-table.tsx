@@ -43,6 +43,16 @@ function badgeVariant(estado: string) {
   return "default" as const;
 }
 
+function etiquetaAcceso(rol: StakeholderAdmin["rolPortal"]) {
+  if (rol === "cliente") {
+    return "Cliente";
+  }
+  if (rol === "stakeholder") {
+    return "Stakeholder";
+  }
+  return "Sin cuenta";
+}
+
 export function StakeholdersTable({
   stakeholders,
   proyectoId,
@@ -65,6 +75,7 @@ export function StakeholdersTable({
         <TableRow>
           <TableHead>Nombre</TableHead>
           <TableHead>Firma</TableHead>
+          <TableHead>Acceso</TableHead>
           <TableHead>Estado</TableHead>
           <TableHead>Última actividad</TableHead>
           <TableHead />
@@ -89,6 +100,13 @@ export function StakeholdersTable({
             </TableCell>
             <TableCell className="text-muted-foreground">
               {row.firma ?? "—"}
+            </TableCell>
+            <TableCell>
+              <Badge
+                variant={row.rolPortal === "cliente" ? "default" : "outline"}
+              >
+                {etiquetaAcceso(row.rolPortal)}
+              </Badge>
             </TableCell>
             <TableCell>
               <Badge variant={badgeVariant(row.estadoEntrevista)}>

@@ -16,6 +16,7 @@ const ENTREVISTA_SELECT = `
   preguntas,
   estado,
   fecha_completada,
+  consentimiento_en,
   stakeholder:stakeholder_id ( id, nombre, firma, email )
 `;
 
@@ -32,6 +33,7 @@ type EntrevistaRow = {
   preguntas: unknown;
   estado: string;
   fecha_completada: string | null;
+  consentimiento_en: string | null;
   stakeholder?: StakeholderEmbed | StakeholderEmbed[];
 };
 
@@ -45,13 +47,14 @@ function asOne<T>(value: T | T[] | null | undefined): T | null {
 function toEntrevista(row: EntrevistaRow): Entrevista {
   const stakeholder = asOne(row.stakeholder);
   return {
-    id: row.id,
-    stakeholder_id: row.stakeholder_id,
-    preguntas: parsePreguntas(row.preguntas),
+    consentimiento_en: row.consentimiento_en,
     estado: row.estado,
     fecha_completada: row.fecha_completada,
-    stakeholder_nombre: stakeholder?.nombre ?? null,
+    id: row.id,
+    preguntas: parsePreguntas(row.preguntas),
     stakeholder_firma: stakeholder?.firma ?? null,
+    stakeholder_id: row.stakeholder_id,
+    stakeholder_nombre: stakeholder?.nombre ?? null,
   };
 }
 
@@ -74,9 +77,9 @@ export async function getUsuarioPerfil() {
   // No profile row means no role: assuming one would hand out portal access to
   // an account nobody invited.
   return {
-    user,
     perfil,
     rol: (perfil?.rol ?? null) as UserRole | null,
+    user,
   };
 }
 
@@ -396,9 +399,46 @@ export async function finalizarEntrevistaManual({
 
   await guardarRespuestasEntrevista({
     entrevistaId,
-    resumen,
     respuestas,
+    resumen,
   });
+
+  return { alreadyDone: false as const };
+}
+
+/**
+ * First visit of an empty interview: stamp consentimiento_en so onboarding
+ * does not show again, and the chat API will accept the kickoff.
+ */
+export async function aceptarConsentimientoEntrevista(entrevistaId: string) {
+  const entrevista = await resolveEntrevista(entrevistaId);
+
+  if (!entrevista) {
+    throw new Error("Entrevista no encontrada");
+  }
+
+  if (!(await canWriteEntrevista(entrevista))) {
+    throw new Error("No puedes empezar esta entrevista");
+  }
+
+  if (entrevista.estado === "completada") {
+    return { alreadyDone: true as const };
+  }
+
+  if (entrevista.consentimiento_en) {
+    return { alreadyDone: true as const };
+  }
+
+  const supabase = await createClient();
+  const ahora = new Date().toISOString();
+  const { error } = await supabase
+    .from("entrevista")
+    .update({ consentimiento_en: ahora })
+    .eq("id", entrevistaId);
+
+  if (error) {
+    throw error;
+  }
 
   return { alreadyDone: false as const };
 }

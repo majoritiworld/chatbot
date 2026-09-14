@@ -6,7 +6,7 @@ import {
   getEntrevistaIdByEmail,
   homePathForRol,
   isStakeholderRole,
-  stakeholderNeedsInterviewLanding,
+  resolveAuthLanding,
 } from "@/lib/consultoria/roles";
 
 /** Types Supabase can send us through an invite or sign-in mail. */
@@ -33,10 +33,11 @@ function rutaSegura(value: string | null) {
   return value;
 }
 
-async function landingPathForUser(
+async function landingForUser(
   supabase: ReturnType<typeof createServerClient>,
   userId: string,
-  email: string | null | undefined
+  email: string | null | undefined,
+  next: string | null
 ) {
   const { data: perfil } = await supabase
     .from("usuario")
@@ -48,7 +49,11 @@ async function landingPathForUser(
     ? await getEntrevistaIdByEmail(supabase, email)
     : null;
 
-  return homePathForRol(perfil?.rol, entrevistaId);
+  return resolveAuthLanding(
+    perfil?.rol,
+    next,
+    homePathForRol(perfil?.rol, entrevistaId)
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -102,9 +107,7 @@ export async function GET(request: NextRequest) {
     // profile carries the project before we decide where they belong.
     await ensureUsuarioPerfil(user);
 
-    const resolved = await landingPathForUser(supabase, user.id, user.email);
-    const landing =
-      next && !stakeholderNeedsInterviewLanding(next) ? next : resolved;
+    const landing = await landingForUser(supabase, user.id, user.email, next);
     const redirected = NextResponse.redirect(destino(landing));
 
     for (const cookie of response.cookies.getAll()) {

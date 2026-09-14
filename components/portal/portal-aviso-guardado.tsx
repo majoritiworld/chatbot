@@ -10,7 +10,20 @@ export function PortalAvisoGuardado() {
   const shown = useRef(false);
 
   useEffect(() => {
-    if (shown.current || searchParams.get("guardado") !== "1") {
+    if (shown.current) {
+      return;
+    }
+
+    if (searchParams.get("listo") === "1") {
+      shown.current = true;
+      toast.success(
+        "Entrevista enviada. Majoriti te contactará para continuar."
+      );
+      router.replace("/portal", { scroll: false });
+      return;
+    }
+
+    if (searchParams.get("guardado") !== "1") {
       return;
     }
 

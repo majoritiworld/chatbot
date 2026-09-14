@@ -88,6 +88,45 @@ export type CuentaAsegurada =
   | { ok: true; userId: string | null; creada: boolean }
   | { ok: false };
 
+type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>;
+
+async function confirmarAuthUser(admin: AdminClient, userId: string) {
+  const { data: existente } = await admin.auth.admin.getUserById(userId);
+
+  if (!existente.user || existente.user.email_confirmed_at) {
+    return;
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    email_confirm: true,
+  });
+
+  if (error) {
+    console.error("No se pudo confirmar la cuenta de acceso", error.message);
+  }
+}
+
+/**
+ * Invites used to leave the account unconfirmed. Asking for a code then sent
+ * Confirm signup (a link, no digits) instead of Magic Link with `{{ .Token }}`.
+ * Confirm silently so OTP is a real code — also covers people added before
+ * admin invites started confirming on the way in.
+ */
+async function confirmarCuentaParaCodigo(admin: AdminClient, email: string) {
+  const { data: perfil } = await admin
+    .from("usuario")
+    .select("id")
+    .ilike("email", patronEmail(email))
+    .maybeSingle();
+
+  if (!perfil) {
+    return null;
+  }
+
+  await confirmarAuthUser(admin, perfil.id);
+  return perfil.id;
+}
+
 /**
  * A stakeholder can exist without an Auth account, and `shouldCreateUser:false`
  * would then reject their code. Create the account up front — never touching
@@ -118,7 +157,8 @@ export async function ensureAuthUser({
   }
 
   if (esEmailExistente(error)) {
-    return { creada: false, ok: true, userId: null };
+    const userId = await confirmarCuentaParaCodigo(admin, email);
+    return { creada: false, ok: true, userId };
   }
 
   console.error("No se pudo preparar la cuenta de acceso", error.message);
@@ -257,14 +297,74 @@ async function asignarAccesoPortal({
   }
 }
 
+export type ResultadoRolPortal = { ok: true } | { ok: false; message: string };
+
+/**
+ * Changes cliente vs stakeholder on an existing portal account. Refuses
+ * Majoriti and comité so this cannot be used to escalate privileges.
+ */
+export async function cambiarRolPortal({
+  email,
+  rol,
+}: {
+  email: string;
+  rol: RolPortal;
+}): Promise<ResultadoRolPortal> {
+  const admin = createAdminClient();
+
+  if (!admin) {
+    return {
+      message: "No se pudo actualizar el acceso al portal.",
+      ok: false,
+    };
+  }
+
+  const { data: perfil } = await admin
+    .from("usuario")
+    .select("id, rol")
+    .ilike("email", patronEmail(normalizarEmail(email)))
+    .maybeSingle();
+
+  if (!perfil) {
+    return {
+      message:
+        "Todavía no tiene cuenta. Envíale la entrevista para darle acceso y luego cambia el rol.",
+      ok: false,
+    };
+  }
+
+  if (perfil.rol === "majoriti" || perfil.rol === "comite") {
+    return {
+      message: "Esa cuenta no se puede cambiar desde aquí.",
+      ok: false,
+    };
+  }
+
+  if (perfil.rol === rol) {
+    return { ok: true };
+  }
+
+  const { error } = await admin
+    .from("usuario")
+    .update({ rol })
+    .eq("id", perfil.id);
+
+  if (error) {
+    return { message: error.message, ok: false };
+  }
+
+  return { ok: true };
+}
+
 export type ResultadoInvitacion = {
   enviado: boolean;
   message: string;
 };
 
 /**
- * Sends the one-click invite mail and leaves the account ready. Failing to mail
- * never loses the stakeholder: they can always ask for a code at /login.
+ * Sends the one-click invite mail and confirms the account so a later code
+ * request uses Magic Link, not Confirm signup. Failing to mail never loses
+ * the stakeholder: they can always ask for a code at /login.
  */
 export async function invitarAlPortal({
   email,
@@ -294,6 +394,7 @@ export async function invitarAlPortal({
   });
 
   if (!error && data.user) {
+    await confirmarAuthUser(admin, data.user.id);
     await ensureUsuarioPerfil(data.user);
     await asignarAccesoPortal({
       email,
@@ -308,6 +409,7 @@ export async function invitarAlPortal({
   }
 
   if (error && esEmailExistente(error)) {
+    await ensureAuthUser({ email, nombre });
     await asignarAccesoPortal({ email, proyectoId, rol });
     return {
       enviado: false,

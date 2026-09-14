@@ -48,10 +48,12 @@ function esLimiteDeEnvios(error: { status?: number; message: string }) {
 /**
  * Step 1: mail an 8-digit sign-in code to an invited address.
  *
- * The Magic Link template in the Supabase dashboard must contain
- * `{{ .Token }}` and must not contain `{{ .ConfirmationURL }}`. A link in
- * that mail is prefetched by scanners, burns the OTP, and is what users
- * receive instead of the code. See supabase/email-templates/magic-link.html.
+ * The Magic Link *and* Confirm signup templates in the Supabase dashboard
+ * must contain `{{ .Token }}` and must not contain `{{ .ConfirmationURL }}`.
+ * A link in that mail is prefetched by scanners, burns the OTP, and is what
+ * users receive instead of the code. Invite leaves the account unconfirmed,
+ * so the first code request used to send Confirm signup — paste that
+ * template too. See supabase/email-templates/.
  *
  * Sent via the admin client so this request is not bound to PKCE cookies
  * from the browser that asked for the code.

@@ -1,10 +1,10 @@
 <!--
-  Dashboard > Authentication > Emails > Magic Link
+  Dashboard > Authentication > Emails > Confirm signup
   Subject: Tu código de acceso a Majoriti
 
-  Only {{ .Token }}. Do not add ConfirmationURL: scanners click that
-  link, burn the OTP, and the 8-digit code dies with it. Reset password
-  must use the same body (recovery.html).
+  Invited people are unconfirmed. Asking for a code then hits this template,
+  not Magic Link. Same rule as magic-link.html: only {{ .Token }}. A
+  ConfirmationURL is prefetched by scanners and burns the OTP.
 -->
 <h2>Tu código de acceso</h2>
 

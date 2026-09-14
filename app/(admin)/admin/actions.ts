@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdminUser } from "@/lib/consultoria/admin";
+import { cambiarRolPortal } from "@/lib/consultoria/auth";
 import { parseDestinatarios } from "@/lib/consultoria/destinatarios";
 import {
   construirArchivoTranscripcion,
@@ -333,6 +334,66 @@ export async function enviarPlantillaEntrevista(
   return {
     message: [mensajeResumenEnvio(resumen), avisos].filter(Boolean).join(" "),
     status: hechos === 0 && resumen.errores > 0 ? "error" : "success",
+  };
+}
+
+const cambiarRolSchema = z.object({
+  proyectoId: z.string().uuid("Proyecto inválido"),
+  rol: z.enum(ROLES_PORTAL),
+  stakeholderId: z.string().uuid("Persona inválida"),
+});
+
+export async function cambiarRolPortalStakeholder(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = cambiarRolSchema.safeParse({
+    proyectoId: formData.get("proyectoId"),
+    rol: formData.get("rol"),
+    stakeholderId: formData.get("stakeholderId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const supabase = await createClient();
+  const { data: persona } = await supabase
+    .from("stakeholder")
+    .select("id, email, proyecto_id")
+    .eq("id", parsed.data.stakeholderId)
+    .maybeSingle();
+
+  if (!persona || persona.proyecto_id !== parsed.data.proyectoId) {
+    return {
+      message: "No encontramos a esa persona en este proyecto",
+      status: "error",
+    };
+  }
+
+  const resultado = await cambiarRolPortal({
+    email: persona.email,
+    rol: parsed.data.rol,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  revalidatePath(
+    `/admin/${parsed.data.proyectoId}/stakeholder/${parsed.data.stakeholderId}`
+  );
+  revalidatePath(`/admin/${parsed.data.proyectoId}`);
+  revalidatePath("/portal");
+
+  return {
+    message:
+      parsed.data.rol === "cliente"
+        ? "Ahora entra al portal de fases."
+        : "Ahora entra directo a su entrevista.",
+    status: "success",
   };
 }
 

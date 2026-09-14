@@ -38,7 +38,6 @@ export function DocumentoUploadForm({
       <form
         action={formAction}
         className="flex flex-col gap-4 rounded-xl border border-border p-4"
-        encType="multipart/form-data"
       >
         <input name="stakeholderId" type="hidden" value={stakeholderId} />
         <input name="proyectoId" type="hidden" value={proyectoId} />

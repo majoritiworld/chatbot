@@ -27,7 +27,8 @@ export function isPortalRole(
 
 /**
  * Home after auth. Stakeholders skip the phase timeline and go straight to
- * their interview; clients land on the project portal.
+ * their interview; clients always land on the project portal — even if they
+ * left mid-interview or on the post-submit screen.
  */
 export function homePathForRol(
   rol: UserRole | string | null | undefined,
@@ -50,6 +51,22 @@ export function stakeholderNeedsInterviewLanding(pathname: string) {
     pathname === "/portal" ||
     pathname.startsWith("/portal/fase/")
   );
+}
+
+/**
+ * Where to send someone right after signing in. Clients ignore `next` so a
+ * leftover interview URL never dumps them back into chat or post-submit.
+ */
+export function resolveAuthLanding(
+  rol: UserRole | string | null | undefined,
+  next: string | null,
+  home: string
+) {
+  if (isClienteRole(rol) || !next || stakeholderNeedsInterviewLanding(next)) {
+    return home;
+  }
+
+  return next;
 }
 
 /** Own interview id for the signed-in email. Prefers one still in progress. */

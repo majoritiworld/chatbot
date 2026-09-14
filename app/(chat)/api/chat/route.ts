@@ -10,21 +10,22 @@ import {
 import { z } from "zod";
 import { auth } from "@/app/(auth)/auth";
 import {
-  canWriteEntrevista,
-  guardarRespuestasEntrevista,
-  registrarTurnosEntrevista,
-  resolveEntrevista,
-} from "@/lib/consultoria/entrevistas";
-import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
-import { interviewSystemPrompt } from "@/lib/ai/prompts";
-import {
   allowedModelIds,
   chatModels,
   DEFAULT_CHAT_MODEL,
   getCapabilities,
 } from "@/lib/ai/models";
+import { interviewSystemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
 import { isProductionEnvironment } from "@/lib/constants";
+import {
+  canWriteEntrevista,
+  getTranscripcionEntrevista,
+  guardarRespuestasEntrevista,
+  registrarTurnosEntrevista,
+  resolveEntrevista,
+} from "@/lib/consultoria/entrevistas";
+import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
 import { ChatbotError } from "@/lib/errors";
 import type { ChatMessage } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
@@ -78,6 +79,16 @@ export async function POST(request: Request) {
         "bad_request:api",
         "La entrevista ya está completada"
       ).toResponse();
+    }
+
+    if (!entrevista.consentimiento_en) {
+      const turnosPrevios = await getTranscripcionEntrevista(entrevista.id);
+      if (turnosPrevios.length === 0) {
+        return new ChatbotError(
+          "forbidden:chat",
+          "Acepta las indicaciones antes de empezar la entrevista"
+        ).toResponse();
+      }
     }
 
     let uiMessages: ChatMessage[] = [];

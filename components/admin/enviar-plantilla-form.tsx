@@ -6,6 +6,7 @@ import {
   enviarPlantillaEntrevista,
 } from "@/app/(admin)/admin/actions";
 import { ActionMensaje } from "@/components/admin/action-mensaje";
+import { RolPortalOpciones } from "@/components/admin/rol-portal-opciones";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,51 +61,11 @@ export function EnviarPlantillaForm({
         />
       </div>
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className="font-medium text-sm">Acceso al portal</legend>
-        <p className="text-muted-foreground text-xs">
-          Vale para todas las personas de este envío.
-        </p>
-        <label
-          className="flex cursor-pointer items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm"
-          htmlFor={`rol-stakeholder-${plantillaId}`}
-        >
-          <input
-            className="mt-1"
-            defaultChecked
-            id={`rol-stakeholder-${plantillaId}`}
-            name="rol"
-            type="radio"
-            value="stakeholder"
-          />
-          <span>
-            <span className="font-medium">Stakeholder</span>
-            <span className="block text-muted-foreground text-xs">
-              Entra directo a su entrevista. Firmas socias y otros invitados
-              externos.
-            </span>
-          </span>
-        </label>
-        <label
-          className="flex cursor-pointer items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm"
-          htmlFor={`rol-cliente-${plantillaId}`}
-        >
-          <input
-            className="mt-1"
-            id={`rol-cliente-${plantillaId}`}
-            name="rol"
-            type="radio"
-            value="cliente"
-          />
-          <span>
-            <span className="font-medium">Cliente</span>
-            <span className="block text-muted-foreground text-xs">
-              Ve todas las fases y quién ya completó. El equipo interno del
-              proyecto.
-            </span>
-          </span>
-        </label>
-      </fieldset>
+      <RolPortalOpciones
+        defaultValue="stakeholder"
+        descripcion="Vale para todas las personas de este envío."
+        idPrefix={`rol-${plantillaId}`}
+      />
 
       <ActionMensaje state={state} />
 

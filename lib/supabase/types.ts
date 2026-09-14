@@ -22,6 +22,7 @@ export type Entrevista = {
   preguntas: string[];
   estado: string;
   fecha_completada: string | null;
+  consentimiento_en: string | null;
   transcripcion?: unknown;
   resumen?: unknown;
   ultima_actividad?: string | null;

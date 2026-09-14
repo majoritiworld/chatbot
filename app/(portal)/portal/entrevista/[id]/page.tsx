@@ -8,6 +8,7 @@ import {
   getTranscripcionEntrevista,
   resolveEntrevista,
 } from "@/lib/consultoria/entrevistas";
+import { getProyecto } from "@/lib/consultoria/fases";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
 import { isClienteRole } from "@/lib/consultoria/roles";
@@ -60,14 +61,19 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     );
   }
 
-  const turnos = await getTranscripcionEntrevista(entrevista.id);
+  const [turnos, proyecto] = await Promise.all([
+    getTranscripcionEntrevista(entrevista.id),
+    getProyecto(portalUser.proyectoId),
+  ]);
 
   return (
     <EntrevistaEnCurso
+      consentimientoEn={entrevista.consentimiento_en}
       entrevistaId={entrevista.id}
       estadoInicial={entrevista.estado}
       mensajesIniciales={turnosAMensajes(turnos)}
       mostrarPortal={mostrarPortal}
+      proyectoNombre={proyecto?.nombre}
     />
   );
 }

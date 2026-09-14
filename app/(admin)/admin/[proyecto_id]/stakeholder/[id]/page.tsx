@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AsignarEntrevistaForm } from "@/components/admin/asignar-entrevista-form";
+import { CambiarRolPortalForm } from "@/components/admin/cambiar-rol-portal-form";
 import { DescargarTranscripcionButton } from "@/components/admin/descargar-transcripcion-button";
 import { DocumentoUploadForm } from "@/components/admin/documento-upload-form";
 import { EntrarComoStakeholderButton } from "@/components/admin/entrar-como-stakeholder-button";
@@ -59,6 +60,15 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
             {detalle.nombre}
           </h1>
           <Badge variant="outline">{detalle.estadoEntrevista}</Badge>
+          {detalle.rolPortal ? (
+            <Badge
+              variant={
+                detalle.rolPortal === "cliente" ? "default" : "secondary"
+              }
+            >
+              {detalle.rolPortal === "cliente" ? "Cliente" : "Stakeholder"}
+            </Badge>
+          ) : null}
           <DescargarTranscripcionButton
             className="ml-auto"
             completada={detalle.estadoEntrevista === "completada"}
@@ -72,6 +82,12 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
             .join(" · ")}
         </p>
       </div>
+
+      <CambiarRolPortalForm
+        proyectoId={proyectoId}
+        rolActual={detalle.rolPortal}
+        stakeholderId={detalle.id}
+      />
 
       {detalle.entrevistaId ? (
         <>

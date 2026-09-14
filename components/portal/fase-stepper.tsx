@@ -101,7 +101,7 @@ function EntrevistaFila({
   faseBloqueada: boolean;
 }) {
   const completada = entrevista.estado === "completada";
-  const puedeAbrir = !faseBloqueada && entrevista.puedeResponder;
+  const puedeAbrir = !faseBloqueada && entrevista.puedeResponder && !completada;
 
   const contenido = (
     <div className="flex flex-1 items-center justify-between gap-3">

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { patronEmail } from "@/lib/consultoria/auth";
 import {
   parsePreguntas,
   parseResumen,
@@ -7,13 +8,13 @@ import {
   type ResumenEntrevista,
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
+import { isPortalRole, type RolPortal } from "@/lib/consultoria/roles";
 import { createClient } from "@/lib/supabase/server";
 
 const DIAS_INACTIVIDAD_ALERTA = 5;
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Ids come from the URL, and Postgres rejects a malformed uuid with a 400. */
 function esUuid(value: string) {
@@ -35,6 +36,8 @@ export type StakeholderAdmin = {
   entrevistaEstado: string | null;
   ultimaActividad: string | null;
   alerta: AlertaActividad;
+  /** Portal access; null until they have a `usuario` row. */
+  rolPortal: RolPortal | null;
 };
 
 export type FaseAdmin = {
@@ -123,22 +126,60 @@ function toStakeholderAdmin(row: StakeholderRow): StakeholderAdmin {
   const entrevista = asOne(row.entrevista);
 
   return {
-    id: row.id,
-    nombre: row.nombre,
-    firma: row.firma,
-    email: row.email,
-    estadoEntrevista: row.estado_entrevista,
-    proyectoId: proyecto?.id ?? row.proyecto_id,
-    proyectoNombre: proyecto?.nombre ?? "Sin proyecto",
-    proyectoCliente: proyecto?.cliente ?? "",
-    entrevistaId: entrevista?.id ?? null,
-    entrevistaEstado: entrevista?.estado ?? null,
-    ultimaActividad: entrevista?.ultima_actividad ?? null,
     alerta: alertaActividad(
       row.estado_entrevista,
       entrevista?.ultima_actividad ?? null
     ),
+    email: row.email,
+    entrevistaEstado: entrevista?.estado ?? null,
+    entrevistaId: entrevista?.id ?? null,
+    estadoEntrevista: row.estado_entrevista,
+    firma: row.firma,
+    id: row.id,
+    nombre: row.nombre,
+    proyectoCliente: proyecto?.cliente ?? "",
+    proyectoId: proyecto?.id ?? row.proyecto_id,
+    proyectoNombre: proyecto?.nombre ?? "Sin proyecto",
+    rolPortal: null,
+    ultimaActividad: entrevista?.ultima_actividad ?? null,
   };
+}
+
+type PerfilRolRow = {
+  email: string;
+  rol: string;
+};
+
+function rolPortalDePerfil(rol: string): RolPortal | null {
+  return isPortalRole(rol) ? rol : null;
+}
+
+async function rolesPortalPorEmails(emails: string[]) {
+  const mapa = new Map<string, RolPortal>();
+  const unicos = [
+    ...new Set(
+      emails.map((email) => email.trim().toLowerCase()).filter(Boolean)
+    ),
+  ];
+
+  if (unicos.length === 0) {
+    return mapa;
+  }
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("usuario")
+    .select("email, rol")
+    .in("email", unicos);
+
+  for (const row of (data ?? []) as PerfilRolRow[]) {
+    const rol = rolPortalDePerfil(row.rol);
+    if (rol) {
+      mapa.set(row.email.toLowerCase(), rol);
+    }
+  }
+
+  return mapa;
 }
 
 export async function listStakeholdersAdmin(
@@ -166,7 +207,13 @@ export async function listStakeholdersAdmin(
     throw error;
   }
 
-  return ((data ?? []) as StakeholderRow[]).map(toStakeholderAdmin);
+  const filas = ((data ?? []) as StakeholderRow[]).map(toStakeholderAdmin);
+  const roles = await rolesPortalPorEmails(filas.map((fila) => fila.email));
+
+  return filas.map((fila) => ({
+    ...fila,
+    rolPortal: roles.get(fila.email.toLowerCase()) ?? null,
+  }));
 }
 
 export type ProyectoConProgreso = {
@@ -242,17 +289,15 @@ type FaseRow = {
 
 function toFaseAdmin(row: FaseRow): FaseAdmin {
   return {
+    estado: row.estado,
+    fechaEstimada: row.fecha_estimada,
     id: row.id,
     nombre: row.nombre,
     orden: row.orden,
-    estado: row.estado,
-    fechaEstimada: row.fecha_estimada,
   };
 }
 
-export async function listFasesAdmin(
-  proyectoId: string
-): Promise<FaseAdmin[]> {
+export async function listFasesAdmin(proyectoId: string): Promise<FaseAdmin[]> {
   if (!esUuid(proyectoId)) {
     return [];
   }
@@ -317,45 +362,55 @@ export async function getStakeholderDetalle(
   const base = toStakeholderAdmin(row);
   const entrevista = asOne(row.entrevista);
 
-  const [{ data: fases }, { data: tareas }, { data: documentos }] =
-    await Promise.all([
-      supabase
-        .from("fase")
-        .select("id, nombre, orden, estado, fecha_estimada")
-        .eq("proyecto_id", base.proyectoId)
-        .order("orden"),
-      base.entrevistaId
-        ? supabase
-            .from("tarea")
-            .select("fase_id")
-            .eq("entrevista_id", base.entrevistaId)
-            .eq("tipo", "entrevista")
-            .limit(1)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-      supabase
-        .from("documento")
-        .select("id, tipo, link, nombre, fase_id, visibilidad, created_at")
-        .eq("proyecto_id", base.proyectoId)
-        .order("created_at", { ascending: false }),
-    ]);
+  const [
+    { data: fases },
+    { data: tareas },
+    { data: documentos },
+    { data: perfil },
+  ] = await Promise.all([
+    supabase
+      .from("fase")
+      .select("id, nombre, orden, estado, fecha_estimada")
+      .eq("proyecto_id", base.proyectoId)
+      .order("orden"),
+    base.entrevistaId
+      ? supabase
+          .from("tarea")
+          .select("fase_id")
+          .eq("entrevista_id", base.entrevistaId)
+          .eq("tipo", "entrevista")
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("documento")
+      .select("id, tipo, link, nombre, fase_id, visibilidad, created_at")
+      .eq("proyecto_id", base.proyectoId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("usuario")
+      .select("rol")
+      .ilike("email", patronEmail(base.email))
+      .maybeSingle(),
+  ]);
 
   return {
     ...base,
-    preguntas: parsePreguntas(entrevista?.preguntas),
-    transcripcion: parseTranscripcion(entrevista?.transcripcion),
-    resumen: parseResumen(entrevista?.resumen),
-    fases: (fases ?? []).map(toFaseAdmin),
-    faseVinculadaId: tareas?.fase_id ?? null,
     documentos: (documentos ?? []).map((doc) => ({
+      createdAt: doc.created_at,
+      faseId: doc.fase_id,
       id: doc.id,
-      tipo: doc.tipo,
       link: doc.link,
       nombre: doc.nombre,
-      faseId: doc.fase_id,
+      tipo: doc.tipo,
       visibilidad: doc.visibilidad,
-      createdAt: doc.created_at,
     })),
+    fases: (fases ?? []).map(toFaseAdmin),
+    faseVinculadaId: tareas?.fase_id ?? null,
+    preguntas: parsePreguntas(entrevista?.preguntas),
+    resumen: parseResumen(entrevista?.resumen),
+    rolPortal: rolPortalDePerfil(perfil?.rol ?? ""),
+    transcripcion: parseTranscripcion(entrevista?.transcripcion),
   };
 }
 
