@@ -20,20 +20,25 @@ const userMessageSchema = z.object({
   role: z.enum(["user"]),
 });
 
-const toolApprovalMessageSchema = z.object({
-  id: z.string(),
-  parts: z.array(z.record(z.string(), z.unknown())).optional(),
-  role: z.enum(["user", "assistant", "system"]),
-});
-
-export const postRequestBodySchema = z.object({
-  // guid, not uuid: database ids are not guaranteed to be RFC-4122 versioned.
-  id: z.guid(),
-  entrevistaId: z.guid().optional(),
-  message: userMessageSchema.optional(),
-  messages: z.array(z.any()).optional(),
-  selectedChatModel: z.string(),
-  selectedVisibilityType: z.enum(["public", "private"]),
-});
+export const postRequestBodySchema = z
+  .object({
+    entrevistaId: z.guid().optional(),
+    // guid, not uuid: database ids are not guaranteed to be RFC-4122 versioned.
+    id: z.guid(),
+    message: userMessageSchema.optional(),
+    messages: z.array(z.any()).optional(),
+    seccionId: z.guid().optional(),
+    selectedChatModel: z.string(),
+    selectedVisibilityType: z.enum(["public", "private"]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.entrevistaId && !value.seccionId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "seccionId es obligatorio en una entrevista",
+        path: ["seccionId"],
+      });
+    }
+  });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;

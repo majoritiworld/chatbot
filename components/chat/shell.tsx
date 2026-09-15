@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +23,11 @@ import {
   useArtifact,
   useArtifactSelector,
 } from "@/hooks/use-artifact";
-import type { Attachment, ChatMessage } from "@/lib/types";
+import type {
+  Attachment,
+  ChatMessage,
+  SectionCompletedData,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Artifact } from "./artifact";
 import { ChatHeader } from "./chat-header";
@@ -26,7 +36,13 @@ import { submitEditedMessage } from "./message-editor";
 import { Messages } from "./messages";
 import { MultimodalInput } from "./multimodal-input";
 
-export function ChatShell() {
+export function ChatShell({
+  composerAction,
+  onSeccionCompletada,
+}: {
+  composerAction?: ReactNode;
+  onSeccionCompletada?: (data: SectionCompletedData) => void;
+} = {}) {
   const {
     chatId,
     esEntrevista,
@@ -70,6 +86,35 @@ export function ChatShell() {
       setAttachments([]);
     }
   }, [chatId, setArtifact]);
+
+  const advanceDeliveredRef = useRef(false);
+  const [pendingAdvance, setPendingAdvance] =
+    useState<SectionCompletedData | null>(null);
+
+  const handleSeccionCompletada = useCallback((data: SectionCompletedData) => {
+    setPendingAdvance(data);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingAdvance || advanceDeliveredRef.current) {
+      return;
+    }
+
+    const entregar = () => {
+      if (advanceDeliveredRef.current) {
+        return;
+      }
+      advanceDeliveredRef.current = true;
+      onSeccionCompletada?.(pendingAdvance);
+    };
+
+    const espera =
+      status === "submitted" || status === "streaming" ? 1600 : 900;
+    const timeout = setTimeout(entregar, espera);
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [onSeccionCompletada, pendingAdvance, status]);
 
   const handleEditMessage = useCallback(
     (msg: ChatMessage) => {
@@ -168,6 +213,7 @@ export function ChatShell() {
                 <MultimodalInput
                   attachments={attachments}
                   chatId={chatId}
+                  composerAction={composerAction}
                   editingMessage={editingMessage}
                   esEntrevista={esEntrevista}
                   input={input}
@@ -213,7 +259,7 @@ export function ChatShell() {
         )}
       </div>
 
-      <DataStreamHandler />
+      <DataStreamHandler onSeccionCompletada={handleSeccionCompletada} />
 
       <AlertDialog
         onOpenChange={setShowCreditCardAlert}

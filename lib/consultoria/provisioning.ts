@@ -1,8 +1,13 @@
 import "server-only";
 
 import { patronEmail } from "@/lib/consultoria/auth";
+import {
+  clonarSecciones,
+  type SeccionEntrevista,
+} from "@/lib/consultoria/entrevista-contenido";
 import { normalizarEstado } from "@/lib/consultoria/fase-estado";
 import { createClient } from "@/lib/supabase/server";
+import { generateUUID } from "@/lib/utils";
 
 /** People paste numbered or bulleted lists; the prompt numbers them again. */
 const VINETA = /^\s*(?:[-*•]|\d+[.)])\s*/;
@@ -107,15 +112,29 @@ export async function crearEntrevistaConTarea({
   responsable,
   fase,
   preguntas,
+  secciones,
   plantillaId,
 }: {
   stakeholderId: string;
   responsable: string;
   fase: FaseObjetivo;
   preguntas: string[];
+  secciones?: SeccionEntrevista[];
   plantillaId?: string | null;
 }): Promise<ResultadoEntrevista> {
   const supabase = await createClient();
+  const seccionesAsignadas = clonarSecciones(
+    secciones && secciones.length > 0
+      ? secciones
+      : [
+          {
+            descripcion: "",
+            id: generateUUID(),
+            preguntas,
+            titulo: "Entrevista",
+          },
+        ]
+  );
 
   const { data: entrevista, error: entrevistaError } = await supabase
     .from("entrevista")
@@ -123,6 +142,7 @@ export async function crearEntrevistaConTarea({
       estado: "abierta",
       plantilla_id: plantillaId ?? null,
       preguntas,
+      secciones: seccionesAsignadas,
       stakeholder_id: stakeholderId,
     })
     .select("id")
@@ -169,6 +189,7 @@ export async function provisionarDestinatarioPlantilla({
   firma,
   fase,
   preguntas,
+  secciones,
   plantillaId,
 }: {
   proyectoId: string;
@@ -177,6 +198,7 @@ export async function provisionarDestinatarioPlantilla({
   firma: string | null;
   fase: FaseObjetivo;
   preguntas: string[];
+  secciones: SeccionEntrevista[];
   plantillaId: string;
 }): Promise<ResultadoProvisionPlantilla> {
   const existente = await buscarStakeholderEnProyecto(proyectoId, email);
@@ -203,6 +225,7 @@ export async function provisionarDestinatarioPlantilla({
       plantillaId,
       preguntas,
       responsable: existente.nombre,
+      secciones,
       stakeholderId: existente.id,
     });
 
@@ -243,6 +266,7 @@ export async function provisionarDestinatarioPlantilla({
     plantillaId,
     preguntas,
     responsable: nombre,
+    secciones,
     stakeholderId: stakeholder.id,
   });
 

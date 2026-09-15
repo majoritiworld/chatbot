@@ -15,6 +15,7 @@ export function PlantillaEntrevistaCard({
           <h3 className="font-medium text-base">{plantilla.nombre}</h3>
           <p className="text-muted-foreground text-sm">
             Fase {plantilla.faseOrden}. {plantilla.faseNombre} ·{" "}
+            {plantilla.secciones.length} secciones ·{" "}
             {plantilla.preguntas.length} preguntas guía
           </p>
         </div>
@@ -27,8 +28,8 @@ export function PlantillaEntrevistaCard({
 
       <PreguntasPlantillaForm
         plantillaId={plantilla.id}
-        preguntas={plantilla.preguntas}
         proyectoId={plantilla.proyectoId}
+        secciones={plantilla.secciones}
       />
 
       <div className="flex flex-col gap-3 border-border border-t pt-4">

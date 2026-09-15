@@ -2,7 +2,12 @@ import "server-only";
 
 import { invitarAlPortal } from "@/lib/consultoria/auth";
 import type { DestinatarioPlantilla } from "@/lib/consultoria/destinatarios";
-import { parsePreguntas } from "@/lib/consultoria/entrevista-contenido";
+import {
+  parsePreguntas,
+  parseSecciones,
+  preguntasDeSecciones,
+  type SeccionEntrevista,
+} from "@/lib/consultoria/entrevista-contenido";
 import {
   type FaseObjetivo,
   getFaseDelProyecto,
@@ -21,6 +26,7 @@ export type PlantillaAdmin = {
   faseNombre: string;
   faseOrden: number;
   preguntas: string[];
+  secciones: SeccionEntrevista[];
   enviadas: number;
 };
 
@@ -36,6 +42,7 @@ type PlantillaRow = {
   proyecto_id: string;
   fase_id: string;
   preguntas: unknown;
+  secciones: unknown;
   fase?: FaseEmbed | FaseEmbed[];
   entrevista?: Array<{ id: string }> | null;
 };
@@ -52,6 +59,8 @@ function toPlantillaAdmin(row: PlantillaRow): PlantillaAdmin | null {
   if (!fase) {
     return null;
   }
+  const secciones = parseSecciones(row.secciones);
+  const preguntas = parsePreguntas(row.preguntas);
 
   return {
     enviadas: row.entrevista?.length ?? 0,
@@ -60,8 +69,10 @@ function toPlantillaAdmin(row: PlantillaRow): PlantillaAdmin | null {
     faseOrden: fase.orden,
     id: row.id,
     nombre: row.nombre,
-    preguntas: parsePreguntas(row.preguntas),
+    preguntas:
+      secciones.length > 0 ? preguntasDeSecciones(secciones) : preguntas,
     proyectoId: row.proyecto_id,
+    secciones,
   };
 }
 
@@ -78,6 +89,7 @@ export async function listPlantillasAdmin(
       proyecto_id,
       fase_id,
       preguntas,
+      secciones,
       fase:fase_id ( id, nombre, orden ),
       entrevista ( id )
     `
@@ -108,6 +120,7 @@ export async function getPlantillaDelProyecto(
       proyecto_id,
       fase_id,
       preguntas,
+      secciones,
       fase:fase_id ( id, nombre, orden ),
       entrevista ( id )
     `
@@ -165,6 +178,7 @@ async function enviarADestinatario({
   proyectoId,
   fase,
   preguntas,
+  secciones,
   plantillaId,
   rol,
 }: {
@@ -172,6 +186,7 @@ async function enviarADestinatario({
   proyectoId: string;
   fase: FaseObjetivo;
   preguntas: string[];
+  secciones: SeccionEntrevista[];
   plantillaId: string;
   rol: RolPortal;
 }): Promise<{
@@ -187,6 +202,7 @@ async function enviarADestinatario({
     plantillaId,
     preguntas,
     proyectoId,
+    secciones,
   });
 
   if (!resultado.ok) {
@@ -249,6 +265,7 @@ export async function enviarPlantillaALista({
       preguntas: plantilla.preguntas,
       proyectoId,
       rol,
+      secciones: plantilla.secciones,
     })
   );
 

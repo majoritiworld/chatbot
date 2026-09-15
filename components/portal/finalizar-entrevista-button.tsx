@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { type MouseEvent, useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -15,13 +15,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useActiveChat } from "@/hooks/use-active-chat";
+import type { SectionCompletedData } from "@/lib/types";
 
 export function FinalizarEntrevistaButton({
   entrevistaId,
-  onCompletada,
+  onSeccionCompletada,
+  seccionId,
 }: {
   entrevistaId: string;
-  onCompletada?: () => void;
+  onSeccionCompletada: (data: SectionCompletedData) => void;
+  seccionId: string;
 }) {
   const { messages, status, stop } = useActiveChat();
   const [open, setOpen] = useState(false);
@@ -36,7 +39,7 @@ export function FinalizarEntrevistaButton({
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/entrevista/finalizar`,
           {
-            body: JSON.stringify({ entrevistaId, messages }),
+            body: JSON.stringify({ entrevistaId, messages, seccionId }),
             headers: { "Content-Type": "application/json" },
             method: "POST",
           }
@@ -44,24 +47,38 @@ export function FinalizarEntrevistaButton({
 
         const data = (await response.json().catch(() => null)) as {
           error?: string;
+          flujoEstado?: SectionCompletedData["flujoEstado"];
           ok?: boolean;
+          seccionActual?: number;
         } | null;
 
-        if (!response.ok) {
-          toast.error(data?.error ?? "No se pudo finalizar la entrevista");
+        if (
+          !response.ok ||
+          !data?.flujoEstado ||
+          typeof data.seccionActual !== "number"
+        ) {
+          toast.error(data?.error ?? "No se pudo finalizar la sección");
           return;
         }
 
         setOpen(false);
-        toast.success(
-          "Entrevista finalizada. La transcripción ya está con Majoriti."
-        );
-        onCompletada?.();
+        onSeccionCompletada({
+          flujoEstado: data.flujoEstado,
+          seccionActual: data.seccionActual,
+          seccionId,
+        });
       } catch {
-        toast.error("No se pudo finalizar la entrevista");
+        toast.error("No se pudo finalizar la sección");
       }
     });
-  }, [entrevistaId, messages, onCompletada, stop]);
+  }, [entrevistaId, messages, onSeccionCompletada, seccionId, stop]);
+  const handleDialogConfirm = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      handleConfirm();
+    },
+    [handleConfirm]
+  );
 
   return (
     <AlertDialog onOpenChange={setOpen} open={open}>
@@ -73,27 +90,21 @@ export function FinalizarEntrevistaButton({
           type="button"
           variant="outline"
         >
-          Finalizar entrevista
+          Finalizar sección
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Terminar la entrevista?</AlertDialogTitle>
+          <AlertDialogTitle>¿Terminar esta sección?</AlertDialogTitle>
           <AlertDialogDescription>
-            Se enviará la transcripción a Majoriti y marcará la entrevista como
-            completada. No podrás seguir respondiendo.
+            Guardaremos lo conversado y avanzarás al siguiente tema. No podrás
+            agregar más respuestas en esta sección.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={pending}
-            onClick={(event) => {
-              event.preventDefault();
-              handleConfirm();
-            }}
-          >
-            {pending ? "Finalizando…" : "Sí, finalizar"}
+          <AlertDialogAction disabled={pending} onClick={handleDialogConfirm}>
+            {pending ? "Finalizando…" : "Sí, finalizar sección"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

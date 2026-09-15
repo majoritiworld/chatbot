@@ -62,12 +62,15 @@ export function ActiveChatProvider({
   children,
   entrevistaId,
   mensajesIniciales,
+  seccionId,
 }: {
   children: ReactNode;
   /** Pins the chat to one interview. Used by the client portal embed. */
   entrevistaId?: string;
   /** Transcript already stored for this interview, replayed on reload. */
   mensajesIniciales?: ChatMessage[];
+  /** Active section snapshot for interview requests. */
+  seccionId?: string;
 }) {
   const pathname = usePathname();
   const { setDataStream, setWaitingStatus } = useDataStream();
@@ -88,6 +91,8 @@ export function ActiveChatProvider({
 
   const entrevistaIdRef = useRef(entrevistaId);
   entrevistaIdRef.current = entrevistaId;
+  const seccionIdRef = useRef(seccionId);
+  seccionIdRef.current = seccionId;
 
   const [currentModelId, setCurrentModelId] = useState(DEFAULT_CHAT_MODEL);
   const currentModelIdRef = useRef(currentModelId);
@@ -172,10 +177,11 @@ export function ActiveChatProvider({
 
         return {
           body: {
-            id: request.id,
             entrevistaId: entrevistaIdRef.current,
+            id: request.id,
             message: lastMessage?.role === "user" ? lastMessage : undefined,
             messages: request.messages,
+            seccionId: seccionIdRef.current,
             selectedChatModel: currentModelIdRef.current,
             selectedVisibilityType: visibility,
             ...request.body,

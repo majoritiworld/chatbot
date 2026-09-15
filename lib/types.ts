@@ -5,6 +5,7 @@ import type { createDocument } from "./ai/tools/create-document";
 import type { getWeather } from "./ai/tools/get-weather";
 import type { requestSuggestions } from "./ai/tools/request-suggestions";
 import type { updateDocument } from "./ai/tools/update-document";
+import type { FlujoEntrevista } from "./consultoria/entrevista-contenido";
 import type { Suggestion } from "./db/schema";
 
 export const messageMetadataSchema = z.object({
@@ -34,6 +35,12 @@ export type WaitingStatusData = {
   modelName: string;
 };
 
+export type SectionCompletedData = {
+  flujoEstado: FlujoEntrevista;
+  seccionActual: number;
+  seccionId: string;
+};
+
 export type CustomUIDataTypes = {
   textDelta: string;
   imageDelta: string;
@@ -48,6 +55,7 @@ export type CustomUIDataTypes = {
   finish: null;
   "chat-title": string;
   "waiting-status": WaitingStatusData;
+  "seccion-completada": SectionCompletedData;
 };
 
 export type ChatMessage = UIMessage<

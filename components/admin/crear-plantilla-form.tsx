@@ -8,7 +8,7 @@ import {
 import { ActionMensaje } from "@/components/admin/action-mensaje";
 import {
   FaseSelect,
-  PreguntasField,
+  SeccionesField,
 } from "@/components/admin/entrevista-campos";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +69,7 @@ export function CrearPlantillaForm({
         <FaseSelect fases={fases} id="plantilla-faseId" />
       </div>
 
-      <PreguntasField id="plantilla-preguntas" />
+      <SeccionesField />
 
       <ActionMensaje state={state} />
 

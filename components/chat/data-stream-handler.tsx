@@ -4,11 +4,16 @@ import { useEffect } from "react";
 import { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
 import { initialArtifactData, useArtifact } from "@/hooks/use-artifact";
+import type { SectionCompletedData } from "@/lib/types";
 import { artifactDefinitions } from "./artifact";
 import { useDataStream } from "./data-stream-provider";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
 
-export function DataStreamHandler() {
+export function DataStreamHandler({
+  onSeccionCompletada,
+}: {
+  onSeccionCompletada?: (data: SectionCompletedData) => void;
+}) {
   const { dataStream, setDataStream } = useDataStream();
   const { mutate } = useSWRConfig();
 
@@ -23,6 +28,10 @@ export function DataStreamHandler() {
     setDataStream([]);
 
     for (const delta of newDeltas) {
+      if (delta.type === "data-seccion-completada") {
+        onSeccionCompletada?.(delta.data);
+        continue;
+      }
       if (delta.type === "data-chat-title") {
         mutate(unstable_serialize(getChatHistoryPaginationKey));
         continue;
@@ -85,7 +94,15 @@ export function DataStreamHandler() {
         }
       });
     }
-  }, [dataStream, setArtifact, setMetadata, artifact, setDataStream, mutate]);
+  }, [
+    dataStream,
+    setArtifact,
+    setMetadata,
+    artifact,
+    setDataStream,
+    mutate,
+    onSeccionCompletada,
+  ]);
 
   return null;
 }

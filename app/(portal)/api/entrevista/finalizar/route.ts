@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { auth } from "@/app/(auth)/auth";
-import { finalizarEntrevistaManual } from "@/lib/consultoria/entrevistas";
+import {
+  completarSeccionEntrevista,
+  resolveEntrevista,
+} from "@/lib/consultoria/entrevistas";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
 import type { ChatMessage } from "@/lib/types";
 
@@ -10,6 +13,7 @@ const bodySchema = z.object({
   // guid: DB ids are not always RFC-4122 versioned.
   entrevistaId: z.guid(),
   messages: z.array(z.any()).optional(),
+  seccionId: z.guid(),
 });
 
 export async function POST(request: Request) {
@@ -24,10 +28,33 @@ export async function POST(request: Request) {
       return Response.json({ error: "Datos inválidos" }, { status: 400 });
     }
 
-    const { entrevistaId, messages } = parsed.data;
-    const turnos = mensajesATurnos((messages ?? []) as ChatMessage[]);
+    const { entrevistaId, messages, seccionId } = parsed.data;
+    const entrevista = await resolveEntrevista(entrevistaId);
+    const seccion = entrevista?.secciones.find((item) => item.id === seccionId);
+    if (!seccion) {
+      return Response.json(
+        { error: "Esta sección ya no está activa" },
+        { status: 400 }
+      );
+    }
+    const turnos = mensajesATurnos(
+      (messages ?? []) as ChatMessage[],
+      seccionId
+    );
+    const respuestas = seccion.preguntas.map((pregunta) => ({
+      pregunta,
+      respuesta_texto: "Ver transcripción completa.",
+    }));
 
-    const result = await finalizarEntrevistaManual({ entrevistaId, turnos });
+    const result = await completarSeccionEntrevista({
+      entrevistaId,
+      hallazgos: [],
+      modo: "manual",
+      respuestas,
+      seccionId,
+      sintesis: "Sección finalizada manualmente. Revisar la transcripción.",
+      turnos,
+    });
 
     return Response.json({ ok: true, ...result });
   } catch (error) {

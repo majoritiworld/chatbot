@@ -1,10 +1,17 @@
 import "server-only";
 
 import {
-  fusionarTurnos,
+  consolidarRespuestasEntrevista,
+  type FlujoEntrevista,
+  haySeccionesPendientes,
   parsePreguntas,
+  parseSecciones,
+  parseSeccionesCompletadas,
   parseTranscripcion,
+  preguntasDeSecciones,
+  type RespuestaResumen,
   type ResumenEntrevista,
+  type SeccionCompletada,
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import { createClient } from "@/lib/supabase/server";
@@ -14,9 +21,14 @@ const ENTREVISTA_SELECT = `
   id,
   stakeholder_id,
   preguntas,
+  secciones,
+  flujo_estado,
+  seccion_actual,
+  secciones_completadas,
   estado,
   fecha_completada,
   consentimiento_en,
+  correo_agradecimiento_en,
   stakeholder:stakeholder_id ( id, nombre, firma, email )
 `;
 
@@ -31,11 +43,23 @@ type EntrevistaRow = {
   id: string;
   stakeholder_id: string;
   preguntas: unknown;
+  secciones: unknown;
+  flujo_estado: string;
+  seccion_actual: number;
+  secciones_completadas: unknown;
   estado: string;
   fecha_completada: string | null;
   consentimiento_en: string | null;
+  correo_agradecimiento_en: string | null;
   stakeholder?: StakeholderEmbed | StakeholderEmbed[];
 };
+
+function parseFlujoEstado(value: string): FlujoEntrevista {
+  if (value === "presentacion" || value === "chat" || value === "revision") {
+    return value;
+  }
+  return "bienvenida";
+}
 
 function asOne<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) {
@@ -46,12 +70,21 @@ function asOne<T>(value: T | T[] | null | undefined): T | null {
 
 function toEntrevista(row: EntrevistaRow): Entrevista {
   const stakeholder = asOne(row.stakeholder);
+  const secciones = parseSecciones(row.secciones);
+  const preguntas = parsePreguntas(row.preguntas);
   return {
     consentimiento_en: row.consentimiento_en,
+    correo_agradecimiento_en: row.correo_agradecimiento_en,
     estado: row.estado,
     fecha_completada: row.fecha_completada,
+    flujo_estado: parseFlujoEstado(row.flujo_estado),
     id: row.id,
-    preguntas: parsePreguntas(row.preguntas),
+    preguntas:
+      secciones.length > 0 ? preguntasDeSecciones(secciones) : preguntas,
+    seccion_actual: row.seccion_actual,
+    secciones,
+    secciones_completadas: parseSeccionesCompletadas(row.secciones_completadas),
+    stakeholder_email: stakeholder?.email ?? null,
     stakeholder_firma: stakeholder?.firma ?? null,
     stakeholder_id: row.stakeholder_id,
     stakeholder_nombre: stakeholder?.nombre ?? null,
@@ -170,63 +203,139 @@ export async function getTranscripcionEntrevista(
   return parseTranscripcion(data?.transcripcion);
 }
 
+export async function avanzarFlujoEntrevista({
+  entrevistaId,
+  desde,
+}: {
+  entrevistaId: string;
+  desde: "bienvenida" | "presentacion";
+}) {
+  const entrevista = await resolveEntrevista(entrevistaId);
+
+  if (!entrevista || !(await canWriteEntrevista(entrevista))) {
+    throw new Error("No puedes avanzar esta entrevista");
+  }
+  if (entrevista.estado !== "abierta" || entrevista.flujo_estado !== desde) {
+    throw new Error("La entrevista cambió. Recarga para continuar.");
+  }
+  if (entrevista.secciones.length === 0) {
+    throw new Error("La entrevista no tiene secciones configuradas");
+  }
+
+  const destino: FlujoEntrevista =
+    desde === "bienvenida" ? "presentacion" : "chat";
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("advance_interview_flow", {
+    p_desde: desde,
+    p_entrevista_id: entrevista.id,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return { flujoEstado: destino };
+}
+
+export async function completarSeccionEntrevista({
+  entrevistaId,
+  seccionId,
+  modo,
+  sintesis,
+  hallazgos,
+  respuestas,
+  turnos = [],
+}: {
+  entrevistaId: string;
+  seccionId: string;
+  modo: "agente" | "manual";
+  sintesis: string;
+  hallazgos: string[];
+  respuestas: RespuestaResumen[];
+  turnos?: TurnoEntrevista[];
+}) {
+  const entrevista = await resolveEntrevista(entrevistaId);
+
+  if (!entrevista || !(await canWriteEntrevista(entrevista))) {
+    throw new Error("No puedes completar esta sección");
+  }
+  if (entrevista.estado !== "abierta" || entrevista.flujo_estado !== "chat") {
+    throw new Error("La entrevista cambió. Recarga para continuar.");
+  }
+
+  const seccion = entrevista.secciones.at(entrevista.seccion_actual);
+  if (!seccion || seccion.id !== seccionId) {
+    throw new Error("Esta sección ya no está activa");
+  }
+
+  const ahora = new Date().toISOString();
+  const completada: SeccionCompletada = {
+    completadaEn: ahora,
+    hallazgos,
+    modo,
+    respuestas,
+    seccionId,
+    sintesis,
+  };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("complete_interview_section", {
+    p_completion: completada,
+    p_entrevista_id: entrevista.id,
+    p_seccion_id: seccion.id,
+    p_transcripcion: turnos,
+  });
+
+  if (error) {
+    throw error;
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    throw new Error("La sección ya fue completada");
+  }
+
+  const avance = data as Record<string, unknown>;
+  if (
+    (avance.flujoEstado !== "bienvenida" &&
+      avance.flujoEstado !== "presentacion" &&
+      avance.flujoEstado !== "chat" &&
+      avance.flujoEstado !== "revision") ||
+    typeof avance.seccionActual !== "number" ||
+    typeof avance.seccionId !== "string"
+  ) {
+    throw new Error("La sección no devolvió un avance válido");
+  }
+
+  return {
+    flujoEstado: avance.flujoEstado,
+    seccionActual: avance.seccionActual,
+    seccionId: avance.seccionId,
+  };
+}
+
 /**
  * Appends the turns of one exchange and stamps the activity clock. The admin
  * table reads `ultima_actividad` to flag stakeholders who went quiet.
  */
 export async function registrarTurnosEntrevista({
   entrevistaId,
+  estricto = false,
   turnos,
 }: {
   entrevistaId: string;
+  estricto?: boolean;
   turnos: TurnoEntrevista[];
 }) {
   const supabase = await createClient();
-
-  const { data } = await supabase
-    .from("entrevista")
-    .select("transcripcion, stakeholder_id")
-    .eq("id", entrevistaId)
-    .maybeSingle();
-
-  const transcripcion = fusionarTurnos(
-    parseTranscripcion(data?.transcripcion),
-    turnos
-  );
-
-  const { error } = await supabase
-    .from("entrevista")
-    .update({
-      transcripcion,
-      ultima_actividad: new Date().toISOString(),
-    })
-    .eq("id", entrevistaId);
+  const { error } = await supabase.rpc("append_interview_turns", {
+    p_entrevista_id: entrevistaId,
+    p_turnos: turnos,
+  });
 
   if (error) {
+    if (estricto) {
+      throw error;
+    }
     // Losing a transcript write must not break the interview in progress.
     console.error("No se pudo guardar la transcripción", error);
-    return;
-  }
-
-  if (data?.stakeholder_id) {
-    await marcarEntrevistaEnCurso(data.stakeholder_id);
-  }
-}
-
-/**
- * Pendiente → en_curso so the portal shows "Continuar" instead of a
- * still-untouched interview. Completada is left alone.
- */
-async function marcarEntrevistaEnCurso(stakeholderId: string) {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("stakeholder")
-    .update({ estado_entrevista: "en_curso" })
-    .eq("id", stakeholderId)
-    .eq("estado_entrevista", "pendiente");
-
-  if (error) {
-    console.error("No se pudo marcar la entrevista en curso", error);
   }
 }
 
@@ -240,59 +349,21 @@ export async function guardarRespuestasEntrevista({
   resumen: ResumenEntrevista;
 }) {
   const supabase = await createClient();
-
-  if (respuestas.length > 0) {
-    const { error: insertError } = await supabase.from("respuesta").insert(
-      respuestas.map((item) => ({
-        entrevista_id: entrevistaId,
-        pregunta: item.pregunta,
-        respuesta_texto: item.respuesta_texto,
-      }))
-    );
-
-    if (insertError) {
-      throw insertError;
-    }
-  }
-
-  // Kept as a row for auditability; `entrevista.resumen` holds the full object.
-  const { error: resumenError } = await supabase.from("respuesta").insert({
-    entrevista_id: entrevistaId,
-    pregunta: "__resumen__",
-    respuesta_texto: resumen.sintesis,
+  const { data, error } = await supabase.rpc("submit_interview", {
+    p_entrevista_id: entrevistaId,
+    p_respuestas: respuestas,
+    p_resumen: resumen,
   });
 
-  if (resumenError) {
-    throw resumenError;
+  if (error) {
+    throw error;
   }
 
-  const ahora = new Date().toISOString();
-  const { error: updateError } = await supabase
-    .from("entrevista")
-    .update({
-      estado: "completada",
-      fecha_completada: ahora,
-      resumen,
-      ultima_actividad: ahora,
-    })
-    .eq("id", entrevistaId);
-
-  if (updateError) {
-    throw updateError;
-  }
-
-  const { data: entrevista } = await supabase
-    .from("entrevista")
-    .select("stakeholder_id")
-    .eq("id", entrevistaId)
-    .maybeSingle();
-
-  if (entrevista?.stakeholder_id) {
-    await supabase
-      .from("stakeholder")
-      .update({ estado_entrevista: "completada" })
-      .eq("id", entrevista.stakeholder_id);
-  }
+  const result =
+    typeof data === "object" && data !== null && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : null;
+  return { alreadyDone: result?.alreadyDone === true };
 }
 
 /**
@@ -301,9 +372,11 @@ export async function guardarRespuestasEntrevista({
  */
 export async function guardarProgresoEntrevista({
   entrevistaId,
+  seccionId,
   turnos,
 }: {
   entrevistaId: string;
+  seccionId: string;
   turnos: TurnoEntrevista[];
 }) {
   const entrevista = await resolveEntrevista(entrevistaId);
@@ -320,41 +393,24 @@ export async function guardarProgresoEntrevista({
     return { alreadyDone: true as const };
   }
 
-  if (entrevista.estado !== "abierta") {
+  const seccion = entrevista.secciones.at(entrevista.seccion_actual);
+  if (
+    entrevista.estado !== "abierta" ||
+    entrevista.flujo_estado !== "chat" ||
+    seccion?.id !== seccionId
+  ) {
     throw new Error("La entrevista no se puede guardar");
   }
 
-  if (turnos.length > 0) {
-    await registrarTurnosEntrevista({ entrevistaId, turnos });
-    return { alreadyDone: false as const };
-  }
-
-  const supabase = await createClient();
-  const ahora = new Date().toISOString();
-  const { error } = await supabase
-    .from("entrevista")
-    .update({ ultima_actividad: ahora })
-    .eq("id", entrevistaId);
-
-  if (error) {
-    throw error;
-  }
-
-  await marcarEntrevistaEnCurso(entrevista.stakeholder_id);
+  await registrarTurnosEntrevista({
+    entrevistaId,
+    estricto: true,
+    turnos,
+  });
   return { alreadyDone: false as const };
 }
 
-/**
- * User-initiated close: flush the latest turns into `transcripcion`, then mark
- * the interview (and stakeholder) as completada so portal + admin both show done.
- */
-export async function finalizarEntrevistaManual({
-  entrevistaId,
-  turnos,
-}: {
-  entrevistaId: string;
-  turnos: TurnoEntrevista[];
-}) {
+export async function enviarEntrevista(entrevistaId: string) {
   const entrevista = await resolveEntrevista(entrevistaId);
 
   if (!entrevista) {
@@ -362,48 +418,63 @@ export async function finalizarEntrevistaManual({
   }
 
   if (!(await canWriteEntrevista(entrevista))) {
-    throw new Error("No puedes finalizar esta entrevista");
+    throw new Error("No puedes enviar esta entrevista");
   }
 
   if (entrevista.estado === "completada") {
-    return { alreadyDone: true as const };
+    return {
+      alreadyDone: true as const,
+      correoEnviado: Boolean(entrevista.correo_agradecimiento_en),
+      email: entrevista.stakeholder_email,
+      nombre: entrevista.stakeholder_nombre,
+    };
   }
 
-  if (entrevista.estado !== "abierta") {
-    throw new Error("La entrevista no se puede finalizar");
+  if (
+    entrevista.estado !== "abierta" ||
+    entrevista.flujo_estado !== "revision"
+  ) {
+    throw new Error("Completa todas las secciones antes de enviar");
   }
 
-  if (turnos.length > 0) {
-    await registrarTurnosEntrevista({ entrevistaId, turnos });
+  if (
+    haySeccionesPendientes(
+      entrevista.secciones,
+      entrevista.secciones_completadas
+    )
+  ) {
+    throw new Error("Todavía hay secciones pendientes");
   }
 
-  const respuestas =
-    entrevista.preguntas.length > 0
-      ? entrevista.preguntas.map((pregunta) => ({
-          pregunta,
-          respuesta_texto: "Ver transcripción completa.",
-        }))
-      : [
-          {
-            pregunta: "Entrevista",
-            respuesta_texto: "Ver transcripción completa.",
-          },
-        ];
+  const resumen = consolidarRespuestasEntrevista(
+    entrevista.secciones,
+    entrevista.secciones_completadas
+  );
+  const { respuestas } = resumen;
 
-  const resumen: ResumenEntrevista = {
-    hallazgos: [],
-    respuestas,
-    sintesis:
-      "Entrevista finalizada por el entrevistado. Revisar la transcripción completa.",
-  };
-
-  await guardarRespuestasEntrevista({
+  const guardado = await guardarRespuestasEntrevista({
     entrevistaId,
     respuestas,
     resumen,
   });
 
-  return { alreadyDone: false as const };
+  return {
+    alreadyDone: guardado.alreadyDone,
+    correoEnviado: false,
+    email: entrevista.stakeholder_email,
+    nombre: entrevista.stakeholder_nombre,
+  };
+}
+
+export async function marcarCorreoAgradecimientoEnviado(entrevistaId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("mark_interview_thank_you_sent", {
+    p_entrevista_id: entrevistaId,
+  });
+
+  if (error) {
+    throw error;
+  }
 }
 
 /**

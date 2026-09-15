@@ -93,8 +93,8 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
         <>
           <PreguntasEntrevistaForm
             entrevistaId={detalle.entrevistaId}
-            preguntas={detalle.preguntas}
             proyectoId={proyectoId}
+            secciones={detalle.secciones}
             stakeholderId={detalle.id}
           />
 

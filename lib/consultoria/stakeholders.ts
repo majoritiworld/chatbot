@@ -4,8 +4,10 @@ import { patronEmail } from "@/lib/consultoria/auth";
 import {
   parsePreguntas,
   parseResumen,
+  parseSecciones,
   parseTranscripcion,
   type ResumenEntrevista,
+  type SeccionEntrevista,
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import { isPortalRole, type RolPortal } from "@/lib/consultoria/roles";
@@ -60,6 +62,7 @@ export type DocumentoAdmin = {
 
 export type StakeholderDetalle = StakeholderAdmin & {
   preguntas: string[];
+  secciones: SeccionEntrevista[];
   transcripcion: TurnoEntrevista[];
   resumen: ResumenEntrevista | null;
   fases: FaseAdmin[];
@@ -79,6 +82,7 @@ type EntrevistaEmbed = {
   ultima_actividad: string | null;
   fecha_completada: string | null;
   preguntas?: unknown;
+  secciones?: unknown;
   transcripcion?: unknown;
   resumen?: unknown;
 } | null;
@@ -342,6 +346,7 @@ export async function getStakeholderDetalle(
         ultima_actividad,
         fecha_completada,
         preguntas,
+        secciones,
         transcripcion,
         resumen
       )
@@ -410,6 +415,7 @@ export async function getStakeholderDetalle(
     preguntas: parsePreguntas(entrevista?.preguntas),
     resumen: parseResumen(entrevista?.resumen),
     rolPortal: rolPortalDePerfil(perfil?.rol ?? ""),
+    secciones: parseSecciones(entrevista?.secciones),
     transcripcion: parseTranscripcion(entrevista?.transcripcion),
   };
 }

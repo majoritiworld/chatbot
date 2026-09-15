@@ -7,14 +7,38 @@
 export type RolTurno = "entrevistador" | "entrevistado";
 
 export type TurnoEntrevista = {
+  id: string;
   rol: RolTurno;
   texto: string;
   at: string;
+  seccionId?: string | null;
 };
 
 export type RespuestaResumen = {
   pregunta: string;
   respuesta_texto: string;
+};
+
+export type SeccionEntrevista = {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  preguntas: string[];
+};
+
+export type FlujoEntrevista =
+  | "bienvenida"
+  | "presentacion"
+  | "chat"
+  | "revision";
+
+export type SeccionCompletada = {
+  seccionId: string;
+  sintesis: string;
+  hallazgos: string[];
+  respuestas: RespuestaResumen[];
+  completadaEn: string;
+  modo: "agente" | "manual";
 };
 
 export type ResumenEntrevista = {
@@ -43,7 +67,7 @@ export function parsePreguntas(value: unknown): string[] {
   );
 }
 
-export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
+export function parseSecciones(value: unknown): SeccionEntrevista[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -53,7 +77,194 @@ export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
       return [];
     }
 
-    const { rol, texto, at } = item as Record<string, unknown>;
+    const { descripcion, id, preguntas, titulo } = item as Record<
+      string,
+      unknown
+    >;
+    const preguntasValidas = parsePreguntas(preguntas);
+
+    if (
+      typeof id !== "string" ||
+      id.length === 0 ||
+      typeof titulo !== "string" ||
+      titulo.trim().length === 0 ||
+      preguntasValidas.length === 0
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        descripcion: typeof descripcion === "string" ? descripcion.trim() : "",
+        id,
+        preguntas: preguntasValidas,
+        titulo: titulo.trim(),
+      },
+    ];
+  });
+}
+
+export function preguntasDeSecciones(secciones: SeccionEntrevista[]): string[] {
+  return secciones.flatMap((seccion) => seccion.preguntas);
+}
+
+export function clonarSecciones(
+  secciones: SeccionEntrevista[]
+): SeccionEntrevista[] {
+  return secciones.map((seccion) => ({
+    descripcion: seccion.descripcion,
+    id: crypto.randomUUID(),
+    preguntas: [...seccion.preguntas],
+    titulo: seccion.titulo,
+  }));
+}
+
+export function seccionesDesdeGuionPlano({
+  titulo,
+  descripcion = "",
+  preguntas,
+}: {
+  titulo: string;
+  descripcion?: string;
+  preguntas: string[];
+}): SeccionEntrevista[] {
+  const preguntasValidas = parsePreguntas(preguntas);
+  if (preguntasValidas.length === 0 || titulo.trim().length === 0) {
+    return [];
+  }
+
+  return [
+    {
+      descripcion: descripcion.trim(),
+      id: crypto.randomUUID(),
+      preguntas: preguntasValidas,
+      titulo: titulo.trim(),
+    },
+  ];
+}
+
+export function resolverAvanceSeccion(
+  seccionActual: number,
+  numeroSecciones: number
+) {
+  const siguienteIndice = seccionActual + 1;
+  return {
+    flujoEstado:
+      siguienteIndice < numeroSecciones
+        ? ("presentacion" as const)
+        : ("revision" as const),
+    seccionActual: siguienteIndice,
+  };
+}
+
+export function haySeccionesPendientes(
+  secciones: SeccionEntrevista[],
+  completadas: SeccionCompletada[]
+) {
+  const completadasPorId = new Set(
+    completadas.map((completada) => completada.seccionId)
+  );
+  return secciones.some((seccion) => !completadasPorId.has(seccion.id));
+}
+
+export function consolidarRespuestasEntrevista(
+  secciones: SeccionEntrevista[],
+  completadas: SeccionCompletada[]
+): ResumenEntrevista {
+  const completadasPorId = new Map(
+    completadas.map((item) => [item.seccionId, item])
+  );
+  const respuestas = secciones.flatMap((seccion) => {
+    const completada = completadasPorId.get(seccion.id);
+    if (completada?.respuestas.length) {
+      return completada.respuestas;
+    }
+    return seccion.preguntas.map((pregunta) => ({
+      pregunta,
+      respuesta_texto: "Ver transcripción completa.",
+    }));
+  });
+  const hallazgos = secciones.flatMap(
+    (seccion) => completadasPorId.get(seccion.id)?.hallazgos ?? []
+  );
+  const sintesisPorSeccion = secciones.flatMap((seccion) => {
+    const sintesis = completadasPorId.get(seccion.id)?.sintesis.trim();
+    return sintesis ? [`${seccion.titulo}: ${sintesis}`] : [];
+  });
+
+  return {
+    hallazgos,
+    respuestas,
+    sintesis: sintesisPorSeccion.length
+      ? sintesisPorSeccion.join("\n\n")
+      : "Entrevista completada. Revisar la transcripción completa.",
+  };
+}
+
+export function parseSeccionesCompletadas(value: unknown): SeccionCompletada[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (typeof item !== "object" || item === null) {
+      return [];
+    }
+
+    const { completadaEn, hallazgos, modo, respuestas, seccionId, sintesis } =
+      item as Record<string, unknown>;
+
+    if (
+      typeof seccionId !== "string" ||
+      typeof sintesis !== "string" ||
+      typeof completadaEn !== "string" ||
+      (modo !== "agente" && modo !== "manual")
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        completadaEn,
+        hallazgos: Array.isArray(hallazgos)
+          ? hallazgos.filter(
+              (hallazgo): hallazgo is string => typeof hallazgo === "string"
+            )
+          : [],
+        modo,
+        respuestas: Array.isArray(respuestas)
+          ? respuestas.flatMap((respuesta) => {
+              if (typeof respuesta !== "object" || respuesta === null) {
+                return [];
+              }
+              const { pregunta, respuesta_texto } = respuesta as Record<
+                string,
+                unknown
+              >;
+              return typeof pregunta === "string" &&
+                typeof respuesta_texto === "string"
+                ? [{ pregunta, respuesta_texto }]
+                : [];
+            })
+          : [],
+        seccionId,
+        sintesis,
+      },
+    ];
+  });
+}
+
+export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item, index) => {
+    if (typeof item !== "object" || item === null) {
+      return [];
+    }
+
+    const { at, id, rol, seccionId, texto } = item as Record<string, unknown>;
 
     if (!(esRolTurno(rol) && typeof texto === "string") || texto.length === 0) {
       return [];
@@ -62,11 +273,27 @@ export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
     return [
       {
         at: typeof at === "string" ? at : new Date(0).toISOString(),
+        id:
+          typeof id === "string" && id.length > 0
+            ? id
+            : `legacy-${index}-${typeof at === "string" ? at : "unknown"}`,
         rol,
+        seccionId: typeof seccionId === "string" ? seccionId : null,
         texto,
       },
     ];
   });
+}
+
+export function turnosDeSeccion(
+  turnos: TurnoEntrevista[],
+  seccionId: string,
+  incluirLegacy = false
+) {
+  return turnos.filter(
+    (turno) =>
+      turno.seccionId === seccionId || (incluirLegacy && !turno.seccionId)
+  );
 }
 
 export function parseResumen(value: unknown): ResumenEntrevista | null {
@@ -105,10 +332,8 @@ export function fusionarTurnos(
   previos: TurnoEntrevista[],
   entrantes: TurnoEntrevista[]
 ): TurnoEntrevista[] {
-  const vistos = new Set(previos.map((turno) => `${turno.rol}::${turno.texto}`));
-  const nuevos = entrantes.filter(
-    (turno) => !vistos.has(`${turno.rol}::${turno.texto}`)
-  );
+  const vistos = new Set(previos.map((turno) => turno.id));
+  const nuevos = entrantes.filter((turno) => !vistos.has(turno.id));
 
   return nuevos.length > 0 ? [...previos, ...nuevos] : previos;
 }

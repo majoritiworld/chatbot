@@ -10,6 +10,7 @@ const bodySchema = z.object({
   // guid: DB ids are not always RFC-4122 versioned.
   entrevistaId: z.guid(),
   messages: z.array(z.any()).optional(),
+  seccionId: z.guid(),
 });
 
 export async function POST(request: Request) {
@@ -24,10 +25,17 @@ export async function POST(request: Request) {
       return Response.json({ error: "Datos inválidos" }, { status: 400 });
     }
 
-    const { entrevistaId, messages } = parsed.data;
-    const turnos = mensajesATurnos((messages ?? []) as ChatMessage[]);
+    const { entrevistaId, messages, seccionId } = parsed.data;
+    const turnos = mensajesATurnos(
+      (messages ?? []) as ChatMessage[],
+      seccionId
+    );
 
-    const result = await guardarProgresoEntrevista({ entrevistaId, turnos });
+    const result = await guardarProgresoEntrevista({
+      entrevistaId,
+      seccionId,
+      turnos,
+    });
 
     return Response.json({ ok: true, ...result });
   } catch (error) {

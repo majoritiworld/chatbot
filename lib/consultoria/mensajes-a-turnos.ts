@@ -3,7 +3,10 @@ import type { TurnoEntrevista } from "@/lib/consultoria/entrevista-contenido";
 import type { ChatMessage } from "@/lib/types";
 
 /** UI messages carry structured parts; the transcript keeps only their text. */
-export function mensajesATurnos(mensajes: ChatMessage[]): TurnoEntrevista[] {
+export function mensajesATurnos(
+  mensajes: ChatMessage[],
+  seccionId?: string
+): TurnoEntrevista[] {
   return mensajes.flatMap((mensaje) => {
     if (mensaje.role !== "user" && mensaje.role !== "assistant") {
       return [];
@@ -22,7 +25,9 @@ export function mensajesATurnos(mensajes: ChatMessage[]): TurnoEntrevista[] {
     return [
       {
         at: mensaje.metadata?.createdAt ?? new Date().toISOString(),
+        id: mensaje.id,
         rol: mensaje.role === "user" ? "entrevistado" : "entrevistador",
+        seccionId: seccionId ?? null,
         texto,
       } satisfies TurnoEntrevista,
     ];
@@ -34,8 +39,8 @@ export function mensajesATurnos(mensajes: ChatMessage[]): TurnoEntrevista[] {
  * shows the conversation so far instead of restarting the greeting.
  */
 export function turnosAMensajes(turnos: TurnoEntrevista[]): ChatMessage[] {
-  return turnos.map((turno, index) => ({
-    id: `turno-${index}`,
+  return turnos.map((turno) => ({
+    id: turno.id,
     metadata: { createdAt: turno.at },
     parts: [{ text: turno.texto, type: "text" as const }],
     role: turno.rol === "entrevistado" ? "user" : "assistant",

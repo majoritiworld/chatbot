@@ -66,11 +66,30 @@ import {
 import { SuggestedActions } from "./suggested-actions";
 import type { VisibilityType } from "./visibility-selector";
 
-function placeholderTexto(esEntrevista: boolean | undefined, editando: boolean) {
+function placeholderTexto(
+  esEntrevista: boolean | undefined,
+  editando: boolean
+) {
   if (esEntrevista) {
     return editando ? "Editar tu mensaje…" : "Escribe tu respuesta…";
   }
   return editando ? "Edit your message..." : "Ask anything...";
+}
+
+function etiquetaVoz(
+  voiceState: "idle" | "recording" | "transcribing",
+  esEntrevista: boolean | undefined
+) {
+  if (voiceState === "recording") {
+    return "Detener y transcribir";
+  }
+  if (voiceState === "transcribing") {
+    return "Transcribiendo...";
+  }
+  if (esEntrevista) {
+    return "Dictar por voz (Alt+Shift)";
+  }
+  return "Dictar por voz";
 }
 
 function setCookie(name: string, value: string) {
@@ -81,6 +100,7 @@ function setCookie(name: string, value: string) {
 
 function PureMultimodalInput({
   chatId,
+  composerAction,
   esEntrevista,
   input,
   setInput,
@@ -100,6 +120,7 @@ function PureMultimodalInput({
   isLoading,
 }: {
   chatId: string;
+  composerAction?: ReactNode;
   esEntrevista?: boolean;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
@@ -161,9 +182,12 @@ function PureMultimodalInput({
     "idle" | "recording" | "transcribing"
   >("idle");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mountedRef = useRef(true);
   const audioChunksRef = useRef<Blob[]>([]);
+  const shortcutPressedRef = useRef(false);
 
-  const stopVoiceRecording = useCallback(async () => {
+  const stopVoiceRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state === "inactive") {
       setVoiceState("idle");
@@ -178,6 +202,13 @@ function PureMultimodalInput({
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mountedRef.current) {
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        return;
+      }
+      mediaStreamRef.current = stream;
       const mimeType = MediaRecorder.isTypeSupported("audio/webm")
         ? "audio/webm"
         : "audio/mp4";
@@ -195,15 +226,20 @@ function PureMultimodalInput({
         for (const track of stream.getTracks()) {
           track.stop();
         }
+        mediaStreamRef.current = null;
         setVoiceState("transcribing");
         try {
           const blob = new Blob(audioChunksRef.current, { type: mimeType });
           const formData = new FormData();
           formData.append(
             "audio",
-            new File([blob], `voice.${mimeType.includes("webm") ? "webm" : "m4a"}`, {
-              type: mimeType,
-            })
+            new File(
+              [blob],
+              `voice.${mimeType.includes("webm") ? "webm" : "m4a"}`,
+              {
+                type: mimeType,
+              }
+            )
           );
           const response = await fetch(
             `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/transcribe`,
@@ -235,6 +271,10 @@ function PureMultimodalInput({
       recorder.start();
       setVoiceState("recording");
     } catch {
+      for (const track of mediaStreamRef.current?.getTracks() ?? []) {
+        track.stop();
+      }
+      mediaStreamRef.current = null;
       toast.error("No se pudo acceder al micrófono");
       setVoiceState("idle");
     }
@@ -242,13 +282,73 @@ function PureMultimodalInput({
 
   const toggleVoiceRecording = useCallback(() => {
     if (voiceState === "recording") {
-      void stopVoiceRecording();
+      stopVoiceRecording();
       return;
     }
     if (voiceState === "idle") {
-      void startVoiceRecording();
+      startVoiceRecording().catch(() => undefined);
     }
   }, [startVoiceRecording, stopVoiceRecording, voiceState]);
+
+  useEffect(() => {
+    if (!esEntrevista) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        !(event.altKey && event.shiftKey) ||
+        event.repeat ||
+        shortcutPressedRef.current
+      ) {
+        return;
+      }
+      if (
+        status !== "ready" ||
+        voiceState === "transcribing" ||
+        editingMessage
+      ) {
+        return;
+      }
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.closest('[role="dialog"]')
+      ) {
+        return;
+      }
+      event.preventDefault();
+      shortcutPressedRef.current = true;
+      toggleVoiceRecording();
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Alt" || event.key === "Shift") {
+        shortcutPressedRef.current = false;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [editingMessage, esEntrevista, status, toggleVoiceRecording, voiceState]);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.onstop = null;
+        recorder.stop();
+      }
+      for (const track of mediaStreamRef.current?.getTracks() ?? []) {
+        track.stop();
+      }
+      mediaStreamRef.current = null;
+    },
+    []
+  );
 
   const handleInput = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -655,14 +755,14 @@ function PureMultimodalInput({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  aria-keyshortcuts={esEntrevista ? "Alt+Shift" : undefined}
+                  aria-label={etiquetaVoz(voiceState, esEntrevista)}
                   className={cn(
                     "h-7 w-7 rounded-xl",
                     voiceState === "recording" && "bg-red-500/15 text-red-500",
                     voiceState === "transcribing" && "opacity-60"
                   )}
-                  disabled={
-                    status !== "ready" || voiceState === "transcribing"
-                  }
+                  disabled={status !== "ready" || voiceState === "transcribing"}
                   onClick={toggleVoiceRecording}
                   size="icon"
                   type="button"
@@ -676,11 +776,7 @@ function PureMultimodalInput({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {voiceState === "recording"
-                  ? "Detener y transcribir"
-                  : voiceState === "transcribing"
-                    ? "Transcribiendo..."
-                    : "Dictar por voz"}
+                {etiquetaVoz(voiceState, esEntrevista)}
               </TooltipContent>
             </Tooltip>
             {esEntrevista ? null : (
@@ -691,24 +787,32 @@ function PureMultimodalInput({
             )}
           </PromptInputTools>
 
-          {status === "submitted" ? (
-            <StopButton setMessages={setMessages} stop={stop} />
-          ) : (
-            <PromptInputSubmit
-              className={cn(
-                "h-7 w-7 rounded-xl transition-all duration-200",
-                input.trim()
-                  ? "bg-foreground text-background hover:opacity-85 active:scale-95"
-                  : "bg-muted text-muted-foreground/25 cursor-not-allowed"
-              )}
-              data-testid="send-button"
-              disabled={!input.trim() || uploadQueue.length > 0}
-              status={status}
-              variant="secondary"
+          <div className="flex items-center gap-2">
+            <fieldset
+              className="contents"
+              disabled={voiceState !== "idle" || status !== "ready"}
             >
-              <ArrowUpIcon className="size-4" />
-            </PromptInputSubmit>
-          )}
+              {composerAction}
+            </fieldset>
+            {status === "submitted" ? (
+              <StopButton setMessages={setMessages} stop={stop} />
+            ) : (
+              <PromptInputSubmit
+                className={cn(
+                  "h-7 w-7 rounded-xl transition-all duration-200",
+                  input.trim()
+                    ? "bg-foreground text-background hover:opacity-85 active:scale-95"
+                    : "bg-muted text-muted-foreground/25 cursor-not-allowed"
+                )}
+                data-testid="send-button"
+                disabled={!input.trim() || uploadQueue.length > 0}
+                status={status}
+                variant="secondary"
+              >
+                <ArrowUpIcon className="size-4" />
+              </PromptInputSubmit>
+            )}
+          </div>
         </PromptInputFooter>
       </PromptInput>
     </div>

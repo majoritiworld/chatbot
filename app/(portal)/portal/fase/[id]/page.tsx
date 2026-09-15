@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { EntrevistaEnCurso } from "@/components/portal/entrevista-en-curso";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { Skeleton } from "@/components/ui/skeleton";
+import { turnosDeSeccion } from "@/lib/consultoria/entrevista-contenido";
 import {
   getTranscripcionEntrevista,
   resolveEntrevista,
@@ -83,15 +84,24 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
     getTranscripcionEntrevista(entrevista.id),
     getProyecto(portalUser.proyectoId),
   ]);
+  const seccionActiva = entrevista.secciones.at(entrevista.seccion_actual);
+  const turnosActivos = seccionActiva
+    ? turnosDeSeccion(turnos, seccionActiva.id, entrevista.seccion_actual === 0)
+    : [];
 
   return (
     <EntrevistaEnCurso
       consentimientoEn={entrevista.consentimiento_en}
+      correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
       entrevistaId={entrevista.id}
       estadoInicial={entrevista.estado}
-      mensajesIniciales={turnosAMensajes(turnos)}
+      flujoEstadoInicial={entrevista.flujo_estado}
+      mensajesIniciales={turnosAMensajes(turnosActivos)}
       mostrarPortal={mostrarPortal}
       proyectoNombre={proyecto?.nombre}
+      seccionActualInicial={entrevista.seccion_actual}
+      secciones={entrevista.secciones}
+      stakeholderNombre={entrevista.stakeholder_nombre}
       titulo={fase.nombre}
     />
   );

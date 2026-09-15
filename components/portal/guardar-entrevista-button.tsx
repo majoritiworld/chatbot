@@ -8,8 +8,10 @@ import { useActiveChat } from "@/hooks/use-active-chat";
 
 export function GuardarEntrevistaButton({
   entrevistaId,
+  seccionId,
 }: {
   entrevistaId: string;
+  seccionId: string;
 }) {
   const router = useRouter();
   const { messages, status, stop } = useActiveChat();
@@ -24,7 +26,7 @@ export function GuardarEntrevistaButton({
         const response = await fetch(
           `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/entrevista/guardar`,
           {
-            body: JSON.stringify({ entrevistaId, messages }),
+            body: JSON.stringify({ entrevistaId, messages, seccionId }),
             headers: { "Content-Type": "application/json" },
             method: "POST",
           }
@@ -46,7 +48,7 @@ export function GuardarEntrevistaButton({
         toast.error("No se pudo guardar el progreso");
       }
     });
-  }, [entrevistaId, messages, router, stop]);
+  }, [entrevistaId, messages, router, seccionId, stop]);
 
   return (
     <Button

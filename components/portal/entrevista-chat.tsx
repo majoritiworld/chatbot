@@ -8,7 +8,8 @@ import { FinalizarEntrevistaButton } from "@/components/portal/finalizar-entrevi
 import { GuardarEntrevistaButton } from "@/components/portal/guardar-entrevista-button";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ActiveChatProvider } from "@/hooks/use-active-chat";
-import type { ChatMessage } from "@/lib/types";
+import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
+import type { ChatMessage, SectionCompletedData } from "@/lib/types";
 
 function avisoEntrevista(hayHistorial: boolean) {
   if (hayHistorial) {
@@ -26,13 +27,15 @@ export function EntrevistaChat({
   entrevistaId,
   mensajesIniciales,
   mostrarPortal = true,
-  onCompletada,
+  onSeccionCompletada,
+  seccion,
   titulo,
 }: {
   entrevistaId: string;
   mensajesIniciales: ChatMessage[];
   mostrarPortal?: boolean;
-  onCompletada?: () => void;
+  onSeccionCompletada: (data: SectionCompletedData) => void;
+  seccion: SeccionEntrevista;
   titulo?: string;
 }) {
   return (
@@ -46,22 +49,29 @@ export function EntrevistaChat({
         <ActiveChatProvider
           entrevistaId={entrevistaId}
           mensajesIniciales={mensajesIniciales}
+          seccionId={seccion.id}
         >
           <EntrevistaShell
             acciones={
-              <>
-                <GuardarEntrevistaButton entrevistaId={entrevistaId} />
-                <FinalizarEntrevistaButton
-                  entrevistaId={entrevistaId}
-                  onCompletada={onCompletada}
-                />
-              </>
+              <GuardarEntrevistaButton
+                entrevistaId={entrevistaId}
+                seccionId={seccion.id}
+              />
             }
             aviso={avisoEntrevista(mensajesIniciales.length > 0)}
             mostrarPortal={mostrarPortal}
             titulo={titulo}
           >
-            <ChatShell />
+            <ChatShell
+              composerAction={
+                <FinalizarEntrevistaButton
+                  entrevistaId={entrevistaId}
+                  onSeccionCompletada={onSeccionCompletada}
+                  seccionId={seccion.id}
+                />
+              }
+              onSeccionCompletada={onSeccionCompletada}
+            />
           </EntrevistaShell>
           <Toaster position="top-center" />
         </ActiveChatProvider>

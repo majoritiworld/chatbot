@@ -6,8 +6,9 @@ import {
   guardarPreguntasEntrevista,
 } from "@/app/(admin)/admin/actions";
 import { ActionMensaje } from "@/components/admin/action-mensaje";
-import { PreguntasField } from "@/components/admin/entrevista-campos";
+import { SeccionesField } from "@/components/admin/entrevista-campos";
 import { Button } from "@/components/ui/button";
+import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
 
 const initialState: ActionState = { status: "idle" };
 
@@ -15,12 +16,12 @@ export function PreguntasEntrevistaForm({
   stakeholderId,
   proyectoId,
   entrevistaId,
-  preguntas,
+  secciones,
 }: {
   stakeholderId: string;
   proyectoId: string;
   entrevistaId: string;
-  preguntas: string[];
+  secciones: SeccionEntrevista[];
 }) {
   const [state, formAction, pending] = useActionState(
     guardarPreguntasEntrevista,
@@ -39,21 +40,16 @@ export function PreguntasEntrevistaForm({
       <div>
         <h2 className="font-medium text-base">Guion de la entrevista</h2>
         <p className="text-muted-foreground text-sm">
-          {preguntas.length === 0
-            ? "Sin preguntas: el entrevistador de IA conduce a ciegas."
-            : "Los cambios aplican a la próxima respuesta del entrevistador."}
+          Los cambios aplican a la próxima respuesta del entrevistador.
         </p>
       </div>
 
-      <PreguntasField
-        defaultValue={preguntas.join("\n")}
-        id="editar-preguntas"
-      />
+      <SeccionesField defaultValue={secciones} />
 
       <ActionMensaje state={state} />
 
       <Button className="w-fit" disabled={pending} type="submit">
-        {pending ? "Guardando…" : "Guardar preguntas"}
+        {pending ? "Guardando…" : "Guardar secciones"}
       </Button>
     </form>
   );

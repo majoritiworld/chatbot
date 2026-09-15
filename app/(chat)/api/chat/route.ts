@@ -20,8 +20,8 @@ import { getLanguageModel } from "@/lib/ai/providers";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
   canWriteEntrevista,
+  completarSeccionEntrevista,
   getTranscripcionEntrevista,
-  guardarRespuestasEntrevista,
   registrarTurnosEntrevista,
   resolveEntrevista,
 } from "@/lib/consultoria/entrevistas";
@@ -44,7 +44,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { message, messages, selectedChatModel, entrevistaId } = requestBody;
+    const { message, messages, selectedChatModel, entrevistaId, seccionId } =
+      requestBody;
     const session = await auth();
 
     if (!session?.user) {
@@ -81,6 +82,19 @@ export async function POST(request: Request) {
       ).toResponse();
     }
 
+    const seccion = entrevista.secciones.at(entrevista.seccion_actual);
+    if (
+      !seccionId ||
+      !seccion ||
+      seccion.id !== seccionId ||
+      entrevista.flujo_estado !== "chat"
+    ) {
+      return new ChatbotError(
+        "bad_request:api",
+        "Esta sección ya no está activa"
+      ).toResponse();
+    }
+
     if (!entrevista.consentimiento_en) {
       const turnosPrevios = await getTranscripcionEntrevista(entrevista.id);
       if (turnosPrevios.length === 0) {
@@ -99,17 +113,14 @@ export async function POST(request: Request) {
       uiMessages = [message as ChatMessage];
     }
 
-    if (
-      message &&
-      !uiMessages.some((existing) => existing.id === message.id)
-    ) {
+    if (message && !uiMessages.some((existing) => existing.id === message.id)) {
       uiMessages = [...uiMessages, message as ChatMessage];
     }
 
     // Written before the model runs so a failed turn still counts as activity.
     await registrarTurnosEntrevista({
       entrevistaId: entrevista.id,
-      turnos: mensajesATurnos(uiMessages),
+      turnos: mensajesATurnos(uiMessages, seccion.id),
     });
 
     const modelConfig = chatModels.find((m) => m.id === chatModel);
@@ -130,14 +141,16 @@ export async function POST(request: Request) {
           ];
 
     const stream = createUIMessageStream({
-      execute: async ({ writer: dataStream }) => {
+      execute: ({ writer: dataStream }) => {
         const result = streamText({
-          activeTools: ["finalizarEntrevista"],
+          activeTools: ["completarSeccion"],
           instructions: interviewSystemPrompt({
+            descripcionSeccion: seccion.descripcion,
             firmaEntrevistado: entrevista.stakeholder_firma,
             nombreEntrevistado: entrevista.stakeholder_nombre,
-            preguntas: entrevista.preguntas,
+            preguntas: seccion.preguntas,
             reanudacion: uiMessages.length > 0,
+            tituloSeccion: seccion.titulo,
           }),
           messages: modelMessages,
           model: getLanguageModel(chatModel),
@@ -150,7 +163,9 @@ export async function POST(request: Request) {
                   ? [
                       {
                         at: new Date().toISOString(),
+                        id: generateUUID(),
                         rol: "entrevistador" as const,
+                        seccionId: seccion.id,
                         texto,
                       },
                     ]
@@ -172,41 +187,32 @@ export async function POST(request: Request) {
             isEnabled: isProductionEnvironment,
           },
           tools: {
-            finalizarEntrevista: tool({
+            completarSeccion: tool({
               description:
-                "Cierra la entrevista cuando todos los temas guía estén cubiertos. Genera un resumen estructurado y las respuestas por pregunta.",
-              execute: async ({ resumen, respuestas }) => {
-                await guardarRespuestasEntrevista({
+                "Completa la sección activa cuando sus temas guía estén suficientemente cubiertos.",
+              execute: async ({ hallazgos, respuestas, sintesis }) => {
+                const avance = await completarSeccionEntrevista({
                   entrevistaId: entrevista.id,
-                  resumen: { ...resumen, respuestas },
+                  hallazgos,
+                  modo: "agente",
                   respuestas,
+                  seccionId: seccion.id,
+                  sintesis,
+                  turnos: mensajesATurnos(uiMessages, seccion.id),
                 });
                 dataStream.write({
-                  data: {
-                    entrevistaId: entrevista.id,
-                    resumen: resumen.sintesis,
-                  },
-                  type: "data-entrevista-completada",
+                  data: avance,
+                  type: "data-seccion-completada",
                 });
                 return {
+                  message: "Sección guardada. Continúa con el siguiente paso.",
                   ok: true,
-                  message:
-                    "Entrevista guardada. Gracias por tu tiempo.",
                 };
               },
               inputSchema: z.object({
-                resumen: z
-                  .object({
-                    hallazgos: z
-                      .array(z.string())
-                      .describe(
-                        "Hallazgos concretos, uno por punto, en orden de relevancia"
-                      ),
-                    sintesis: z
-                      .string()
-                      .describe("Síntesis ejecutiva de la conversación"),
-                  })
-                  .describe("Resumen estructurado de la entrevista"),
+                hallazgos: z
+                  .array(z.string())
+                  .describe("Hallazgos concretos de la sección"),
                 respuestas: z
                   .array(
                     z.object({
@@ -217,6 +223,9 @@ export async function POST(request: Request) {
                   .describe(
                     "Una entrada por cada pregunta guía cubierta, con la síntesis de lo respondido"
                   ),
+                sintesis: z
+                  .string()
+                  .describe("Síntesis fiel y concisa de la sección"),
               }),
             }),
           },
@@ -246,6 +255,6 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE() {
+export function DELETE() {
   return new Response("Method not needed for interview MVP", { status: 405 });
 }

@@ -10,7 +10,9 @@ import {
   construirArchivoTranscripcion,
   parseResumen,
   parseTranscripcion,
+  preguntasDeSecciones,
   type ResumenEntrevista,
+  type SeccionEntrevista,
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import {
@@ -175,9 +177,52 @@ export async function cambiarEstadoFase(
 const plantillaSchema = z.object({
   faseId: z.string().uuid("Selecciona una fase"),
   nombre: z.string().trim().min(1, "Nombre requerido"),
-  preguntas: z.string(),
   proyectoId: z.string().uuid("Proyecto inválido"),
+  secciones: z.string(),
 });
+
+const seccionFormSchema = z.object({
+  descripcion: z.string(),
+  id: z.string().min(1),
+  preguntas: z.array(z.string()),
+  titulo: z.string().trim().min(1, "Cada sección necesita un título"),
+});
+
+function seccionesDesdeFormulario(
+  raw: string
+):
+  | { ok: true; secciones: SeccionEntrevista[] }
+  | { ok: false; message: string } {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { message: "Las secciones no tienen un formato válido", ok: false };
+  }
+
+  const parsed = z.array(seccionFormSchema).min(1).safeParse(json);
+  if (!parsed.success) {
+    return {
+      message: parsed.error.issues[0]?.message ?? "Agrega al menos una sección",
+      ok: false,
+    };
+  }
+
+  const secciones = parsed.data.map((seccion) => ({
+    descripcion: seccion.descripcion.trim(),
+    id: seccion.id.startsWith("new-") ? generateUUID() : seccion.id,
+    preguntas: preguntasDesdeTexto(seccion.preguntas.join("\n")),
+    titulo: seccion.titulo,
+  }));
+  if (secciones.some((seccion) => seccion.preguntas.length === 0)) {
+    return {
+      message: "Cada sección necesita al menos una pregunta guía",
+      ok: false,
+    };
+  }
+
+  return { ok: true, secciones };
+}
 
 export async function crearPlantillaEntrevista(
   _prev: ActionState,
@@ -188,19 +233,20 @@ export async function crearPlantillaEntrevista(
   const parsed = plantillaSchema.safeParse({
     faseId: formData.get("faseId"),
     nombre: formData.get("nombre"),
-    preguntas: formData.get("preguntas") ?? "",
     proyectoId: formData.get("proyectoId"),
+    secciones: formData.get("secciones") ?? "",
   });
 
   if (!parsed.success) {
     return primerError(parsed.error);
   }
 
-  const preguntas = preguntasDesdeTexto(parsed.data.preguntas);
-
-  if (preguntas.length === 0) {
-    return { message: "Escribe al menos una pregunta guía", status: "error" };
+  const resultadoSecciones = seccionesDesdeFormulario(parsed.data.secciones);
+  if (!resultadoSecciones.ok) {
+    return { message: resultadoSecciones.message, status: "error" };
   }
+  const { secciones } = resultadoSecciones;
+  const preguntas = preguntasDeSecciones(secciones);
 
   const fase = await getFaseDelProyecto(
     parsed.data.proyectoId,
@@ -217,6 +263,7 @@ export async function crearPlantillaEntrevista(
     nombre: parsed.data.nombre,
     preguntas,
     proyecto_id: parsed.data.proyectoId,
+    secciones,
   });
 
   if (error) {
@@ -232,8 +279,8 @@ export async function crearPlantillaEntrevista(
 
 const preguntasPlantillaSchema = z.object({
   plantillaId: z.string().uuid("Entrevista inválida"),
-  preguntas: z.string(),
   proyectoId: z.string().uuid("Proyecto inválido"),
+  secciones: z.string(),
 });
 
 export async function guardarPreguntasPlantilla(
@@ -244,24 +291,25 @@ export async function guardarPreguntasPlantilla(
 
   const parsed = preguntasPlantillaSchema.safeParse({
     plantillaId: formData.get("plantillaId"),
-    preguntas: formData.get("preguntas") ?? "",
     proyectoId: formData.get("proyectoId"),
+    secciones: formData.get("secciones") ?? "",
   });
 
   if (!parsed.success) {
     return primerError(parsed.error);
   }
 
-  const preguntas = preguntasDesdeTexto(parsed.data.preguntas);
-
-  if (preguntas.length === 0) {
-    return { message: "Escribe al menos una pregunta guía", status: "error" };
+  const resultadoSecciones = seccionesDesdeFormulario(parsed.data.secciones);
+  if (!resultadoSecciones.ok) {
+    return { message: resultadoSecciones.message, status: "error" };
   }
+  const { secciones } = resultadoSecciones;
+  const preguntas = preguntasDeSecciones(secciones);
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("entrevista_plantilla")
-    .update({ preguntas })
+    .update({ preguntas, secciones })
     .eq("id", parsed.data.plantillaId)
     .eq("proyecto_id", parsed.data.proyectoId);
 
@@ -271,7 +319,7 @@ export async function guardarPreguntasPlantilla(
 
   revalidatePath(`/admin/${parsed.data.proyectoId}`);
   return {
-    message: `${preguntas.length} preguntas guardadas. No cambia a quienes ya se la enviaste.`,
+    message: `${secciones.length} secciones guardadas. No cambia a quienes ya se la enviaste.`,
     status: "success",
   };
 }
@@ -446,6 +494,7 @@ export async function asignarEntrevista(
     plantillaId: plantilla.id,
     preguntas: plantilla.preguntas,
     responsable: parsed.data.nombre,
+    secciones: plantilla.secciones,
     stakeholderId: parsed.data.stakeholderId,
   });
 
@@ -466,8 +515,8 @@ export async function asignarEntrevista(
 
 const preguntasSchema = z.object({
   entrevistaId: z.string().uuid("Entrevista inválida"),
-  preguntas: z.string(),
   proyectoId: z.string().uuid("Proyecto inválido"),
+  secciones: z.string(),
   stakeholderId: z.string().uuid("Stakeholder inválido"),
 });
 
@@ -479,8 +528,8 @@ export async function guardarPreguntasEntrevista(
 
   const parsed = preguntasSchema.safeParse({
     entrevistaId: formData.get("entrevistaId"),
-    preguntas: formData.get("preguntas") ?? "",
     proyectoId: formData.get("proyectoId"),
+    secciones: formData.get("secciones") ?? "",
     stakeholderId: formData.get("stakeholderId"),
   });
 
@@ -488,20 +537,48 @@ export async function guardarPreguntasEntrevista(
     return primerError(parsed.error);
   }
 
-  const preguntas = preguntasDesdeTexto(parsed.data.preguntas);
-
-  if (preguntas.length === 0) {
-    return { message: "Escribe al menos una pregunta guía", status: "error" };
+  const resultadoSecciones = seccionesDesdeFormulario(parsed.data.secciones);
+  if (!resultadoSecciones.ok) {
+    return { message: resultadoSecciones.message, status: "error" };
   }
+  const { secciones } = resultadoSecciones;
+  const preguntas = preguntasDeSecciones(secciones);
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: entrevistaActual } = await supabase
     .from("entrevista")
-    .update({ preguntas })
-    .eq("id", parsed.data.entrevistaId);
+    .select("consentimiento_en, estado, transcripcion")
+    .eq("id", parsed.data.entrevistaId)
+    .maybeSingle();
+  if (
+    entrevistaActual?.estado !== "abierta" ||
+    entrevistaActual?.consentimiento_en ||
+    parseTranscripcion(entrevistaActual?.transcripcion).length > 0
+  ) {
+    return {
+      message: "No puedes cambiar las secciones de una entrevista iniciada.",
+      status: "error",
+    };
+  }
+
+  const { data: actualizada, error } = await supabase
+    .from("entrevista")
+    .update({ preguntas, secciones })
+    .eq("id", parsed.data.entrevistaId)
+    .eq("estado", "abierta")
+    .is("consentimiento_en", null)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return { message: error.message, status: "error" };
+  }
+  if (!actualizada) {
+    return {
+      message:
+        "La entrevista empezó mientras editabas. No se guardó el cambio.",
+      status: "error",
+    };
   }
 
   revalidatePath(
