@@ -271,10 +271,10 @@ function TourTarjeta({
   onSaltar: () => void;
   onSiguiente: () => void;
   pasoId: string;
-  primarioRef: RefObject<HTMLButtonElement | null>;
+  primarioRef: RefObject<HTMLButtonElement>;
   spotlightIds: string[];
   style: CSSProperties;
-  tarjetaRef: RefObject<HTMLDivElement | null>;
+  tarjetaRef: RefObject<HTMLDivElement>;
   titulo: string;
 }) {
   let cta = "Siguiente";
