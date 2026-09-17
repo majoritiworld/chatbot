@@ -54,6 +54,16 @@ export function stakeholderNeedsInterviewLanding(pathname: string) {
 }
 
 /**
+ * Leftover Chat SDK routes. Sending a message in the interview used to
+ * `pushState` here; Next.js treats that as a real navigation.
+ */
+export function isGenericChatPath(pathname: string) {
+  return (
+    pathname === "/" || pathname === "/chat" || pathname.startsWith("/chat/")
+  );
+}
+
+/**
  * Where to send someone right after signing in. Clients ignore `next` so a
  * leftover interview URL never dumps them back into chat or post-submit.
  */
@@ -62,7 +72,12 @@ export function resolveAuthLanding(
   next: string | null,
   home: string
 ) {
-  if (isClienteRole(rol) || !next || stakeholderNeedsInterviewLanding(next)) {
+  if (
+    isClienteRole(rol) ||
+    !next ||
+    isGenericChatPath(next) ||
+    stakeholderNeedsInterviewLanding(next)
+  ) {
     return home;
   }
 

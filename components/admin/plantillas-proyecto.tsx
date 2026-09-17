@@ -7,10 +7,12 @@ export function PlantillasProyecto({
   proyectoId,
   fases,
   plantillas,
+  faseId,
 }: {
   proyectoId: string;
   fases: FaseAdmin[];
   plantillas: PlantillaAdmin[];
+  faseId?: string;
 }) {
   return (
     <section className="flex flex-col gap-4">
@@ -18,7 +20,7 @@ export function PlantillasProyecto({
         <h2 className="font-medium text-base">Entrevistas agénticas</h2>
         <p className="text-muted-foreground text-sm">
           Armas el skill una vez y luego lo mandas a todos los stakeholders de
-          esa fase.
+          esta fase.
         </p>
       </div>
 
@@ -35,7 +37,11 @@ export function PlantillasProyecto({
         </div>
       )}
 
-      <CrearPlantillaForm fases={fases} proyectoId={proyectoId} />
+      <CrearPlantillaForm
+        faseId={faseId}
+        fases={fases}
+        proyectoId={proyectoId}
+      />
     </section>
   );
 }

@@ -6,6 +6,7 @@ import {
   type SeccionEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import { normalizarEstado } from "@/lib/consultoria/fase-estado";
+import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { createClient } from "@/lib/supabase/server";
 import { generateUUID } from "@/lib/utils";
 
@@ -68,6 +69,7 @@ async function abrirFase(fase: FaseObjetivo) {
 export type StakeholderExistente = {
   id: string;
   nombre: string;
+  apellido: string | null;
   firma: string | null;
 };
 
@@ -78,7 +80,7 @@ export async function buscarStakeholderEnProyecto(
   const supabase = await createClient();
   const { data } = await supabase
     .from("stakeholder")
-    .select("id, nombre, firma")
+    .select("id, nombre, apellido, firma")
     .eq("proyecto_id", proyectoId)
     .ilike("email", patronEmail(email))
     .maybeSingle();
@@ -186,6 +188,7 @@ export async function provisionarDestinatarioPlantilla({
   proyectoId,
   email,
   nombre,
+  apellido,
   firma,
   fase,
   preguntas,
@@ -195,6 +198,7 @@ export async function provisionarDestinatarioPlantilla({
   proyectoId: string;
   email: string;
   nombre: string;
+  apellido: string | null;
   firma: string | null;
   fase: FaseObjetivo;
   preguntas: string[];
@@ -224,7 +228,7 @@ export async function provisionarDestinatarioPlantilla({
       fase,
       plantillaId,
       preguntas,
-      responsable: existente.nombre,
+      responsable: nombreCompleto(existente.nombre, existente.apellido),
       secciones,
       stakeholderId: existente.id,
     });
@@ -244,6 +248,7 @@ export async function provisionarDestinatarioPlantilla({
   const { data: stakeholder, error } = await supabase
     .from("stakeholder")
     .insert({
+      apellido,
       email,
       estado_entrevista: "pendiente",
       firma,
@@ -265,7 +270,7 @@ export async function provisionarDestinatarioPlantilla({
     fase,
     plantillaId,
     preguntas,
-    responsable: nombre,
+    responsable: nombreCompleto(nombre, apellido),
     secciones,
     stakeholderId: stakeholder.id,
   });
@@ -285,10 +290,12 @@ export async function crearFaseEnProyecto({
   proyectoId,
   nombre,
   fechaEstimada,
+  fechaCierre,
 }: {
   proyectoId: string;
   nombre: string;
   fechaEstimada: string | null;
+  fechaCierre: string | null;
 }): Promise<ResultadoFase> {
   const supabase = await createClient();
 
@@ -306,6 +313,7 @@ export async function crearFaseEnProyecto({
 
   const { error } = await supabase.from("fase").insert({
     estado,
+    fecha_cierre: fechaCierre,
     fecha_estimada: fechaEstimada,
     nombre,
     orden: (ultima?.orden ?? 0) + 1,
@@ -317,4 +325,43 @@ export async function crearFaseEnProyecto({
   }
 
   return { estado, ok: true };
+}
+
+export async function actualizarFaseEnProyecto({
+  proyectoId,
+  faseId,
+  nombre,
+  descripcion,
+  fechaEstimada,
+  fechaCierre,
+}: {
+  proyectoId: string;
+  faseId: string;
+  nombre: string;
+  descripcion: string | null;
+  fechaEstimada: string | null;
+  fechaCierre: string | null;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const fase = await getFaseDelProyecto(proyectoId, faseId);
+  if (!fase) {
+    return { message: "Esa fase no es de este proyecto", ok: false };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("fase")
+    .update({
+      descripcion,
+      fecha_cierre: fechaCierre,
+      fecha_estimada: fechaEstimada,
+      nombre,
+    })
+    .eq("id", faseId)
+    .eq("proyecto_id", proyectoId);
+
+  if (error) {
+    return { message: error.message, ok: false };
+  }
+
+  return { ok: true };
 }

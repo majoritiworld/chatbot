@@ -1,10 +1,18 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useActiveChat } from "@/hooks/use-active-chat";
+import { cn } from "@/lib/utils";
+
+const AVISO_GUARDADO =
+  "Progreso guardado. Puedes salir y volver a entrar cuando quieras.";
 
 export function GuardarEntrevistaButton({
   entrevistaId,
@@ -13,12 +21,19 @@ export function GuardarEntrevistaButton({
   entrevistaId: string;
   seccionId: string;
 }) {
-  const router = useRouter();
   const { messages, status, stop } = useActiveChat();
   const [pending, startTransition] = useTransition();
-  const busy = pending || status === "submitted" || status === "streaming";
+  const [claveGuardada, setClaveGuardada] = useState<string | null>(null);
+  const claveMensajes = messages.map((mensaje) => mensaje.id).join(",");
+  const guardado = claveGuardada !== null && claveGuardada === claveMensajes;
+  const ocupado = pending || status === "submitted" || status === "streaming";
+  const noClickeable = ocupado || guardado;
 
   const handleSave = useCallback(() => {
+    if (noClickeable) {
+      return;
+    }
+
     startTransition(async () => {
       stop();
 
@@ -42,18 +57,21 @@ export function GuardarEntrevistaButton({
           return;
         }
 
-        router.refresh();
-        toast.success("Progreso guardado. Puedes continuar cuando quieras.");
+        setClaveGuardada(claveMensajes);
       } catch {
         toast.error("No se pudo guardar el progreso");
       }
     });
-  }, [entrevistaId, messages, router, seccionId, stop]);
+  }, [claveMensajes, entrevistaId, messages, noClickeable, seccionId, stop]);
 
-  return (
+  const boton = (
     <Button
-      className="text-muted-foreground text-xs hover:text-foreground"
-      disabled={busy}
+      aria-disabled={noClickeable}
+      className={cn(
+        "text-muted-foreground text-xs hover:text-foreground",
+        guardado && "cursor-not-allowed opacity-50 hover:text-muted-foreground"
+      )}
+      disabled={ocupado}
       onClick={handleSave}
       size="xs"
       type="button"
@@ -61,5 +79,16 @@ export function GuardarEntrevistaButton({
     >
       {pending ? "Guardando…" : "Guardar"}
     </Button>
+  );
+
+  if (!guardado) {
+    return boton;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{boton}</TooltipTrigger>
+      <TooltipContent>{AVISO_GUARDADO}</TooltipContent>
+    </Tooltip>
   );
 }

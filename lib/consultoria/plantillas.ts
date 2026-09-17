@@ -9,6 +9,11 @@ import {
   type SeccionEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import {
+  NOMBRE_PLANTILLA_CL_FASE_1,
+  seccionesDeGuionClFase1,
+} from "@/lib/consultoria/guiones/compliance-latam-fase-1";
+import { nombreCompleto } from "@/lib/consultoria/nombre";
+import {
   type FaseObjetivo,
   getFaseDelProyecto,
   provisionarDestinatarioPlantilla,
@@ -77,10 +82,11 @@ function toPlantillaAdmin(row: PlantillaRow): PlantillaAdmin | null {
 }
 
 export async function listPlantillasAdmin(
-  proyectoId: string
+  proyectoId: string,
+  faseId?: string
 ): Promise<PlantillaAdmin[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("entrevista_plantilla")
     .select(
       `
@@ -96,6 +102,12 @@ export async function listPlantillasAdmin(
     )
     .eq("proyecto_id", proyectoId)
     .order("created_at");
+
+  if (faseId) {
+    query = query.eq("fase_id", faseId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw error;
@@ -150,6 +162,61 @@ export async function getPlantillaDelProyecto(
   return { ...plantilla, fase };
 }
 
+export async function asegurarPlantillaGuionClFase1({
+  proyectoId,
+  faseId,
+}: {
+  proyectoId: string;
+  faseId: string;
+}) {
+  const supabase = await createClient();
+  const { data: existente, error: errorExistente } = await supabase
+    .from("entrevista_plantilla")
+    .select("id")
+    .eq("proyecto_id", proyectoId)
+    .eq("fase_id", faseId)
+    .eq("nombre", NOMBRE_PLANTILLA_CL_FASE_1)
+    .maybeSingle();
+
+  if (errorExistente) {
+    throw errorExistente;
+  }
+
+  const secciones = seccionesDeGuionClFase1();
+  const preguntas = preguntasDeSecciones(secciones);
+
+  if (existente) {
+    const { error } = await supabase
+      .from("entrevista_plantilla")
+      .update({ preguntas, secciones })
+      .eq("id", existente.id);
+
+    if (error) {
+      throw error;
+    }
+
+    return existente.id;
+  }
+
+  const { data, error } = await supabase
+    .from("entrevista_plantilla")
+    .insert({
+      fase_id: faseId,
+      nombre: NOMBRE_PLANTILLA_CL_FASE_1,
+      preguntas,
+      proyecto_id: proyectoId,
+      secciones,
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.id ?? null;
+}
+
 async function mapLotes<T, R>(
   items: T[],
   size: number,
@@ -195,6 +262,7 @@ async function enviarADestinatario({
   detalle: string;
 }> {
   const resultado = await provisionarDestinatarioPlantilla({
+    apellido: destinatario.apellido,
     email: destinatario.email,
     fase,
     firma: destinatario.firma,
@@ -213,16 +281,20 @@ async function enviarADestinatario({
     };
   }
 
+  const nombreVisible = nombreCompleto(
+    destinatario.nombre,
+    destinatario.apellido
+  );
   const acceso = await invitarAlPortal({
     email: destinatario.email,
-    nombre: destinatario.nombre,
+    nombre: nombreVisible,
     proyectoId,
     rol,
   });
 
   return {
     correoEnviado: acceso.enviado,
-    detalle: `${destinatario.nombre} <${destinatario.email}>: ${acceso.message}`,
+    detalle: `${nombreVisible} <${destinatario.email}>: ${acceso.message}`,
     status: resultado.status,
   };
 }

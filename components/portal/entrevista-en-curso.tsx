@@ -7,6 +7,7 @@ import { EntrevistaBienvenida } from "@/components/portal/entrevista-bienvenida"
 import { EntrevistaChat } from "@/components/portal/entrevista-chat";
 import { EntrevistaCompletada } from "@/components/portal/entrevista-completada";
 import { EntrevistaOnboarding } from "@/components/portal/entrevista-onboarding";
+import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { EntrevistaPresentacionSeccion } from "@/components/portal/entrevista-presentacion-seccion";
 import { EntrevistaRevision } from "@/components/portal/entrevista-revision";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
@@ -27,7 +28,6 @@ export function EntrevistaEnCurso({
   flujoEstadoInicial,
   mensajesIniciales,
   mostrarPortal = true,
-  proyectoNombre,
   seccionActualInicial,
   secciones,
   stakeholderNombre,
@@ -40,7 +40,6 @@ export function EntrevistaEnCurso({
   flujoEstadoInicial: FlujoEntrevista;
   mensajesIniciales: ChatMessage[];
   mostrarPortal?: boolean;
-  proyectoNombre?: string | null;
   seccionActualInicial: number;
   secciones: SeccionEntrevista[];
   stakeholderNombre?: string | null;
@@ -221,7 +220,6 @@ export function EntrevistaEnCurso({
         entrevistaId={entrevistaId}
         mostrarPortal={mostrarPortal}
         onAceptado={marcarOnboardingListo}
-        proyectoNombre={proyectoNombre}
         titulo={titulo}
       />
     );
@@ -259,9 +257,11 @@ export function EntrevistaEnCurso({
   if (!seccion) {
     return (
       <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
-        <p className="px-6 py-12 text-destructive text-sm" role="alert">
-          Esta entrevista no tiene una sección activa. Contacta a Majoriti.
-        </p>
+        <EntrevistaPantallaTransicion>
+          <p className="text-destructive text-sm" role="alert">
+            Esta entrevista no tiene una sección activa. Contacta a Majoriti.
+          </p>
+        </EntrevistaPantallaTransicion>
       </EntrevistaShell>
     );
   }

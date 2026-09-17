@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { AgregarStakeholderForm } from "@/components/admin/agregar-stakeholder-form";
+import { EventosProyecto } from "@/components/admin/eventos-proyecto";
 import { FasesProyecto } from "@/components/admin/fases-proyecto";
-import { PlantillasProyecto } from "@/components/admin/plantillas-proyecto";
 import { StakeholdersTable } from "@/components/admin/stakeholders-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdminUser } from "@/lib/consultoria/admin";
-import { listPlantillasAdmin } from "@/lib/consultoria/plantillas";
+import { getEventosDelProyecto } from "@/lib/consultoria/eventos";
 import {
   getProyectoAdmin,
   listFasesAdmin,
@@ -38,10 +39,10 @@ async function ProyectoContenido({ params }: { params: ProyectoParams }) {
     notFound();
   }
 
-  const [stakeholders, fases, plantillas] = await Promise.all([
+  const [stakeholders, fases, eventos] = await Promise.all([
     listStakeholdersAdmin(proyectoId),
     listFasesAdmin(proyectoId),
-    listPlantillasAdmin(proyectoId),
+    getEventosDelProyecto(proyectoId),
   ]);
   const completadas = stakeholders.filter(
     (row) => row.estadoEntrevista === "completada"
@@ -67,18 +68,15 @@ async function ProyectoContenido({ params }: { params: ProyectoParams }) {
 
       <FasesProyecto fases={fases} proyectoId={proyectoId} />
 
-      <PlantillasProyecto
-        fases={fases}
-        plantillas={plantillas}
-        proyectoId={proyectoId}
-      />
+      <EventosProyecto eventos={eventos} proyectoId={proyectoId} />
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-medium text-base">Stakeholders</h2>
+        <h2 className="font-medium text-base">Personas</h2>
         <StakeholdersTable
           proyectoId={proyectoId}
           stakeholders={stakeholders}
         />
+        <AgregarStakeholderForm proyectoId={proyectoId} />
       </section>
     </>
   );

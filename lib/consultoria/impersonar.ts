@@ -9,6 +9,7 @@ import {
   ensureUsuarioPerfil,
   normalizarEmail,
 } from "@/lib/consultoria/auth";
+import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -188,7 +189,7 @@ export async function impersonarStakeholder(
 
   const { data: stakeholder } = await admin
     .from("stakeholder")
-    .select("id, nombre, email")
+    .select("id, nombre, apellido, email")
     .eq("id", stakeholderId)
     .maybeSingle();
 
@@ -196,10 +197,14 @@ export async function impersonarStakeholder(
     return { message: "No encontramos a ese stakeholder.", ok: false };
   }
 
+  const nombreVisible = nombreCompleto(
+    stakeholder.nombre,
+    stakeholder.apellido
+  );
   const email = normalizarEmail(stakeholder.email);
   const cuenta = await ensureAuthUser({
     email,
-    nombre: stakeholder.nombre,
+    nombre: nombreVisible,
   });
 
   if (!cuenta.ok) {
@@ -272,7 +277,7 @@ export async function impersonarStakeholder(
   await ensureUsuarioPerfil(sesion.user);
   await marcarVistaComo({
     email,
-    nombre: stakeholder.nombre,
+    nombre: nombreVisible,
   });
 
   return { ok: true };

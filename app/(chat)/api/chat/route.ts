@@ -127,15 +127,30 @@ export async function POST(request: Request) {
     const modelCapabilities = await getCapabilities();
     const capabilities = modelCapabilities[chatModel];
     const isReasoningModel = capabilities?.reasoning === true;
+    const seccionesPorId = new Map(
+      entrevista.secciones.map((item) => [item.id, item])
+    );
+    const seccionesPrevias = entrevista.secciones_completadas.map(
+      (completada) => ({
+        respuestas: completada.respuestas,
+        sintesis: completada.sintesis,
+        titulo:
+          seccionesPorId.get(completada.seccionId)?.titulo ??
+          "Sección anterior",
+      })
+    );
+    const haySeccionesPrevias = seccionesPrevias.length > 0;
     // The portal opens the interview with no user turn: the agent speaks
     // first. This opener is never persisted to the transcript.
+    const kickoff = haySeccionesPrevias
+      ? "Estoy listo para continuar con esta sección. No te presentes de nuevo; haz una transición breve y la primera pregunta."
+      : "Estoy listo para comenzar. Preséntate, salúdame y haz la primera pregunta.";
     const modelMessages =
       uiMessages.length > 0
         ? await convertToModelMessages(uiMessages)
         : [
             {
-              content:
-                "Estoy listo para comenzar. Preséntate, salúdame y haz la primera pregunta.",
+              content: kickoff,
               role: "user" as const,
             },
           ];
@@ -150,6 +165,7 @@ export async function POST(request: Request) {
             nombreEntrevistado: entrevista.stakeholder_nombre,
             preguntas: seccion.preguntas,
             reanudacion: uiMessages.length > 0,
+            seccionesPrevias,
             tituloSeccion: seccion.titulo,
           }),
           messages: modelMessages,

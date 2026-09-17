@@ -1,6 +1,10 @@
 import "server-only";
 
-import { patronEmail } from "@/lib/consultoria/auth";
+import {
+  actualizarCuentaPortal,
+  normalizarEmail,
+  patronEmail,
+} from "@/lib/consultoria/auth";
 import {
   parsePreguntas,
   parseResumen,
@@ -10,6 +14,7 @@ import {
   type SeccionEntrevista,
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
+import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { isPortalRole, type RolPortal } from "@/lib/consultoria/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,6 +33,8 @@ export type AlertaActividad = "ok" | "sin_actividad" | "inactivo";
 export type StakeholderAdmin = {
   id: string;
   nombre: string;
+  apellido: string | null;
+  nombreCompleto: string;
   firma: string | null;
   email: string;
   estadoEntrevista: string;
@@ -48,6 +55,15 @@ export type FaseAdmin = {
   orden: number;
   estado: string;
   fechaEstimada: string | null;
+  fechaCierre: string | null;
+  descripcion: string | null;
+};
+
+export type EntrevistaDeFaseAdmin = {
+  id: string;
+  estado: string;
+  stakeholderId: string;
+  stakeholderNombre: string;
 };
 
 export type DocumentoAdmin = {
@@ -90,6 +106,7 @@ type EntrevistaEmbed = {
 type StakeholderRow = {
   id: string;
   nombre: string;
+  apellido: string | null;
   firma: string | null;
   email: string;
   estado_entrevista: string;
@@ -134,6 +151,7 @@ function toStakeholderAdmin(row: StakeholderRow): StakeholderAdmin {
       row.estado_entrevista,
       entrevista?.ultima_actividad ?? null
     ),
+    apellido: row.apellido,
     email: row.email,
     entrevistaEstado: entrevista?.estado ?? null,
     entrevistaId: entrevista?.id ?? null,
@@ -141,6 +159,7 @@ function toStakeholderAdmin(row: StakeholderRow): StakeholderAdmin {
     firma: row.firma,
     id: row.id,
     nombre: row.nombre,
+    nombreCompleto: nombreCompleto(row.nombre, row.apellido),
     proyectoCliente: proyecto?.cliente ?? "",
     proyectoId: proyecto?.id ?? row.proyecto_id,
     proyectoNombre: proyecto?.nombre ?? "Sin proyecto",
@@ -196,6 +215,7 @@ export async function listStakeholdersAdmin(
       `
       id,
       nombre,
+      apellido,
       firma,
       email,
       estado_entrevista,
@@ -205,7 +225,8 @@ export async function listStakeholdersAdmin(
     `
     )
     .eq("proyecto_id", proyectoId)
-    .order("nombre");
+    .order("nombre")
+    .order("apellido");
 
   if (error) {
     throw error;
@@ -289,17 +310,24 @@ type FaseRow = {
   orden: number;
   estado: string;
   fecha_estimada: string | null;
+  fecha_cierre: string | null;
+  descripcion: string | null;
 };
 
 function toFaseAdmin(row: FaseRow): FaseAdmin {
   return {
+    descripcion: row.descripcion,
     estado: row.estado,
+    fechaCierre: row.fecha_cierre,
     fechaEstimada: row.fecha_estimada,
     id: row.id,
     nombre: row.nombre,
     orden: row.orden,
   };
 }
+
+const FASE_ADMIN_SELECT =
+  "id, nombre, orden, estado, fecha_estimada, fecha_cierre, descripcion";
 
 export async function listFasesAdmin(proyectoId: string): Promise<FaseAdmin[]> {
   if (!esUuid(proyectoId)) {
@@ -309,7 +337,7 @@ export async function listFasesAdmin(proyectoId: string): Promise<FaseAdmin[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("fase")
-    .select("id, nombre, orden, estado, fecha_estimada")
+    .select(FASE_ADMIN_SELECT)
     .eq("proyecto_id", proyectoId)
     .order("orden");
 
@@ -318,6 +346,115 @@ export async function listFasesAdmin(proyectoId: string): Promise<FaseAdmin[]> {
   }
 
   return (data ?? []).map(toFaseAdmin);
+}
+
+export async function getFaseAdmin(
+  proyectoId: string,
+  faseId: string
+): Promise<FaseAdmin | null> {
+  if (!(esUuid(proyectoId) && esUuid(faseId))) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("fase")
+    .select(FASE_ADMIN_SELECT)
+    .eq("proyecto_id", proyectoId)
+    .eq("id", faseId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? toFaseAdmin(data) : null;
+}
+
+type EntrevistaFaseEmbed = {
+  id: string;
+  estado: string;
+  stakeholder_id: string;
+  stakeholder:
+    | {
+        id: string;
+        nombre: string;
+        apellido: string | null;
+        estado_entrevista: string;
+      }
+    | Array<{
+        id: string;
+        nombre: string;
+        apellido: string | null;
+        estado_entrevista: string;
+      }>
+    | null;
+} | null;
+
+type TareaFaseRow = {
+  entrevista: EntrevistaFaseEmbed | EntrevistaFaseEmbed[] | null;
+};
+
+export async function listEntrevistasDeFaseAdmin(
+  faseId: string
+): Promise<EntrevistaDeFaseAdmin[]> {
+  if (!esUuid(faseId)) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tarea")
+    .select(
+      `
+      entrevista:entrevista_id (
+        id,
+        estado,
+        stakeholder_id,
+        stakeholder:stakeholder_id ( id, nombre, apellido, estado_entrevista )
+      )
+    `
+    )
+    .eq("fase_id", faseId)
+    .eq("tipo", "entrevista");
+
+  if (error) {
+    throw error;
+  }
+
+  const entrevistas: EntrevistaDeFaseAdmin[] = [];
+
+  for (const row of (data ?? []) as TareaFaseRow[]) {
+    const entrevista = asOne(row.entrevista);
+    if (!entrevista) {
+      continue;
+    }
+
+    const stakeholder = asOne(entrevista.stakeholder);
+    if (!stakeholder) {
+      continue;
+    }
+
+    entrevistas.push({
+      estado:
+        entrevista.estado === "completada" ||
+        stakeholder.estado_entrevista === "completada"
+          ? "completada"
+          : stakeholder.estado_entrevista || entrevista.estado || "pendiente",
+      id: entrevista.id,
+      stakeholderId: stakeholder.id,
+      stakeholderNombre: nombreCompleto(
+        stakeholder.nombre,
+        stakeholder.apellido
+      ),
+    });
+  }
+
+  entrevistas.sort((a, b) =>
+    a.stakeholderNombre.localeCompare(b.stakeholderNombre, "es")
+  );
+
+  return entrevistas;
 }
 
 export async function getStakeholderDetalle(
@@ -335,6 +472,7 @@ export async function getStakeholderDetalle(
       `
       id,
       nombre,
+      apellido,
       firma,
       email,
       estado_entrevista,
@@ -375,7 +513,7 @@ export async function getStakeholderDetalle(
   ] = await Promise.all([
     supabase
       .from("fase")
-      .select("id, nombre, orden, estado, fecha_estimada")
+      .select(FASE_ADMIN_SELECT)
       .eq("proyecto_id", base.proyectoId)
       .order("orden"),
     base.entrevistaId
@@ -420,6 +558,100 @@ export async function getStakeholderDetalle(
   };
 }
 
+export async function actualizarStakeholderAdmin({
+  stakeholderId,
+  proyectoId,
+  nombre,
+  apellido,
+  email: emailCrudo,
+  firma,
+}: {
+  stakeholderId: string;
+  proyectoId: string;
+  nombre: string;
+  apellido: string | null;
+  email: string;
+  firma: string | null;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const email = normalizarEmail(emailCrudo);
+  const nombreVisible = nombreCompleto(nombre, apellido);
+  const supabase = await createClient();
+  const { data: persona } = await supabase
+    .from("stakeholder")
+    .select("id, email, nombre, apellido, proyecto_id")
+    .eq("id", stakeholderId)
+    .maybeSingle();
+
+  if (!persona || persona.proyecto_id !== proyectoId) {
+    return {
+      message: "No encontramos a esa persona en este proyecto",
+      ok: false,
+    };
+  }
+
+  const emailActual = normalizarEmail(persona.email);
+  if (email !== emailActual) {
+    const [{ data: ocupado }, { data: cuentaExistente }] = await Promise.all([
+      supabase
+        .from("stakeholder")
+        .select("id")
+        .ilike("email", patronEmail(email))
+        .neq("id", stakeholderId)
+        .maybeSingle(),
+      supabase
+        .from("usuario")
+        .select("email")
+        .ilike("email", patronEmail(email))
+        .maybeSingle(),
+    ]);
+
+    if (ocupado) {
+      return { message: "Ya hay otra persona con ese correo", ok: false };
+    }
+
+    if (
+      cuentaExistente &&
+      normalizarEmail(cuentaExistente.email) !== emailActual
+    ) {
+      return { message: "Ya hay una cuenta con ese correo", ok: false };
+    }
+  }
+
+  const cuenta = await actualizarCuentaPortal({
+    email,
+    emailActual,
+    nombre: nombreVisible,
+  });
+
+  if (!cuenta.ok) {
+    return cuenta;
+  }
+
+  const { error } = await supabase
+    .from("stakeholder")
+    .update({ apellido, email, firma, nombre })
+    .eq("id", stakeholderId)
+    .eq("proyecto_id", proyectoId);
+
+  if (!error) {
+    return { ok: true };
+  }
+
+  if (email !== emailActual) {
+    await actualizarCuentaPortal({
+      email: emailActual,
+      emailActual: email,
+      nombre: nombreCompleto(persona.nombre, persona.apellido),
+    });
+  }
+
+  if (error.code === "23505") {
+    return { message: "Ya hay otra persona con ese correo", ok: false };
+  }
+
+  return { message: error.message, ok: false };
+}
+
 export type TranscripcionDescargable = {
   nombre: string;
   firma: string | null;
@@ -431,6 +663,7 @@ export type TranscripcionDescargable = {
 
 type TranscripcionRow = {
   nombre: string;
+  apellido: string | null;
   firma: string | null;
   estado_entrevista: string;
   proyecto: { nombre: string } | Array<{ nombre: string }> | null;
@@ -451,6 +684,7 @@ export async function getTranscripcionDescargable(
     .select(
       `
       nombre,
+      apellido,
       firma,
       estado_entrevista,
       proyecto:proyecto_id ( nombre ),
@@ -475,8 +709,81 @@ export async function getTranscripcionDescargable(
     estadoEntrevista: row.estado_entrevista,
     fecha: entrevista?.fecha_completada ?? entrevista?.ultima_actividad ?? null,
     firma: row.firma,
-    nombre: row.nombre,
+    nombre: nombreCompleto(row.nombre, row.apellido),
     proyectoNombre: asOne(row.proyecto)?.nombre ?? null,
     turnos: parseTranscripcion(entrevista?.transcripcion),
   };
+}
+
+export async function crearStakeholderAdmin({
+  proyectoId,
+  nombre,
+  apellido,
+  email: emailCrudo,
+  firma,
+}: {
+  proyectoId: string;
+  nombre: string;
+  apellido: string | null;
+  email: string;
+  firma: string | null;
+}): Promise<
+  | { ok: true; email: string; nombreCompleto: string }
+  | { ok: false; message: string }
+> {
+  const email = normalizarEmail(emailCrudo);
+  const supabase = await createClient();
+  const { data: proyecto } = await supabase
+    .from("proyecto")
+    .select("id")
+    .eq("id", proyectoId)
+    .maybeSingle();
+
+  if (!proyecto) {
+    return { message: "No encontramos ese proyecto", ok: false };
+  }
+
+  const [{ data: ocupado }, { data: cuenta }] = await Promise.all([
+    supabase
+      .from("stakeholder")
+      .select("id")
+      .ilike("email", patronEmail(email))
+      .maybeSingle(),
+    supabase
+      .from("usuario")
+      .select("rol")
+      .ilike("email", patronEmail(email))
+      .maybeSingle(),
+  ]);
+
+  if (ocupado) {
+    return { message: "Ya hay otra persona con ese correo", ok: false };
+  }
+
+  if (cuenta?.rol === "majoriti" || cuenta?.rol === "comite") {
+    return { message: "Esa cuenta no se puede agregar desde aquí", ok: false };
+  }
+
+  const { error } = await supabase.from("stakeholder").insert({
+    apellido,
+    email,
+    estado_entrevista: "pendiente",
+    firma,
+    nombre,
+    proyecto_id: proyectoId,
+  });
+
+  if (!error) {
+    return {
+      email,
+      nombreCompleto: nombreCompleto(nombre, apellido),
+      ok: true,
+    };
+  }
+
+  if (error.code === "23505") {
+    return { message: "Ya hay otra persona con ese correo", ok: false };
+  }
+
+  return { message: error.message, ok: false };
 }

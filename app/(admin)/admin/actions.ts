@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdminUser } from "@/lib/consultoria/admin";
-import { cambiarRolPortal } from "@/lib/consultoria/auth";
+import { cambiarRolPortal, invitarAlPortal } from "@/lib/consultoria/auth";
 import { parseDestinatarios } from "@/lib/consultoria/destinatarios";
 import {
   construirArchivoTranscripcion,
@@ -16,6 +16,17 @@ import {
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import {
+  actualizarEventoEnProyecto,
+  crearEventoEnProyecto,
+  eliminarEventoDelProyecto,
+  parseMinuta,
+  parseParticipantes,
+} from "@/lib/consultoria/eventos";
+import {
+  parseFechaOpcional,
+  validarRangoFechas,
+} from "@/lib/consultoria/fechas-rango";
+import {
   impersonarStakeholder,
   restaurarSesionMajoriti,
 } from "@/lib/consultoria/impersonar";
@@ -26,13 +37,26 @@ import {
 } from "@/lib/consultoria/plantillas";
 import { landingPathForCurrentUser } from "@/lib/consultoria/portal";
 import {
+  actualizarFaseEnProyecto,
   crearEntrevistaConTarea,
   crearFaseEnProyecto,
   getFaseDelProyecto,
   preguntasDesdeTexto,
 } from "@/lib/consultoria/provisioning";
+import {
+  expandirFechasRecurrentes,
+  FRECUENCIAS_RECURRENCIA,
+} from "@/lib/consultoria/recurrencia";
 import { ROLES_PORTAL } from "@/lib/consultoria/roles";
-import { getTranscripcionDescargable } from "@/lib/consultoria/stakeholders";
+import {
+  actualizarStakeholderAdmin,
+  crearStakeholderAdmin,
+  getTranscripcionDescargable,
+} from "@/lib/consultoria/stakeholders";
+import {
+  crearTareaEnFase,
+  eliminarTareaDeFase,
+} from "@/lib/consultoria/tareas";
 import { createClient } from "@/lib/supabase/server";
 import { generateUUID } from "@/lib/utils";
 
@@ -40,6 +64,14 @@ export type ActionState = {
   status: "idle" | "success" | "error";
   message?: string;
 };
+
+function revalidateProyecto(proyectoId: string, faseId?: string) {
+  revalidatePath(`/admin/${proyectoId}`);
+  revalidatePath("/portal");
+  if (faseId) {
+    revalidatePath(`/admin/${proyectoId}/fase/${faseId}`);
+  }
+}
 
 function primerError(error: z.ZodError): ActionState {
   return {
@@ -85,6 +117,7 @@ export async function crearProyecto(
 }
 
 const faseSchema = z.object({
+  fechaCierre: z.string().trim().optional(),
   fechaEstimada: z.string().trim().optional(),
   nombre: z.string().trim().min(1, "Nombre requerido"),
   proyectoId: z.string().uuid("Proyecto inválido"),
@@ -97,6 +130,7 @@ export async function crearFase(
   await requireAdminUser();
 
   const parsed = faseSchema.safeParse({
+    fechaCierre: formData.get("fechaCierre") || undefined,
     fechaEstimada: formData.get("fechaEstimada") || undefined,
     nombre: formData.get("nombre"),
     proyectoId: formData.get("proyectoId"),
@@ -106,8 +140,16 @@ export async function crearFase(
     return primerError(parsed.error);
   }
 
+  const fechaEstimada = parseFechaOpcional(parsed.data.fechaEstimada);
+  const fechaCierre = parseFechaOpcional(parsed.data.fechaCierre);
+  const errorFechas = validarRangoFechas(fechaEstimada, fechaCierre);
+  if (errorFechas) {
+    return { message: errorFechas, status: "error" };
+  }
+
   const resultado = await crearFaseEnProyecto({
-    fechaEstimada: parsed.data.fechaEstimada || null,
+    fechaCierre,
+    fechaEstimada,
     nombre: parsed.data.nombre,
     proyectoId: parsed.data.proyectoId,
   });
@@ -116,8 +158,7 @@ export async function crearFase(
     return { message: resultado.message, status: "error" };
   }
 
-  revalidatePath(`/admin/${parsed.data.proyectoId}`);
-  revalidatePath("/portal");
+  revalidateProyecto(parsed.data.proyectoId);
   return {
     message:
       resultado.estado === "en_progreso"
@@ -125,6 +166,283 @@ export async function crearFase(
         : "Fase creada. Queda bloqueada hasta que la abras.",
     status: "success",
   };
+}
+
+const actualizarFaseSchema = z.object({
+  descripcion: z.string().optional(),
+  faseId: z.string().uuid("Fase inválida"),
+  fechaCierre: z.string().trim().optional(),
+  fechaEstimada: z.string().trim().optional(),
+  nombre: z.string().trim().min(1, "Nombre requerido"),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+});
+
+export async function actualizarFase(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = actualizarFaseSchema.safeParse({
+    descripcion: formData.get("descripcion") ?? "",
+    faseId: formData.get("faseId"),
+    fechaCierre: formData.get("fechaCierre") || undefined,
+    fechaEstimada: formData.get("fechaEstimada") || undefined,
+    nombre: formData.get("nombre"),
+    proyectoId: formData.get("proyectoId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const fechaEstimada = parseFechaOpcional(parsed.data.fechaEstimada);
+  const fechaCierre = parseFechaOpcional(parsed.data.fechaCierre);
+  const errorFechas = validarRangoFechas(fechaEstimada, fechaCierre);
+  if (errorFechas) {
+    return { message: errorFechas, status: "error" };
+  }
+
+  const descripcion = parsed.data.descripcion?.trim() || null;
+  const resultado = await actualizarFaseEnProyecto({
+    descripcion,
+    faseId: parsed.data.faseId,
+    fechaCierre,
+    fechaEstimada,
+    nombre: parsed.data.nombre,
+    proyectoId: parsed.data.proyectoId,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId, parsed.data.faseId);
+  return { message: "Fase actualizada.", status: "success" };
+}
+
+const tareaSchema = z.object({
+  faseId: z.string().uuid("Fase inválida"),
+  nombre: z.string().trim().min(1, "Nombre requerido"),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+  stakeholderId: z.string().uuid("Elige a la persona responsable"),
+});
+
+export async function crearTarea(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = tareaSchema.safeParse({
+    faseId: formData.get("faseId"),
+    nombre: formData.get("nombre"),
+    proyectoId: formData.get("proyectoId"),
+    stakeholderId: formData.get("stakeholderId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const resultado = await crearTareaEnFase({
+    faseId: parsed.data.faseId,
+    nombre: parsed.data.nombre,
+    proyectoId: parsed.data.proyectoId,
+    stakeholderId: parsed.data.stakeholderId,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId, parsed.data.faseId);
+  return { message: "Tarea agregada.", status: "success" };
+}
+
+const eliminarTareaSchema = z.object({
+  faseId: z.string().uuid("Fase inválida"),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+  tareaId: z.string().uuid("Tarea inválida"),
+});
+
+export async function eliminarTarea(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = eliminarTareaSchema.safeParse({
+    faseId: formData.get("faseId"),
+    proyectoId: formData.get("proyectoId"),
+    tareaId: formData.get("tareaId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const resultado = await eliminarTareaDeFase({
+    faseId: parsed.data.faseId,
+    proyectoId: parsed.data.proyectoId,
+    tareaId: parsed.data.tareaId,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId, parsed.data.faseId);
+  return { message: "Tarea eliminada.", status: "success" };
+}
+
+const eventoSchema = z.object({
+  fecha: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+  fechaHasta: z.string().trim().optional(),
+  participantes: z.string().optional(),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+  recurrencia: z.enum(FRECUENCIAS_RECURRENCIA),
+  titulo: z.string().trim().min(1, "Título requerido"),
+});
+
+export async function crearEvento(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = eventoSchema.safeParse({
+    fecha: formData.get("fecha"),
+    fechaHasta: formData.get("fechaHasta") ?? "",
+    participantes: formData.get("participantes") ?? "",
+    proyectoId: formData.get("proyectoId"),
+    recurrencia: formData.get("recurrencia") ?? "ninguna",
+    titulo: formData.get("titulo"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const hasta =
+    parsed.data.recurrencia === "ninguna"
+      ? null
+      : parsed.data.fechaHasta || null;
+
+  const serie = expandirFechasRecurrentes({
+    frecuencia: parsed.data.recurrencia,
+    hasta,
+    inicio: parsed.data.fecha,
+  });
+
+  if (!serie.ok) {
+    return { message: serie.message, status: "error" };
+  }
+
+  const resultado = await crearEventoEnProyecto({
+    fechas: serie.fechas,
+    participantes: parseParticipantes(parsed.data.participantes ?? ""),
+    proyectoId: parsed.data.proyectoId,
+    titulo: parsed.data.titulo,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId);
+  if (resultado.count === 1) {
+    return { message: "Fecha agregada al calendario.", status: "success" };
+  }
+
+  return {
+    message: `Se agregaron ${resultado.count} fechas al calendario.`,
+    status: "success",
+  };
+}
+
+const actualizarEventoSchema = z.object({
+  eventoId: z.string().uuid("Evento inválido"),
+  fecha: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+  minuta: z.string().max(20_000, "La minuta es demasiado larga").optional(),
+  participantes: z.string().optional(),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+  titulo: z.string().trim().min(1, "Título requerido"),
+});
+
+export async function actualizarEvento(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = actualizarEventoSchema.safeParse({
+    eventoId: formData.get("eventoId"),
+    fecha: formData.get("fecha"),
+    minuta: formData.get("minuta") ?? "",
+    participantes: formData.get("participantes") ?? "",
+    proyectoId: formData.get("proyectoId"),
+    titulo: formData.get("titulo"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const resultado = await actualizarEventoEnProyecto({
+    eventoId: parsed.data.eventoId,
+    fecha: parsed.data.fecha,
+    minuta: parseMinuta(parsed.data.minuta ?? ""),
+    participantes: parseParticipantes(parsed.data.participantes ?? ""),
+    proyectoId: parsed.data.proyectoId,
+    titulo: parsed.data.titulo,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId);
+  return { message: "Fecha actualizada.", status: "success" };
+}
+
+const eliminarEventoSchema = z.object({
+  eventoId: z.string().uuid("Evento inválido"),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+});
+
+export async function eliminarEvento(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = eliminarEventoSchema.safeParse({
+    eventoId: formData.get("eventoId"),
+    proyectoId: formData.get("proyectoId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const resultado = await eliminarEventoDelProyecto({
+    eventoId: parsed.data.eventoId,
+    proyectoId: parsed.data.proyectoId,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId);
+  return { message: "Fecha eliminada.", status: "success" };
 }
 
 const ESTADO_FASE_MENSAJE = {
@@ -166,8 +484,7 @@ export async function cambiarEstadoFase(
     return { message: error.message, status: "error" };
   }
 
-  revalidatePath(`/admin/${parsed.data.proyectoId}`);
-  revalidatePath("/portal");
+  revalidateProyecto(parsed.data.proyectoId, parsed.data.faseId);
   return {
     message: ESTADO_FASE_MENSAJE[parsed.data.estado],
     status: "success",
@@ -270,7 +587,7 @@ export async function crearPlantillaEntrevista(
     return { message: error.message, status: "error" };
   }
 
-  revalidatePath(`/admin/${parsed.data.proyectoId}`);
+  revalidateProyecto(parsed.data.proyectoId, parsed.data.faseId);
   return {
     message: `Entrevista agéntica lista en "${fase.nombre}". Ya puedes enviarla.`,
     status: "success",
@@ -307,17 +624,24 @@ export async function guardarPreguntasPlantilla(
   const preguntas = preguntasDeSecciones(secciones);
 
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: plantilla, error } = await supabase
     .from("entrevista_plantilla")
     .update({ preguntas, secciones })
     .eq("id", parsed.data.plantillaId)
-    .eq("proyecto_id", parsed.data.proyectoId);
+    .eq("proyecto_id", parsed.data.proyectoId)
+    .select("fase_id")
+    .maybeSingle();
 
   if (error) {
     return { message: error.message, status: "error" };
   }
 
   revalidatePath(`/admin/${parsed.data.proyectoId}`);
+  if (plantilla?.fase_id) {
+    revalidatePath(
+      `/admin/${parsed.data.proyectoId}/fase/${plantilla.fase_id}`
+    );
+  }
   return {
     message: `${secciones.length} secciones guardadas. No cambia a quienes ya se la enviaste.`,
     status: "success",
@@ -374,6 +698,13 @@ export async function enviarPlantillaEntrevista(
   revalidatePath("/admin");
   revalidatePath(`/admin/${parsed.data.proyectoId}`);
   revalidatePath("/portal");
+  const plantilla = await getPlantillaDelProyecto(
+    parsed.data.proyectoId,
+    parsed.data.plantillaId
+  );
+  if (plantilla) {
+    revalidatePath(`/admin/${parsed.data.proyectoId}/fase/${plantilla.faseId}`);
+  }
 
   const { resumen } = resultado;
   const avisos = resumen.avisos.slice(0, 8).join(" ");
@@ -441,6 +772,112 @@ export async function cambiarRolPortalStakeholder(
       parsed.data.rol === "cliente"
         ? "Ahora entra al portal de fases."
         : "Ahora entra directo a su entrevista.",
+    status: "success",
+  };
+}
+
+const actualizarStakeholderSchema = z.object({
+  apellido: z.string().trim().min(1, "Apellido requerido"),
+  email: z.string().trim().email("Correo inválido"),
+  firma: z.string().optional(),
+  nombre: z.string().trim().min(1, "Nombre requerido"),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+  stakeholderId: z.string().uuid("Persona inválida"),
+});
+
+export async function actualizarStakeholder(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = actualizarStakeholderSchema.safeParse({
+    apellido: formData.get("apellido"),
+    email: formData.get("email"),
+    firma: formData.get("firma") ?? "",
+    nombre: formData.get("nombre"),
+    proyectoId: formData.get("proyectoId"),
+    stakeholderId: formData.get("stakeholderId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const resultado = await actualizarStakeholderAdmin({
+    apellido: parsed.data.apellido,
+    email: parsed.data.email,
+    firma: parsed.data.firma?.trim() || null,
+    nombre: parsed.data.nombre,
+    proyectoId: parsed.data.proyectoId,
+    stakeholderId: parsed.data.stakeholderId,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  revalidatePath(
+    `/admin/${parsed.data.proyectoId}/stakeholder/${parsed.data.stakeholderId}`
+  );
+  revalidatePath(`/admin/${parsed.data.proyectoId}`);
+  revalidatePath("/portal");
+
+  return { message: "Datos actualizados.", status: "success" };
+}
+
+const crearStakeholderSchema = z.object({
+  apellido: z.string().trim().min(1, "Apellido requerido"),
+  email: z.string().trim().email("Correo inválido"),
+  firma: z.string().optional(),
+  nombre: z.string().trim().min(1, "Nombre requerido"),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+  rol: z.enum(ROLES_PORTAL),
+});
+
+export async function crearStakeholder(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = crearStakeholderSchema.safeParse({
+    apellido: formData.get("apellido"),
+    email: formData.get("email"),
+    firma: formData.get("firma") ?? "",
+    nombre: formData.get("nombre"),
+    proyectoId: formData.get("proyectoId"),
+    rol: formData.get("rol"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const resultado = await crearStakeholderAdmin({
+    apellido: parsed.data.apellido,
+    email: parsed.data.email,
+    firma: parsed.data.firma?.trim() || null,
+    nombre: parsed.data.nombre,
+    proyectoId: parsed.data.proyectoId,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  const acceso = await invitarAlPortal({
+    email: resultado.email,
+    nombre: resultado.nombreCompleto,
+    proyectoId: parsed.data.proyectoId,
+    rol: parsed.data.rol,
+  });
+
+  revalidatePath(`/admin/${parsed.data.proyectoId}`);
+  revalidatePath("/portal");
+
+  return {
+    message: `${resultado.nombreCompleto} agregado. ${acceso.message}`,
     status: "success",
   };
 }

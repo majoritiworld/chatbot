@@ -5,14 +5,14 @@ import {
   aceptarOnboardingEntrevista,
   type OnboardingActionState,
 } from "@/app/(portal)/portal/actions";
+import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { Button } from "@/components/ui/button";
 
 const PUNTOS = [
-  "La conversación queda guardada para el trabajo de consultoría.",
-  "El equipo de Majoriti revisa tus respuestas.",
-  "El equipo del cliente ve quién ya completó. Otras personas invitadas no ven tu entrevista.",
-  "Puedes guardar y continuar otro día.",
+  "Se guardan de forma exclusiva para ComplianceLatam.",
+  "El equipo de Majoriti las revisa durante el proyecto para analizarlas, generar insights y apoyar a la organización.",
+  "No hace falta terminar de una: puedes guardar y continuar otro día.",
 ] as const;
 
 const initialState: OnboardingActionState = { status: "idle" };
@@ -21,13 +21,11 @@ export function EntrevistaOnboarding({
   entrevistaId,
   mostrarPortal,
   onAceptado,
-  proyectoNombre,
   titulo,
 }: {
   entrevistaId: string;
   mostrarPortal: boolean;
   onAceptado: () => void;
-  proyectoNombre?: string | null;
   titulo?: string;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -45,41 +43,50 @@ export function EntrevistaOnboarding({
     onAceptado();
   }, [onAceptado, state.status]);
 
-  const contexto = proyectoNombre
-    ? `Esta es una entrevista de Majoriti para ${proyectoNombre}.`
-    : "Esta es una entrevista de Majoriti.";
-
   return (
     <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
-      <div className="mx-auto flex w-full max-w-lg flex-col gap-8 px-6 py-12">
-        <div className="flex flex-col gap-2">
-          <h1 className="font-semibold text-2xl tracking-tight">
+      <EntrevistaPantallaTransicion>
+        <div className="flex flex-col gap-3">
+          <h1 className="font-semibold text-[28px] tracking-tight">
             Antes de empezar
           </h1>
-          <p className="text-muted-foreground text-sm">
-            {contexto} Un agente te va a hacer preguntas; no hace falta
-            terminarla de una.
+          <p className="text-lg leading-relaxed">
+            Esta es una entrevista agéntica: un agente de IA te va a hacer
+            preguntas y conversar contigo, en vez de un formulario fijo.
+          </p>
+          <p className="italic text-muted-foreground text-sm leading-relaxed">
+            La preparó el equipo de Majoriti junto con ComplianceLatam para este
+            proyecto de consultoría.
           </p>
         </div>
 
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-sm">
-          {PUNTOS.map((punto) => (
-            <li key={punto}>{punto}</li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-3">
+          <p className="font-medium text-lg">Cómo se usan tus respuestas:</p>
+          <div className="rounded-xl bg-muted px-5 py-5">
+            <ul className="flex list-disc flex-col gap-2 pl-5 text-base leading-relaxed">
+              {PUNTOS.map((punto) => (
+                <li key={punto}>{punto}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
 
         <form action={formAction} className="flex flex-col gap-3">
           <input name="entrevistaId" type="hidden" value={entrevistaId} />
           {state.status === "error" && state.message ? (
-            <p className="text-destructive text-sm" role="alert">
+            <p className="text-destructive text-lg" role="alert">
               {state.message}
             </p>
           ) : null}
-          <Button className="w-fit" disabled={pending} type="submit">
-            {pending ? "Empezando…" : "Empezar entrevista"}
+          <Button
+            className="h-11 w-fit text-lg"
+            disabled={pending}
+            type="submit"
+          >
+            {pending ? "Aceptando…" : "Aceptar"}
           </Button>
         </form>
-      </div>
+      </EntrevistaPantallaTransicion>
     </EntrevistaShell>
   );
 }

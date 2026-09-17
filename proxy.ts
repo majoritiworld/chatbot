@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import {
   getEntrevistaIdByEmail,
   homePathForRol,
+  isGenericChatPath,
   isPortalRole,
   isStakeholderRole,
   stakeholderNeedsInterviewLanding,
@@ -69,7 +70,7 @@ export async function proxy(request: NextRequest) {
   const isPortal = pathname.startsWith("/portal");
   const isAdmin = pathname.startsWith("/admin");
 
-  if (user && (pathname === "/" || isPortal || isAdmin)) {
+  if (user && (isGenericChatPath(pathname) || isPortal || isAdmin)) {
     const { data: perfil } = await supabase
       .from("usuario")
       .select("rol")
@@ -84,7 +85,7 @@ export async function proxy(request: NextRequest) {
       : null;
     const home = `${base}${homePathForRol(perfil?.rol, entrevistaId)}`;
 
-    if (pathname === "/") {
+    if (isGenericChatPath(pathname)) {
       url.pathname = home;
       return NextResponse.redirect(url);
     }

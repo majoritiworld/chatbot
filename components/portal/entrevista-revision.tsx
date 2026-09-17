@@ -1,5 +1,6 @@
 "use client";
 
+import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { Button } from "@/components/ui/button";
 
 export function EntrevistaRevision({
@@ -14,7 +15,7 @@ export function EntrevistaRevision({
   pending: boolean;
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-8 px-6 py-12">
+    <EntrevistaPantallaTransicion>
       <div className="flex flex-col gap-3">
         <p className="font-medium text-primary text-sm">Entrevista completa</p>
         <h1 className="font-semibold text-3xl tracking-tight">
@@ -40,6 +41,6 @@ export function EntrevistaRevision({
       >
         {pending ? "Enviando…" : "Enviar entrevista"}
       </Button>
-    </div>
+    </EntrevistaPantallaTransicion>
   );
 }

@@ -162,7 +162,7 @@ export function ChatShell({
       <div
         className={cn(
           "flex w-full flex-row overflow-hidden",
-          esEntrevista ? "h-full" : "h-dvh"
+          esEntrevista ? "h-full min-h-0 flex-1" : "h-dvh"
         )}
       >
         <div

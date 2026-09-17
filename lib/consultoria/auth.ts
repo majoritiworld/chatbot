@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
+import { nombreCompleto } from "@/lib/consultoria/nombre";
 import type { RolPortal } from "@/lib/consultoria/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -52,7 +53,7 @@ export async function buscarInvitacion(
       .maybeSingle(),
     admin
       .from("stakeholder")
-      .select("nombre, proyecto_id")
+      .select("nombre, apellido, proyecto_id")
       .ilike("email", patron)
       .maybeSingle(),
   ]);
@@ -62,7 +63,9 @@ export async function buscarInvitacion(
   }
 
   return {
-    nombre: usuario?.nombre ?? stakeholder?.nombre ?? null,
+    nombre:
+      usuario?.nombre ??
+      (nombreCompleto(stakeholder?.nombre, stakeholder?.apellido) || null),
     proyectoId: usuario?.proyecto_id ?? stakeholder?.proyecto_id ?? null,
   };
 }
@@ -181,7 +184,7 @@ export async function ensureUsuarioPerfil(user: User) {
   const [{ data: stakeholder }, { data: perfil }] = await Promise.all([
     admin
       .from("stakeholder")
-      .select("nombre, proyecto_id")
+      .select("nombre, apellido, proyecto_id")
       .ilike("email", patronEmail(email))
       .maybeSingle(),
     admin
@@ -193,10 +196,14 @@ export async function ensureUsuarioPerfil(user: User) {
 
   if (!perfil) {
     const metadata = user.user_metadata as { nombre?: string } | null;
+    const nombreStakeholder = nombreCompleto(
+      stakeholder?.nombre,
+      stakeholder?.apellido
+    );
     const { error } = await admin.from("usuario").insert({
       email,
       id: user.id,
-      nombre: stakeholder?.nombre ?? metadata?.nombre ?? null,
+      nombre: nombreStakeholder || metadata?.nombre || null,
       proyecto_id: stakeholder?.proyecto_id ?? null,
     });
 
@@ -209,8 +216,14 @@ export async function ensureUsuarioPerfil(user: User) {
 
   const parches: { nombre?: string; proyecto_id?: string } = {};
 
-  if (!perfil.nombre && stakeholder?.nombre) {
-    parches.nombre = stakeholder.nombre;
+  if (!perfil.nombre && stakeholder) {
+    const nombreStakeholder = nombreCompleto(
+      stakeholder.nombre,
+      stakeholder.apellido
+    );
+    if (nombreStakeholder) {
+      parches.nombre = nombreStakeholder;
+    }
   }
 
   if (!perfil.proyecto_id && stakeholder?.proyecto_id) {
@@ -347,6 +360,112 @@ export async function cambiarRolPortal({
   const { error } = await admin
     .from("usuario")
     .update({ rol })
+    .eq("id", perfil.id);
+
+  if (error) {
+    return { message: error.message, ok: false };
+  }
+
+  return { ok: true };
+}
+
+export type ResultadoCuentaPortal =
+  | { ok: true }
+  | { ok: false; message: string };
+
+/**
+ * Keeps the portal login in sync when Majoriti edits a person. Email has to
+ * move on Auth first: `usuario.email` is what they type at /login.
+ */
+export async function actualizarCuentaPortal({
+  emailActual,
+  email,
+  nombre,
+}: {
+  emailActual: string;
+  email: string;
+  nombre: string;
+}): Promise<ResultadoCuentaPortal> {
+  const admin = createAdminClient();
+
+  if (!admin) {
+    if (email === emailActual) {
+      return { ok: true };
+    }
+
+    return {
+      message: "No se pudo actualizar el correo de acceso al portal.",
+      ok: false,
+    };
+  }
+
+  const { data: perfil } = await admin
+    .from("usuario")
+    .select("id, rol, nombre")
+    .ilike("email", patronEmail(emailActual))
+    .maybeSingle();
+
+  if (!perfil) {
+    return { ok: true };
+  }
+
+  if (perfil.rol === "majoriti" || perfil.rol === "comite") {
+    if (email === emailActual) {
+      return { ok: true };
+    }
+
+    return {
+      message: "Esa cuenta no se puede cambiar desde aquí.",
+      ok: false,
+    };
+  }
+
+  if (email !== emailActual) {
+    const { data: ocupado } = await admin
+      .from("usuario")
+      .select("id")
+      .ilike("email", patronEmail(email))
+      .neq("id", perfil.id)
+      .maybeSingle();
+
+    if (ocupado) {
+      return {
+        message: "Ya hay una cuenta con ese correo",
+        ok: false,
+      };
+    }
+
+    const { error: authError } = await admin.auth.admin.updateUserById(
+      perfil.id,
+      {
+        email,
+        email_confirm: true,
+        user_metadata: { nombre },
+      }
+    );
+
+    if (authError) {
+      return { message: authError.message, ok: false };
+    }
+  }
+
+  const parches: { email?: string; nombre?: string } = {};
+
+  if (email !== emailActual) {
+    parches.email = email;
+  }
+
+  if (perfil.nombre !== nombre) {
+    parches.nombre = nombre;
+  }
+
+  if (Object.keys(parches).length === 0) {
+    return { ok: true };
+  }
+
+  const { error } = await admin
+    .from("usuario")
+    .update(parches)
     .eq("id", perfil.id);
 
   if (error) {

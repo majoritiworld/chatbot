@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { partirNombre } from "@/lib/consultoria/nombre";
 
 export const MAX_DESTINATARIOS = 50;
 
@@ -16,6 +17,7 @@ function normalizarEmail(email: string) {
 export type DestinatarioPlantilla = {
   email: string;
   nombre: string;
+  apellido: string | null;
   firma: string | null;
 };
 
@@ -59,8 +61,20 @@ function nombreDesdeEmail(email: string) {
     .join(" ");
 }
 
+function personaDesdeNombre(completo: string) {
+  const partido = partirNombre(completo);
+  return {
+    apellido: partido.apellido,
+    nombre: partido.nombre,
+  };
+}
+
 /**
- * One recipient per line: `email`, `email, nombre`, or `email, nombre, firma`.
+ * One recipient per line:
+ * `email`
+ * `email, Nombre Apellido`
+ * `email, Nombre Apellido, firma`
+ * `email, Nombre, Apellido, firma`
  * Comma, semicolon, and tab all work as separators.
  */
 export function parseDestinatarios(
@@ -105,16 +119,32 @@ export function parseDestinatarios(
     }
     vistos.add(email);
 
-    const nombreCampo = campos.at(1);
-    const firmaCampo = campos.at(2);
-    const nombre =
-      nombreCampo && nombreCampo.length > 0
-        ? nombreCampo
-        : nombreDesdeEmail(email);
-    const firma =
-      firmaCampo && firmaCampo.length > 0 ? firmaCampo : firmaDefault;
+    let firma = firmaDefault;
+    let persona: { apellido: string | null; nombre: string };
 
-    destinatarios.push({ email, firma, nombre });
+    if (campos.length >= 4) {
+      const nombreCampo = campos.at(1) ?? "";
+      const apellidoCampo = campos.at(2) ?? "";
+      const firmaCampo = campos.at(3) ?? "";
+      persona =
+        nombreCampo.length > 0
+          ? { apellido: apellidoCampo || null, nombre: nombreCampo }
+          : personaDesdeNombre(nombreDesdeEmail(email));
+      if (firmaCampo.length > 0) {
+        firma = firmaCampo;
+      }
+    } else {
+      const nombreCampo = campos.at(1) ?? "";
+      const firmaCampo = campos.at(2) ?? "";
+      persona = personaDesdeNombre(
+        nombreCampo.length > 0 ? nombreCampo : nombreDesdeEmail(email)
+      );
+      if (firmaCampo.length > 0) {
+        firma = firmaCampo;
+      }
+    }
+
+    destinatarios.push({ ...persona, email, firma });
   }
 
   if (destinatarios.length === 0) {

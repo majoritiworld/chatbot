@@ -1,6 +1,8 @@
 "use client";
 
+import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { Button } from "@/components/ui/button";
+import { partirNombre } from "@/lib/consultoria/nombre";
 
 export function EntrevistaBienvenida({
   nombre,
@@ -13,22 +15,22 @@ export function EntrevistaBienvenida({
   onContinuar: () => void;
   pending: boolean;
 }) {
-  const saludo = nombre?.trim()
-    ? `Hola, ${nombre.trim()}`
+  const primerNombre = nombre ? partirNombre(nombre).nombre : "";
+  const saludo = primerNombre
+    ? `Hola, ${primerNombre}`
     : "Te damos la bienvenida";
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-8 px-6 py-12">
+    <EntrevistaPantallaTransicion>
       <div className="flex flex-col gap-3">
-        <p className="font-medium text-primary text-sm">Entrevista agéntica</p>
         <h1 className="font-semibold text-3xl tracking-tight">{saludo}</h1>
-        <p className="text-muted-foreground text-sm leading-relaxed">
+        <p className="text-base leading-relaxed">
           La entrevista tiene {numeroSecciones}{" "}
           {numeroSecciones === 1 ? "sección" : "secciones"}. En cada una podrás
           responder con texto o voz, y el entrevistador te hará preguntas para
           profundizar en lo que compartas.
         </p>
-        <p className="text-muted-foreground text-sm leading-relaxed">
+        <p className="text-base leading-relaxed">
           Puedes guardar tu progreso y continuar otro día. Antes de cada
           conversación te presentaremos el tema.
         </p>
@@ -42,6 +44,6 @@ export function EntrevistaBienvenida({
       >
         {pending ? "Preparando…" : "Continuar"}
       </Button>
-    </div>
+    </EntrevistaPantallaTransicion>
   );
 }

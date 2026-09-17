@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 const initialState: ActionState = { status: "idle" };
 
 const PLACEHOLDER = `ana@acme.com, Ana Pérez, ACME
-bruno@foo.com, Bruno Díaz, Foo Partners
+bruno@foo.com, Bruno, Díaz, Foo Partners
 carla@bar.com`;
 
 export function EnviarPlantillaForm({
@@ -45,8 +45,9 @@ export function EnviarPlantillaForm({
           required
         />
         <p className="text-muted-foreground text-xs">
-          Una persona por línea: email, nombre, firma. Hasta 50. Si ya está en
-          el proyecto con entrevista, se omite.
+          Una persona por línea: email, nombre apellido, firma. También vale
+          email, nombre, apellido, firma. Hasta 50. Si ya está en el proyecto
+          con entrevista, se omite.
         </p>
       </div>
 

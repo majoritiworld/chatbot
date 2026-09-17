@@ -20,16 +20,19 @@ const initialState: ActionState = { status: "idle" };
 export function CrearPlantillaForm({
   proyectoId,
   fases,
+  faseId,
 }: {
   proyectoId: string;
   fases: FaseAdmin[];
+  faseId?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     crearPlantillaEntrevista,
     initialState
   );
+  const faseFija = faseId ?? "";
 
-  if (fases.length === 0) {
+  if (fases.length === 0 && !faseFija) {
     return (
       <div className="flex flex-col gap-1 rounded-xl border border-border p-4">
         <h2 className="font-medium text-base">Crear entrevista agéntica</h2>
@@ -47,6 +50,7 @@ export function CrearPlantillaForm({
       className="flex flex-col gap-4 rounded-xl border border-border p-4"
     >
       <input name="proyectoId" type="hidden" value={proyectoId} />
+      {faseFija ? <input name="faseId" type="hidden" value={faseFija} /> : null}
 
       <div>
         <h2 className="font-medium text-base">Crear entrevista agéntica</h2>
@@ -56,7 +60,11 @@ export function CrearPlantillaForm({
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div
+        className={
+          faseFija ? "flex flex-col gap-1.5" : "grid gap-3 sm:grid-cols-2"
+        }
+      >
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="plantilla-nombre">Nombre</Label>
           <Input
@@ -66,7 +74,7 @@ export function CrearPlantillaForm({
             required
           />
         </div>
-        <FaseSelect fases={fases} id="plantilla-faseId" />
+        {faseFija ? null : <FaseSelect fases={fases} id="plantilla-faseId" />}
       </div>
 
       <SeccionesField />

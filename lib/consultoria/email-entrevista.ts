@@ -53,6 +53,12 @@ export async function enviarCorreoAgradecimiento({
     throw new Error("El correo de agradecimiento no está configurado");
   }
 
+  const copiaEquipo =
+    process.env.INTERVIEW_EMAIL_BCC?.trim() || "hello@majoriti.world";
+  const destinatario = email.trim();
+  const mismaBandeja =
+    destinatario.toLowerCase() === copiaEquipo.toLowerCase();
+
   const resend = new Resend(apiKey);
   const plantilla = plantillaAgradecimiento(nombre);
   const { data, error } = await resend.emails.send(
@@ -61,7 +67,8 @@ export async function enviarCorreoAgradecimiento({
       html: plantilla.html,
       subject: "Gracias por participar en la entrevista",
       text: plantilla.text,
-      to: [email],
+      to: [destinatario],
+      ...(!mismaBandeja && { bcc: [copiaEquipo] }),
     },
     { idempotencyKey: `entrevista-${entrevistaId}-agradecimiento` }
   );

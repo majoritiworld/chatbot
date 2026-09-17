@@ -8,7 +8,7 @@ import {
   getTranscripcionEntrevista,
   resolveEntrevista,
 } from "@/lib/consultoria/entrevistas";
-import { getFase, getProyecto } from "@/lib/consultoria/fases";
+import { getFase } from "@/lib/consultoria/fases";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
 import { isClienteRole } from "@/lib/consultoria/roles";
@@ -80,10 +80,7 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
     );
   }
 
-  const [turnos, proyecto] = await Promise.all([
-    getTranscripcionEntrevista(entrevista.id),
-    getProyecto(portalUser.proyectoId),
-  ]);
+  const turnos = await getTranscripcionEntrevista(entrevista.id);
   const seccionActiva = entrevista.secciones.at(entrevista.seccion_actual);
   const turnosActivos = seccionActiva
     ? turnosDeSeccion(turnos, seccionActiva.id, entrevista.seccion_actual === 0)
@@ -98,7 +95,6 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
       flujoEstadoInicial={entrevista.flujo_estado}
       mensajesIniciales={turnosAMensajes(turnosActivos)}
       mostrarPortal={mostrarPortal}
-      proyectoNombre={proyecto?.nombre}
       seccionActualInicial={entrevista.seccion_actual}
       secciones={entrevista.secciones}
       stakeholderNombre={entrevista.stakeholder_nombre}

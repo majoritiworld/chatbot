@@ -20,6 +20,30 @@ export type Fase = {
   orden: number;
   estado: string;
   fecha_estimada: string | null;
+  fecha_cierre: string | null;
+  descripcion: string | null;
+};
+
+export type Tarea = {
+  id: string;
+  fase_id: string;
+  nombre: string | null;
+  responsable: string | null;
+  stakeholder_id: string | null;
+  estado: string;
+  tipo: string;
+  entrevista_id: string | null;
+  fecha_limite: string | null;
+};
+
+export type Evento = {
+  id: string;
+  proyecto_id: string;
+  titulo: string;
+  fecha: string;
+  participantes: string[];
+  minuta: string | null;
+  created_at: string;
 };
 
 export type Entrevista = {

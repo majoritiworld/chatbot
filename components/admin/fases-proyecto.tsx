@@ -1,12 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
-import {
-  type ActionState,
-  cambiarEstadoFase,
-  crearFase,
-} from "@/app/(admin)/admin/actions";
+import { type ActionState, crearFase } from "@/app/(admin)/admin/actions";
 import { ActionMensaje } from "@/components/admin/action-mensaje";
+import { FaseEstadoBotones } from "@/components/admin/editar-fase-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +14,7 @@ import {
   type FaseEstado,
   normalizarEstado,
 } from "@/lib/consultoria/fase-estado";
+import { formatRangoFechas } from "@/lib/consultoria/fechas-rango";
 import type { FaseAdmin } from "@/lib/consultoria/stakeholders";
 
 const initialState: ActionState = { status: "idle" };
@@ -26,17 +25,11 @@ const BADGE_VARIANT: Record<FaseEstado, "default" | "secondary" | "outline"> = {
   en_progreso: "default",
 };
 
-function formatFecha(fecha: string | null) {
-  if (!fecha) {
-    return "Sin fecha";
-  }
-
-  return new Intl.DateTimeFormat("es", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(`${fecha}T00:00:00`));
-}
+const BADGE_CLASS: Record<FaseEstado, string> = {
+  bloqueado: "",
+  completado: "",
+  en_progreso: "border-transparent bg-black/60 text-white",
+};
 
 function FaseFila({
   fase,
@@ -45,67 +38,29 @@ function FaseFila({
   fase: FaseAdmin;
   proyectoId: string;
 }) {
-  const [state, formAction, pending] = useActionState(
-    cambiarEstadoFase,
-    initialState
-  );
   const estado = normalizarEstado(fase.estado);
 
   return (
     <li className="flex flex-col gap-2 border-border border-b py-3 last:border-b-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="flex-1 font-medium text-sm">
+        <Link
+          className="flex-1 font-medium text-sm hover:underline"
+          href={`/admin/${proyectoId}/fase/${fase.id}`}
+        >
           {fase.orden}. {fase.nombre}
+        </Link>
+        <span className="font-jetbrains font-light text-muted-foreground text-xs tracking-wide uppercase">
+          {formatRangoFechas(fase.fechaEstimada, fase.fechaCierre, "Sin fecha")}
         </span>
-        <span className="text-muted-foreground text-xs">
-          {formatFecha(fase.fechaEstimada)}
-        </span>
-        <Badge variant={BADGE_VARIANT[estado]}>{ETIQUETA_ESTADO[estado]}</Badge>
-
-        <form action={formAction} className="flex items-center gap-2">
-          <input name="proyectoId" type="hidden" value={proyectoId} />
-          <input name="faseId" type="hidden" value={fase.id} />
-
-          {estado === "en_progreso" ? null : (
-            <Button
-              disabled={pending}
-              name="estado"
-              size="sm"
-              type="submit"
-              value="en_progreso"
-              variant="outline"
-            >
-              {estado === "completado" ? "Reabrir" : "Desbloquear"}
-            </Button>
-          )}
-          {estado === "completado" ? null : (
-            <Button
-              disabled={pending}
-              name="estado"
-              size="sm"
-              type="submit"
-              value="completado"
-              variant="outline"
-            >
-              Completar
-            </Button>
-          )}
-          {estado === "en_progreso" ? (
-            <Button
-              disabled={pending}
-              name="estado"
-              size="sm"
-              type="submit"
-              value="bloqueado"
-              variant="ghost"
-            >
-              Bloquear
-            </Button>
-          ) : null}
-        </form>
+        <Badge className={BADGE_CLASS[estado]} variant={BADGE_VARIANT[estado]}>
+          {ETIQUETA_ESTADO[estado]}
+        </Badge>
+        <FaseEstadoBotones
+          estado={estado}
+          faseId={fase.id}
+          proyectoId={proyectoId}
+        />
       </div>
-
-      <ActionMensaje className="text-xs" state={state} />
     </li>
   );
 }
@@ -124,8 +79,8 @@ export function FasesProyecto({
       <div>
         <h2 className="font-medium text-base">Fases</h2>
         <p className="text-muted-foreground text-sm">
-          El cliente solo puede entrar a las fases desbloqueadas. La primera
-          fase del proyecto se crea abierta.
+          El cliente solo puede entrar a las fases desbloqueadas. Abre una fase
+          para editar su descripción, fechas, entrevistas y tareas.
         </p>
       </div>
 
@@ -159,8 +114,12 @@ export function FasesProyecto({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="fase-fecha">Fecha estimada</Label>
+            <Label htmlFor="fase-fecha">Fecha de inicio</Label>
             <Input id="fase-fecha" name="fechaEstimada" type="date" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="fase-fecha-cierre">Fecha de cierre</Label>
+            <Input id="fase-fecha-cierre" name="fechaCierre" type="date" />
           </div>
           <Button disabled={pending} type="submit" variant="outline">
             {pending ? "Agregando…" : "Agregar fase"}

@@ -5,6 +5,7 @@ import { AsignarEntrevistaForm } from "@/components/admin/asignar-entrevista-for
 import { CambiarRolPortalForm } from "@/components/admin/cambiar-rol-portal-form";
 import { DescargarTranscripcionButton } from "@/components/admin/descargar-transcripcion-button";
 import { DocumentoUploadForm } from "@/components/admin/documento-upload-form";
+import { EditarStakeholderForm } from "@/components/admin/editar-stakeholder-form";
 import { EntrarComoStakeholderButton } from "@/components/admin/entrar-como-stakeholder-button";
 import { EntrevistaEditor } from "@/components/admin/entrevista-editor";
 import { MarcarFaseForm } from "@/components/admin/marcar-fase-form";
@@ -57,7 +58,7 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
         </Link>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-semibold text-2xl tracking-tight">
-            {detalle.nombre}
+            {detalle.nombreCompleto}
           </h1>
           <Badge variant="outline">{detalle.estadoEntrevista}</Badge>
           {detalle.rolPortal ? (
@@ -82,6 +83,15 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
             .join(" · ")}
         </p>
       </div>
+
+      <EditarStakeholderForm
+        apellido={detalle.apellido}
+        email={detalle.email}
+        firma={detalle.firma}
+        nombre={detalle.nombre}
+        proyectoId={proyectoId}
+        stakeholderId={detalle.id}
+      />
 
       <CambiarRolPortalForm
         proyectoId={proyectoId}
@@ -108,7 +118,7 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
         </>
       ) : (
         <AsignarEntrevistaForm
-          nombre={detalle.nombre}
+          nombre={detalle.nombreCompleto}
           plantillas={plantillas}
           proyectoId={proyectoId}
           stakeholderId={detalle.id}

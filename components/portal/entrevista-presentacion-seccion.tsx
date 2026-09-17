@@ -1,5 +1,6 @@
 "use client";
 
+import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { Button } from "@/components/ui/button";
 import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
 
@@ -19,7 +20,7 @@ export function EntrevistaPresentacionSeccion({
   const numeroActual = indice + 1;
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-8 px-6 py-12">
+    <EntrevistaPantallaTransicion>
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4 text-sm">
           <span className="font-medium text-primary">
@@ -61,6 +62,6 @@ export function EntrevistaPresentacionSeccion({
       >
         {pending ? "Abriendo…" : "Contestar"}
       </Button>
-    </div>
+    </EntrevistaPantallaTransicion>
   );
 }

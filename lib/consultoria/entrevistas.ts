@@ -14,6 +14,7 @@ import {
   type SeccionCompletada,
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
+import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { createClient } from "@/lib/supabase/server";
 import type { Entrevista, UserRole } from "@/lib/supabase/types";
 
@@ -29,12 +30,13 @@ const ENTREVISTA_SELECT = `
   fecha_completada,
   consentimiento_en,
   correo_agradecimiento_en,
-  stakeholder:stakeholder_id ( id, nombre, firma, email )
+  stakeholder:stakeholder_id ( id, nombre, apellido, firma, email )
 `;
 
 type StakeholderEmbed = {
   id: string;
   nombre: string;
+  apellido: string | null;
   firma: string | null;
   email: string;
 } | null;
@@ -87,7 +89,8 @@ function toEntrevista(row: EntrevistaRow): Entrevista {
     stakeholder_email: stakeholder?.email ?? null,
     stakeholder_firma: stakeholder?.firma ?? null,
     stakeholder_id: row.stakeholder_id,
-    stakeholder_nombre: stakeholder?.nombre ?? null,
+    stakeholder_nombre:
+      nombreCompleto(stakeholder?.nombre, stakeholder?.apellido) || null,
   };
 }
 

@@ -63,8 +63,8 @@ export function StakeholdersTable({
   if (stakeholders.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
-        Todavía no hay stakeholders en este proyecto. Envíales una entrevista
-        agéntica para crearlos.
+        Todavía no hay personas en este proyecto. Agrégalas abajo o envíales una
+        entrevista agéntica.
       </p>
     );
   }
@@ -95,7 +95,7 @@ export function StakeholdersTable({
                 className="font-medium hover:underline"
                 href={`/admin/${proyectoId}/stakeholder/${row.id}`}
               >
-                {row.nombre}
+                {row.nombreCompleto}
               </Link>
             </TableCell>
             <TableCell className="text-muted-foreground">

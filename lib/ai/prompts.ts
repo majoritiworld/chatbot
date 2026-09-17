@@ -79,9 +79,49 @@ export const systemPrompt = ({
   return `${regularPrompt}\n\n${requestPrompt}\n\n${artifactsPrompt}`;
 };
 
-function saludoEntrevista(reanudacion: boolean, nombre: string | null) {
+export type ResumenSeccionPrevia = {
+  titulo: string;
+  sintesis: string;
+  respuestas: Array<{ pregunta: string; respuesta_texto: string }>;
+};
+
+export function textoSeccionesPrevias(secciones: ResumenSeccionPrevia[]) {
+  if (secciones.length === 0) {
+    return "";
+  }
+
+  return secciones
+    .map((seccion) => {
+      const respuestas = seccion.respuestas
+        .map((item) => `- ${item.pregunta}: ${item.respuesta_texto}`)
+        .join("\n");
+      const sintesis = seccion.sintesis.trim();
+      const cuerpo = [
+        sintesis ? `Síntesis: ${sintesis}` : null,
+        respuestas || null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      return `### ${seccion.titulo}\n${cuerpo}`;
+    })
+    .join("\n\n");
+}
+
+function saludoEntrevista({
+  reanudacion,
+  nombre,
+  haySeccionesPrevias,
+}: {
+  reanudacion: boolean;
+  nombre: string | null;
+  haySeccionesPrevias: boolean;
+}) {
   if (reanudacion) {
     return "Esta conversación se retoma: no te presentes de nuevo ni repitas preguntas ya cubiertas. Si el último turno quedó a medias, saluda muy breve por haber vuelto y continúa desde el último tema pendiente.";
+  }
+  if (haySeccionesPrevias) {
+    return "Esta es una sección nueva de la misma entrevista: no te presentes de nuevo. Abre con una transición breve y la primera pregunta.";
   }
   if (nombre) {
     return "En el primer turno, salúdala por su nombre de forma natural y breve.";
@@ -96,6 +136,7 @@ export const interviewSystemPrompt = ({
   nombreEntrevistado,
   firmaEntrevistado,
   reanudacion = false,
+  seccionesPrevias = [],
 }: {
   preguntas: string[];
   tituloSeccion: string;
@@ -103,10 +144,14 @@ export const interviewSystemPrompt = ({
   nombreEntrevistado?: string | null;
   firmaEntrevistado?: string | null;
   reanudacion?: boolean;
+  seccionesPrevias?: ResumenSeccionPrevia[];
 }) => {
-  const lista = preguntas.map((p, i) => `${i + 1}. ${p}`).join("\n");
+  const lista = preguntas
+    .map((pregunta, indice) => `${indice + 1}. ${pregunta}`)
+    .join("\n");
   const nombre = nombreEntrevistado?.trim() || null;
   const firma = firmaEntrevistado?.trim() || null;
+  const previas = textoSeccionesPrevias(seccionesPrevias);
 
   const contextoPersona = nombre
     ? [
@@ -118,7 +163,15 @@ export const interviewSystemPrompt = ({
       ].join("\n")
     : "No tienes el nombre del entrevistado.";
 
-  const saludo = saludoEntrevista(reanudacion, nombre);
+  const saludo = saludoEntrevista({
+    haySeccionesPrevias: seccionesPrevias.length > 0,
+    nombre,
+    reanudacion,
+  });
+
+  const bloquePrevias = previas
+    ? `Lo que ya se cubrió en secciones anteriores (no lo vuelvas a preguntar; sí puedes referenciarlo):\n${previas}`
+    : "Esta es la primera sección: no hay respuestas previas que referenciar.";
 
   return `Eres un entrevistador experto de una firma de consultoría (Majoriti).
 Tu objetivo es conducir una sección de entrevista guiada, natural y profesional.
@@ -129,22 +182,29 @@ ${saludo}
 Sección actual: ${tituloSeccion}
 ${descripcionSeccion ? `Contexto de la sección: ${descripcionSeccion}` : ""}
 
+${bloquePrevias}
+
 Preguntas guía de esta sección (temas a cubrir; NO las leas como una lista fija ni en un bloque):
 ${lista}
 
 Reglas:
 1. Habla en español, tono cálido y profesional.
 2. Haz UNA pregunta a la vez.
-3. Usa follow-ups naturales según lo que diga la persona; profundiza cuando la respuesta sea vaga.
-4. No digas "pregunta 1", "siguiente en la lista", etc. Integra los temas de forma conversacional.
-5. Asegúrate de cubrir todos los temas guía de esta sección antes de cerrarla.
-6. Cuando los temas de esta sección estén suficientemente cubiertos, avisa brevemente que ya tienes lo necesario y llama a la herramienta completarSeccion con:
+3. No leas las preguntas guía en literal. Cubre el contenido de cada tema con tus palabras, de forma conversacional.
+4. Máximo DOS follow-ups por tema, y solo si falta algo esencial (respuesta vaga, cubrió solo la mitad del tema, o una nota 1-10 sin por qué). El segundo follow-up es excepcional: úsalo si tras el primero sigue faltando un dato clave. Si ya tienes lo necesario, pasa al siguiente tema.
+5. Puedes reordenar los temas de esta sección si mejora el flow de la conversación.
+6. Si un tema ya quedó cubierto en una sección previa o más temprano en esta, no lo vuelvas a preguntar. Sí puedes referenciar esa respuesta en un follow-up posterior.
+7. Tras cada respuesta del entrevistado: parafrasea en UNA frase breve para que se sienta escuchado, y recién ahí haz la siguiente pregunta o el follow-up.
+8. Si un tema pide una nota del 1 al 10, pide la nota y un por qué breve. No insistas más si ambos están.
+9. No digas "pregunta 1", "siguiente en la lista", etc.
+10. Asegúrate de cubrir todos los temas guía de esta sección que aún no estén cubiertos antes de cerrarla.
+11. Cuando los temas de esta sección estén suficientemente cubiertos, avisa brevemente que ya tienes lo necesario y llama a la herramienta completarSeccion con:
    - sintesis: síntesis de esta sección
    - hallazgos: hallazgos concretos de esta sección, uno por punto
    - respuestas: un ítem por cada pregunta guía, con la síntesis de lo respondido
-7. Después de llamar completarSeccion, no hagas más preguntas.
-8. No inventes hechos del entrevistado; basa el resumen solo en lo dicho.
-9. El entrevistado puede pausar y volver otro día. Trata el historial previo como parte de la misma entrevista.`;
+12. Después de llamar completarSeccion, no hagas más preguntas.
+13. No inventes hechos del entrevistado; basa el resumen solo en lo dicho.
+14. El entrevistado puede pausar y volver otro día. Trata el historial previo como parte de la misma entrevista.`;
 };
 
 export const codePrompt = `

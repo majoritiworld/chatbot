@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { postRequestBodySchema } from "@/app/(chat)/api/chat/schema";
+import { interviewSystemPrompt, textoSeccionesPrevias } from "@/lib/ai/prompts";
 import {
   clonarSecciones,
   consolidarRespuestasEntrevista,
@@ -12,7 +13,12 @@ import {
   type TurnoEntrevista,
   turnosDeSeccion,
 } from "@/lib/consultoria/entrevista-contenido";
+import {
+  esProyectoComplianceLatam,
+  GUION_CL_FASE_1,
+} from "@/lib/consultoria/guiones/compliance-latam-fase-1";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
+import { resolveAuthLanding } from "@/lib/consultoria/roles";
 import type { ChatMessage } from "@/lib/types";
 
 const SECCION_CONTEXTO = {
@@ -255,5 +261,82 @@ test.describe("Interview section flow", () => {
         seccionId: "33333333-3333-4333-8333-333333333333",
       }).success
     ).toBe(true);
+  });
+});
+
+test.describe("Interview prompt context", () => {
+  test("formats prior sections so the agent can reference them", () => {
+    const texto = textoSeccionesPrevias([
+      {
+        respuestas: [
+          { pregunta: "Nota en RRSS", respuesta_texto: "6, poco alcance" },
+        ],
+        sintesis: "Comunican poco el impacto en redes.",
+        titulo: "General",
+      },
+    ]);
+
+    expect(texto).toContain("### General");
+    expect(texto).toContain("Comunican poco el impacto en redes.");
+    expect(texto).toContain("Nota en RRSS: 6, poco alcance");
+  });
+
+  test("asks the agent not to re-ask covered topics and to paraphrase", () => {
+    const prompt = interviewSystemPrompt({
+      preguntas: ["Qué le ofrecen hoy a una firma socia."],
+      seccionesPrevias: [
+        {
+          respuestas: [
+            { pregunta: "Valor a firmas socias", respuesta_texto: "Un 4" },
+          ],
+          sintesis: "El valor a firmas socias está débil.",
+          titulo: "General",
+        },
+      ],
+      tituloSeccion: "Propuesta de valor",
+    });
+
+    expect(prompt).toContain("El valor a firmas socias está débil.");
+    expect(prompt).toContain("Máximo DOS follow-ups por tema");
+    expect(prompt).toContain("parafrasea en UNA frase breve");
+    expect(prompt).toContain("no lo vuelvas a preguntar");
+    expect(prompt).toContain("no te presentes de nuevo");
+  });
+});
+
+test.describe("ComplianceLatam phase 1 guide", () => {
+  test("covers six shared sections and drops Colomba's week walkthrough", () => {
+    expect(GUION_CL_FASE_1).toHaveLength(6);
+    expect(GUION_CL_FASE_1.map((seccion) => seccion.titulo)).toEqual([
+      "General",
+      "Propuesta de valor",
+      "Modelo de membresías y compromiso",
+      "Operación y cuellos de botella",
+      "Comité de noviembre",
+      "Cierre",
+    ]);
+
+    const operacion = GUION_CL_FASE_1.at(3);
+    expect(operacion?.preguntas).toHaveLength(3);
+    expect(operacion?.preguntas.join(" ")).not.toMatch(/semana pasada/i);
+    expect(GUION_CL_FASE_1.at(0)?.preguntas).toHaveLength(6);
+    expect(
+      esProyectoComplianceLatam({
+        cliente: "ComplianceLatam",
+        nombre: "ComplianceLatam",
+      })
+    ).toBe(true);
+  });
+});
+
+test.describe("Auth landing", () => {
+  test("never sends a portal user to the leftover chat UI", () => {
+    expect(resolveAuthLanding("cliente", "/chat/abc", "/portal")).toBe(
+      "/portal"
+    );
+    expect(resolveAuthLanding("cliente", "/", "/portal")).toBe("/portal");
+    expect(
+      resolveAuthLanding("stakeholder", "/chat/abc", "/portal/entrevista/1")
+    ).toBe("/portal/entrevista/1");
   });
 });

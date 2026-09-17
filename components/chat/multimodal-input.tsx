@@ -9,7 +9,6 @@ import {
   EyeIcon,
   LockIcon,
   MicIcon,
-  SquareIcon,
   WrenchIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -76,20 +75,55 @@ function placeholderTexto(
   return editando ? "Edit your message..." : "Ask anything...";
 }
 
+function esMac() {
+  return (
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad/.test(navigator.userAgent)
+  );
+}
+
+function etiquetaAtajoVoz() {
+  return esMac() ? "⌥ Espacio" : "Alt+Espacio";
+}
+
+function esAtajoMicrófono(event: {
+  altKey: boolean;
+  code: string;
+  ctrlKey: boolean;
+  key: string;
+  metaKey: boolean;
+  shiftKey: boolean;
+}) {
+  return (
+    event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    (event.code === "Space" || event.key === " " || event.key === "\u00a0")
+  );
+}
+
+function textoBotonVoz(voiceState: "idle" | "recording" | "transcribing") {
+  if (voiceState === "transcribing") {
+    return "Transcribiendo";
+  }
+  return "Hablar";
+}
+
 function etiquetaVoz(
   voiceState: "idle" | "recording" | "transcribing",
   esEntrevista: boolean | undefined
 ) {
   if (voiceState === "recording") {
-    return "Detener y transcribir";
+    return `Dejar de hablar (${etiquetaAtajoVoz()})`;
   }
   if (voiceState === "transcribing") {
     return "Transcribiendo...";
   }
   if (esEntrevista) {
-    return "Dictar por voz (Alt+Shift)";
+    return `Hablar (${etiquetaAtajoVoz()})`;
   }
-  return "Dictar por voz";
+  return "Hablar";
 }
 
 function setCookie(name: string, value: string) {
@@ -186,10 +220,18 @@ function PureMultimodalInput({
   const mountedRef = useRef(true);
   const audioChunksRef = useRef<Blob[]>([]);
   const shortcutPressedRef = useRef(false);
+  const voiceSessionRef = useRef(0);
+  const voiceStateRef = useRef<"idle" | "recording" | "transcribing">("idle");
 
   const stopVoiceRecording = useCallback(() => {
+    voiceSessionRef.current += 1;
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state === "inactive") {
+      for (const track of mediaStreamRef.current?.getTracks() ?? []) {
+        track.stop();
+      }
+      mediaStreamRef.current = null;
+      voiceStateRef.current = "idle";
       setVoiceState("idle");
       return;
     }
@@ -197,12 +239,16 @@ function PureMultimodalInput({
   }, []);
 
   const startVoiceRecording = useCallback(async () => {
-    if (voiceState !== "idle") {
+    if (voiceStateRef.current !== "idle") {
       return;
     }
+    const session = voiceSessionRef.current + 1;
+    voiceSessionRef.current = session;
+    voiceStateRef.current = "recording";
+    setVoiceState("recording");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!mountedRef.current) {
+      if (!mountedRef.current || voiceSessionRef.current !== session) {
         for (const track of stream.getTracks()) {
           track.stop();
         }
@@ -227,6 +273,7 @@ function PureMultimodalInput({
           track.stop();
         }
         mediaStreamRef.current = null;
+        voiceStateRef.current = "transcribing";
         setVoiceState("transcribing");
         try {
           const blob = new Blob(audioChunksRef.current, { type: mimeType });
@@ -262,6 +309,7 @@ function PureMultimodalInput({
             error instanceof Error ? error.message : "No se pudo transcribir"
           );
         } finally {
+          voiceStateRef.current = "idle";
           setVoiceState("idle");
           mediaRecorderRef.current = null;
           audioChunksRef.current = [];
@@ -269,16 +317,18 @@ function PureMultimodalInput({
       };
 
       recorder.start();
-      setVoiceState("recording");
     } catch {
       for (const track of mediaStreamRef.current?.getTracks() ?? []) {
         track.stop();
       }
       mediaStreamRef.current = null;
-      toast.error("No se pudo acceder al micrófono");
-      setVoiceState("idle");
+      if (voiceSessionRef.current === session) {
+        toast.error("No se pudo acceder al micrófono");
+        voiceStateRef.current = "idle";
+        setVoiceState("idle");
+      }
     }
-  }, [setInput, voiceState]);
+  }, [setInput]);
 
   const toggleVoiceRecording = useCallback(() => {
     if (voiceState === "recording") {
@@ -296,18 +346,7 @@ function PureMultimodalInput({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        !(event.altKey && event.shiftKey) ||
-        event.repeat ||
-        shortcutPressedRef.current
-      ) {
-        return;
-      }
-      if (
-        status !== "ready" ||
-        voiceState === "transcribing" ||
-        editingMessage
-      ) {
+      if (!esAtajoMicrófono(event) || event.repeat) {
         return;
       }
       if (
@@ -317,11 +356,23 @@ function PureMultimodalInput({
         return;
       }
       event.preventDefault();
+      if (
+        shortcutPressedRef.current ||
+        status !== "ready" ||
+        voiceState === "transcribing" ||
+        editingMessage
+      ) {
+        return;
+      }
       shortcutPressedRef.current = true;
       toggleVoiceRecording();
     };
     const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.key === "Alt" || event.key === "Shift") {
+      if (
+        event.code === "Space" ||
+        event.key === "Alt" ||
+        event.key === "AltGraph"
+      ) {
         shortcutPressedRef.current = false;
       }
     };
@@ -430,11 +481,13 @@ function PureMultimodalInput({
   );
 
   const submitForm = useCallback(() => {
-    window.history.pushState(
-      {},
-      "",
-      `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/chat/${chatId}`
-    );
+    if (!esEntrevista) {
+      window.history.pushState(
+        {},
+        "",
+        `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/chat/${chatId}`
+      );
+    }
 
     sendMessage({
       parts: [
@@ -468,6 +521,7 @@ function PureMultimodalInput({
     setLocalStorageInput,
     width,
     chatId,
+    esEntrevista,
   ]);
 
   const uploadFile = useCallback(async (file: File) => {
@@ -642,6 +696,10 @@ function PureMultimodalInput({
           return;
         }
       }
+      if (esAtajoMicrófono(e)) {
+        e.preventDefault();
+        return;
+      }
       if (e.key === "Escape" && editingMessage && onCancelEdit) {
         e.preventDefault();
         onCancelEdit();
@@ -755,24 +813,22 @@ function PureMultimodalInput({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  aria-keyshortcuts={esEntrevista ? "Alt+Shift" : undefined}
+                  aria-keyshortcuts={esEntrevista ? "Alt+Space" : undefined}
                   aria-label={etiquetaVoz(voiceState, esEntrevista)}
+                  aria-pressed={voiceState === "recording"}
                   className={cn(
-                    "h-7 w-7 rounded-xl",
-                    voiceState === "recording" && "bg-red-500/15 text-red-500",
+                    "h-7 gap-1.5 rounded-xl px-2.5 text-xs font-medium",
+                    voiceState === "recording" &&
+                      "!border-red-500 !bg-red-500 !text-white hover:!bg-red-600 hover:!text-white",
                     voiceState === "transcribing" && "opacity-60"
                   )}
                   disabled={status !== "ready" || voiceState === "transcribing"}
                   onClick={toggleVoiceRecording}
-                  size="icon"
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                 >
-                  {voiceState === "recording" ? (
-                    <SquareIcon className="size-3.5" />
-                  ) : (
-                    <MicIcon className="size-3.5" />
-                  )}
+                  <MicIcon className="size-3.5" />
+                  {textoBotonVoz(voiceState)}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>

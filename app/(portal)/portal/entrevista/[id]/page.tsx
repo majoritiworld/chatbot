@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { EntrevistaEnCurso } from "@/components/portal/entrevista-en-curso";
+import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { turnosDeSeccion } from "@/lib/consultoria/entrevista-contenido";
@@ -9,7 +10,6 @@ import {
   getTranscripcionEntrevista,
   resolveEntrevista,
 } from "@/lib/consultoria/entrevistas";
-import { getProyecto } from "@/lib/consultoria/fases";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
 import { isClienteRole } from "@/lib/consultoria/roles";
@@ -62,10 +62,7 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     );
   }
 
-  const [turnos, proyecto] = await Promise.all([
-    getTranscripcionEntrevista(entrevista.id),
-    getProyecto(portalUser.proyectoId),
-  ]);
+  const turnos = await getTranscripcionEntrevista(entrevista.id);
   const seccionActiva = entrevista.secciones.at(entrevista.seccion_actual);
   const turnosActivos = seccionActiva
     ? turnosDeSeccion(turnos, seccionActiva.id, entrevista.seccion_actual === 0)
@@ -80,7 +77,6 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
       flujoEstadoInicial={entrevista.flujo_estado}
       mensajesIniciales={turnosAMensajes(turnosActivos)}
       mostrarPortal={mostrarPortal}
-      proyectoNombre={proyecto?.nombre}
       seccionActualInicial={entrevista.seccion_actual}
       secciones={entrevista.secciones}
       stakeholderNombre={entrevista.stakeholder_nombre}
@@ -96,14 +92,14 @@ function Aviso({
   mostrarPortal: boolean;
 }) {
   return (
-    <div className="flex flex-col items-start gap-3 px-6 py-8">
+    <EntrevistaPantallaTransicion>
       <p className="text-muted-foreground text-sm">{mensaje}</p>
       {mostrarPortal ? (
-        <Link className="font-medium text-primary text-sm" href="/portal">
+        <Link className="w-fit font-medium text-primary text-sm" href="/portal">
           Volver a las fases
         </Link>
       ) : null}
-    </div>
+    </EntrevistaPantallaTransicion>
   );
 }
 

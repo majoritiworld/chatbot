@@ -1,7 +1,11 @@
 import "server-only";
 
 import { getUsuarioPerfil } from "@/lib/consultoria/entrevistas";
-import { type FaseEstado, normalizarEstado } from "@/lib/consultoria/fase-estado";
+import {
+  type FaseEstado,
+  normalizarEstado,
+} from "@/lib/consultoria/fase-estado";
+import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { createClient } from "@/lib/supabase/server";
 
 export type EntrevistaDelPortal = {
@@ -15,20 +19,33 @@ export type EntrevistaDelPortal = {
   puedeResponder: boolean;
 };
 
+export type TareaDelPortal = {
+  id: string;
+  nombre: string;
+  completada: boolean;
+  esPropia: boolean;
+  responsableNombre: string;
+  createdAt: string;
+};
+
 export type FaseDelPortal = {
   id: string;
   nombre: string;
   orden: number;
   estado: FaseEstado;
   fechaEstimada: string | null;
+  fechaCierre: string | null;
+  descripcion: string | null;
   /** First interview id (compat); prefer `entrevistas` for multi-interview phases. */
   entrevistaId: string | null;
   entrevistas: EntrevistaDelPortal[];
+  tareas: TareaDelPortal[];
 };
 
 type StakeholderEmbed = {
   id: string;
   nombre: string;
+  apellido: string | null;
   email: string;
   estado_entrevista: string;
 } | null;
@@ -41,10 +58,23 @@ type EntrevistaEmbed = {
   stakeholder: StakeholderEmbed | StakeholderEmbed[];
 } | null;
 
+type AsignadoEmbed = {
+  id: string;
+  nombre: string;
+  apellido: string | null;
+  email: string | null;
+} | null;
+
 type TareaRow = {
+  id: string;
   tipo: string;
+  nombre: string | null;
+  estado: string;
+  responsable: string | null;
+  created_at: string;
   entrevista_id: string | null;
   entrevista: EntrevistaEmbed | EntrevistaEmbed[];
+  asignado: AsignadoEmbed | AsignadoEmbed[] | null;
 };
 
 type FaseRow = {
@@ -53,6 +83,8 @@ type FaseRow = {
   orden: number;
   estado: string;
   fecha_estimada: string | null;
+  fecha_cierre: string | null;
+  descripcion: string | null;
   tarea: TareaRow[] | null;
 };
 
@@ -62,16 +94,24 @@ const FASE_SELECT = `
   orden,
   estado,
   fecha_estimada,
+  fecha_cierre,
+  descripcion,
   tarea(
+    id,
     tipo,
+    nombre,
+    estado,
+    responsable,
+    created_at,
     entrevista_id,
     entrevista:entrevista_id (
       id,
       estado,
       ultima_actividad,
       stakeholder_id,
-      stakeholder:stakeholder_id ( id, nombre, email, estado_entrevista )
-    )
+      stakeholder:stakeholder_id ( id, nombre, apellido, email, estado_entrevista )
+    ),
+    asignado:stakeholder_id ( id, nombre, apellido, email )
   )
 `;
 
@@ -80,6 +120,17 @@ function asOne<T>(value: T | T[] | null | undefined): T | null {
     return value[0] ?? null;
   }
   return value ?? null;
+}
+
+function nombreDelResponsable(
+  asignado: AsignadoEmbed,
+  responsable: string | null
+) {
+  return (
+    nombreCompleto(asignado?.nombre, asignado?.apellido) ||
+    responsable ||
+    "Sin asignar"
+  );
 }
 
 function estadoVisible(
@@ -102,8 +153,28 @@ function toFaseDelPortal(
 ): FaseDelPortal {
   const email = viewerEmail?.toLowerCase() ?? null;
   const entrevistas: EntrevistaDelPortal[] = [];
+  const tareas: TareaDelPortal[] = [];
 
   for (const tarea of row.tarea ?? []) {
+    if (tarea.tipo === "general") {
+      const nombre = tarea.nombre?.trim();
+      if (!nombre) {
+        continue;
+      }
+
+      const asignado = asOne(tarea.asignado);
+      const emailAsignado = asignado?.email?.toLowerCase() ?? null;
+      tareas.push({
+        completada: tarea.estado === "completada",
+        createdAt: tarea.created_at,
+        esPropia: emailAsignado === null || emailAsignado === email,
+        id: tarea.id,
+        nombre,
+        responsableNombre: nombreDelResponsable(asignado, tarea.responsable),
+      });
+      continue;
+    }
+
     if (tarea.tipo !== "entrevista" || !tarea.entrevista_id) {
       continue;
     }
@@ -132,24 +203,31 @@ function toFaseDelPortal(
       id: entrevista.id,
       puedeResponder: esPropia,
       stakeholderId: stakeholder.id,
-      stakeholderNombre: stakeholder.nombre,
+      stakeholderNombre: nombreCompleto(
+        stakeholder.nombre,
+        stakeholder.apellido
+      ),
     });
   }
 
   entrevistas.sort((a, b) =>
     a.stakeholderNombre.localeCompare(b.stakeholderNombre, "es")
   );
+  tareas.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   const propia = entrevistas.find((item) => item.esPropia);
 
   return {
+    descripcion: row.descripcion,
     entrevistaId: propia?.id ?? entrevistas.at(0)?.id ?? null,
     entrevistas,
     estado: normalizarEstado(row.estado),
+    fechaCierre: row.fecha_cierre,
     fechaEstimada: row.fecha_estimada,
     id: row.id,
     nombre: row.nombre,
     orden: row.orden,
+    tareas,
   };
 }
 
