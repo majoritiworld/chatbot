@@ -2,6 +2,14 @@ import { expect, test } from "@playwright/test";
 import { postRequestBodySchema } from "@/app/(chat)/api/chat/schema";
 import { interviewSystemPrompt, textoSeccionesPrevias } from "@/lib/ai/prompts";
 import {
+  agenteOfrecioCierreListo,
+  cierrePendienteEnChat,
+  herramientasCierreActivas,
+  mensajesTextoParaModelo,
+  ultimoUsuarioEligePausa,
+  ultimoUsuarioPideFinalizar,
+} from "@/lib/consultoria/cierre-seccion";
+import {
   clonarSecciones,
   consolidarRespuestasEntrevista,
   fusionarTurnos,
@@ -13,6 +21,11 @@ import {
   type TurnoEntrevista,
   turnosDeSeccion,
 } from "@/lib/consultoria/entrevista-contenido";
+import {
+  MENSAJE_CONTINUAR_SECCION,
+  MENSAJE_FINALIZAR_SECCION,
+  MENSAJE_FORZAR_CIERRE_SECCION,
+} from "@/lib/consultoria/finalizar-seccion";
 import {
   esProyectoComplianceLatam,
   GUION_CL_FASE_1,
@@ -281,7 +294,7 @@ test.describe("Interview prompt context", () => {
     expect(texto).toContain("Nota en RRSS: 6, poco alcance");
   });
 
-  test("asks the agent not to re-ask covered topics and to paraphrase", () => {
+  test("asks the agent not to re-ask covered topics and to paraphrase only sporadically", () => {
     const prompt = interviewSystemPrompt({
       preguntas: ["Qué le ofrecen hoy a una firma socia."],
       seccionesPrevias: [
@@ -298,9 +311,188 @@ test.describe("Interview prompt context", () => {
 
     expect(prompt).toContain("El valor a firmas socias está débil.");
     expect(prompt).toContain("Máximo DOS follow-ups por tema");
-    expect(prompt).toContain("parafrasea en UNA frase breve");
+    expect(prompt).toContain("unas de cada tres o cuatro respuestas");
     expect(prompt).toContain("no lo vuelvas a preguntar");
     expect(prompt).toContain("no te presentes de nuevo");
+    expect(prompt).toContain(MENSAJE_FINALIZAR_SECCION);
+    expect(prompt).toContain("ofrecerContinuarOGuardar");
+    expect(prompt).toContain("ofrecerCierreSeccion");
+    expect(prompt).toContain('pulse "Finalizar sección"');
+    expect(prompt).toContain("puede contestarla ahora o volver más tarde");
+    expect(prompt).toContain("no hagas otra pregunta");
+    expect(prompt).toContain("listo=true");
+    expect(prompt).toContain(MENSAJE_FORZAR_CIERRE_SECCION);
+  });
+
+  test("greets in a gender-neutral way when the interviewee has a name", () => {
+    const prompt = interviewSystemPrompt({
+      nombreEntrevistado: "Alex",
+      preguntas: ["Qué cambió esta semana."],
+      tituloSeccion: "General",
+    });
+
+    expect(prompt).toContain("saluda a la persona por su nombre");
+    expect(prompt).not.toContain("salúdala");
+  });
+});
+
+test.describe("Interview section close offer", () => {
+  test("sends only spoken text to the model, dropping tool-only turns", () => {
+    const limpios = mensajesTextoParaModelo([
+      {
+        id: "a1",
+        parts: [
+          {
+            input: { listo: true },
+            output: { ok: true },
+            state: "output-available",
+            toolCallId: "t1",
+            type: "tool-ofrecerCierreSeccion",
+          },
+        ],
+        role: "assistant",
+      },
+      {
+        id: "a2",
+        parts: [{ text: "¿Qué cambió esta semana?", type: "text" }],
+        role: "assistant",
+      },
+    ]);
+
+    expect(limpios).toHaveLength(1);
+    expect(limpios.at(0)?.id).toBe("a2");
+  });
+  test("reads a pending close only from the last assistant message", () => {
+    const cierre = {
+      hallazgos: ["Hay poco seguimiento"],
+      respuestas: [{ pregunta: "¿Qué cambió?", respuesta_texto: "Casi nada" }],
+      sintesis: "Poco movimiento en el último mes.",
+    };
+    const messages: ChatMessage[] = [
+      {
+        id: "a1",
+        parts: [
+          {
+            input: cierre,
+            output: { ok: true },
+            state: "output-available",
+            toolCallId: "t1",
+            type: "tool-ofrecerCierreSeccion",
+          },
+        ],
+        role: "assistant",
+      },
+      {
+        id: "u1",
+        parts: [{ text: "Sigo pensando", type: "text" }],
+        role: "user",
+      },
+    ];
+
+    expect(cierrePendienteEnChat(messages)).toBeNull();
+    expect(cierrePendienteEnChat(messages.slice(0, 1))).toEqual(cierre);
+  });
+
+  test("treats the section as ready only after the agent offers close", () => {
+    const listo: ChatMessage[] = [
+      {
+        id: "a1",
+        parts: [
+          {
+            input: { listo: true },
+            output: { ok: true },
+            state: "output-available",
+            toolCallId: "t1",
+            type: "tool-ofrecerCierreSeccion",
+          },
+        ],
+        role: "assistant",
+      },
+    ];
+    const incompleto: ChatMessage[] = [
+      {
+        id: "a2",
+        parts: [{ text: "¿Qué cambió esta semana?", type: "text" }],
+        role: "assistant",
+      },
+    ];
+    const usuarioSigue: ChatMessage[] = [
+      ...listo,
+      {
+        id: "u1",
+        parts: [{ text: "Quiero agregar algo más", type: "text" }],
+        role: "user",
+      },
+    ];
+
+    expect(agenteOfrecioCierreListo(listo)).toBe(true);
+    expect(agenteOfrecioCierreListo(incompleto)).toBe(false);
+    expect(agenteOfrecioCierreListo(usuarioSigue)).toBe(false);
+  });
+
+  test("detects the explicit close request from the last user turn", () => {
+    const messages: ChatMessage[] = [
+      {
+        id: "u1",
+        parts: [{ text: MENSAJE_FINALIZAR_SECCION, type: "text" }],
+        role: "user",
+      },
+    ];
+
+    expect(ultimoUsuarioPideFinalizar(messages)).toBe(true);
+    expect(
+      ultimoUsuarioPideFinalizar([
+        {
+          id: "u2",
+          parts: [{ text: "Todavía quiero contar algo", type: "text" }],
+          role: "user",
+        },
+      ])
+    ).toBe(false);
+  });
+
+  test("detects continue or save after an early close attempt", () => {
+    expect(
+      ultimoUsuarioEligePausa([
+        {
+          id: "u1",
+          parts: [{ text: MENSAJE_CONTINUAR_SECCION, type: "text" }],
+          role: "user",
+        },
+      ])
+    ).toBe(true);
+    expect(
+      ultimoUsuarioEligePausa([
+        {
+          id: "u2",
+          parts: [{ text: MENSAJE_FINALIZAR_SECCION, type: "text" }],
+          role: "user",
+        },
+      ])
+    ).toBe(false);
+  });
+
+  test("forces section completion when the interviewee insists", () => {
+    const forzar: ChatMessage[] = [
+      {
+        id: "u1",
+        parts: [{ text: MENSAJE_FORZAR_CIERRE_SECCION, type: "text" }],
+        role: "user",
+      },
+    ];
+    const pedir: ChatMessage[] = [
+      {
+        id: "u2",
+        parts: [{ text: MENSAJE_FINALIZAR_SECCION, type: "text" }],
+        role: "user",
+      },
+    ];
+
+    expect(herramientasCierreActivas(forzar)).toEqual(["completarSeccion"]);
+    expect(herramientasCierreActivas(pedir)).toEqual([
+      "completarSeccion",
+      "ofrecerContinuarOGuardar",
+    ]);
   });
 });
 

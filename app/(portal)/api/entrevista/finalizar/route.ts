@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { auth } from "@/app/(auth)/auth";
+import { cierreSeccionInputSchema } from "@/lib/consultoria/cierre-seccion";
 import {
   completarSeccionEntrevista,
   resolveEntrevista,
@@ -12,8 +13,11 @@ export const maxDuration = 30;
 const bodySchema = z.object({
   // guid: DB ids are not always RFC-4122 versioned.
   entrevistaId: z.guid(),
+  hallazgos: cierreSeccionInputSchema.shape.hallazgos.optional(),
   messages: z.array(z.any()).optional(),
+  respuestas: cierreSeccionInputSchema.shape.respuestas.optional(),
   seccionId: z.guid(),
+  sintesis: cierreSeccionInputSchema.shape.sintesis.optional(),
 });
 
 export async function POST(request: Request) {
@@ -28,7 +32,14 @@ export async function POST(request: Request) {
       return Response.json({ error: "Datos inválidos" }, { status: 400 });
     }
 
-    const { entrevistaId, messages, seccionId } = parsed.data;
+    const {
+      entrevistaId,
+      hallazgos,
+      messages,
+      respuestas,
+      seccionId,
+      sintesis,
+    } = parsed.data;
     const entrevista = await resolveEntrevista(entrevistaId);
     const seccion = entrevista?.secciones.find((item) => item.id === seccionId);
     if (!seccion) {
@@ -41,19 +52,28 @@ export async function POST(request: Request) {
       (messages ?? []) as ChatMessage[],
       seccionId
     );
-    const respuestas = seccion.preguntas.map((pregunta) => ({
-      pregunta,
-      respuesta_texto: "Ver transcripción completa.",
-    }));
+    const cierre = cierreSeccionInputSchema.safeParse({
+      hallazgos,
+      respuestas,
+      sintesis,
+    });
+    const resumen = cierre.success
+      ? { ...cierre.data, modo: "agente" as const }
+      : {
+          hallazgos: [],
+          modo: "manual" as const,
+          respuestas: seccion.preguntas.map((pregunta) => ({
+            pregunta,
+            respuesta_texto: "Ver transcripción completa.",
+          })),
+          sintesis: "Sección finalizada manualmente. Revisar la transcripción.",
+        };
 
     const result = await completarSeccionEntrevista({
       entrevistaId,
-      hallazgos: [],
-      modo: "manual",
-      respuestas,
       seccionId,
-      sintesis: "Sección finalizada manualmente. Revisar la transcripción.",
       turnos,
+      ...resumen,
     });
 
     return Response.json({ ok: true, ...result });

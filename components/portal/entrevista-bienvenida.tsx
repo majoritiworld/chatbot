@@ -24,16 +24,18 @@ export function EntrevistaBienvenida({
     <EntrevistaPantallaTransicion>
       <div className="flex flex-col gap-3">
         <h1 className="font-semibold text-3xl tracking-tight">{saludo}</h1>
-        <p className="text-base leading-relaxed">
-          La entrevista tiene {numeroSecciones}{" "}
-          {numeroSecciones === 1 ? "sección" : "secciones"}. En cada una podrás
-          responder con texto o voz, y el entrevistador te hará preguntas para
-          profundizar en lo que compartas.
-        </p>
-        <p className="text-base leading-relaxed">
-          Puedes guardar tu progreso y continuar otro día. Antes de cada
-          conversación te presentaremos el tema.
-        </p>
+        <div className="flex flex-col gap-3 rounded-2xl bg-muted px-4 py-3">
+          <p className="text-base leading-relaxed">
+            La entrevista tiene {numeroSecciones}{" "}
+            {numeroSecciones === 1 ? "sección" : "secciones"}. En cada una
+            podrás responder con texto o voz, y el entrevistador te hará
+            preguntas para profundizar en lo que compartas.
+          </p>
+          <p className="text-base leading-relaxed">
+            Puedes guardar tu progreso y continuar otro día. Antes de cada
+            conversación te presentaremos el tema.
+          </p>
+        </div>
       </div>
 
       <Button

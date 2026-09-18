@@ -138,7 +138,7 @@ export function EditarFaseForm({
           </div>
         </div>
         <p className="text-muted-foreground text-xs">
-          El cliente verá el rango, por ejemplo Del 28/09 al 07/10.
+          El cliente verá el rango, por ejemplo 28/09-07/10.
         </p>
 
         <div className="flex w-3/4 flex-col gap-1.5">

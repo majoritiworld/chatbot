@@ -7,23 +7,27 @@ import {
   tool,
   toUIMessageStream,
 } from "ai";
-import { z } from "zod";
 import { auth } from "@/app/(auth)/auth";
 import {
   allowedModelIds,
   chatModels,
   DEFAULT_CHAT_MODEL,
-  getCapabilities,
 } from "@/lib/ai/models";
 import { interviewSystemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
-  canWriteEntrevista,
+  cierreSeccionInputSchema,
+  herramientasCierreActivas,
+  mensajesTextoParaModelo,
+  ofertaCierreInputSchema,
+  pausaSeccionInputSchema,
+} from "@/lib/consultoria/cierre-seccion";
+import {
   completarSeccionEntrevista,
+  getEntrevistaEscribible,
   getTranscripcionEntrevista,
   registrarTurnosEntrevista,
-  resolveEntrevista,
 } from "@/lib/consultoria/entrevistas";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
 import { ChatbotError } from "@/lib/errors";
@@ -60,15 +64,8 @@ export async function POST(request: Request) {
       ? selectedChatModel
       : DEFAULT_CHAT_MODEL;
 
-    const entrevista = await resolveEntrevista(entrevistaId);
+    const entrevista = await getEntrevistaEscribible(entrevistaId);
     if (!entrevista) {
-      return new ChatbotError(
-        "bad_request:api",
-        "No hay entrevista abierta para este usuario"
-      ).toResponse();
-    }
-
-    if (!(await canWriteEntrevista(entrevista))) {
       return new ChatbotError(
         "forbidden:chat",
         "Solo puedes responder tu propia entrevista"
@@ -117,16 +114,19 @@ export async function POST(request: Request) {
       uiMessages = [...uiMessages, message as ChatMessage];
     }
 
-    // Written before the model runs so a failed turn still counts as activity.
-    await registrarTurnosEntrevista({
+    // Kick off the write without blocking the model. A failed turn still
+    // stamps activity if this lands; a slow write must not delay the first token.
+    registrarTurnosEntrevista({
       entrevistaId: entrevista.id,
       turnos: mensajesATurnos(uiMessages, seccion.id),
+    }).catch((error: unknown) => {
+      console.error("No se pudo guardar la transcripción", error);
     });
 
     const modelConfig = chatModels.find((m) => m.id === chatModel);
-    const modelCapabilities = await getCapabilities();
-    const capabilities = modelCapabilities[chatModel];
-    const isReasoningModel = capabilities?.reasoning === true;
+    const isReasoningModel =
+      modelConfig?.reasoningEffort !== undefined &&
+      modelConfig.reasoningEffort !== "none";
     const seccionesPorId = new Map(
       entrevista.secciones.map((item) => [item.id, item])
     );
@@ -145,9 +145,10 @@ export async function POST(request: Request) {
     const kickoff = haySeccionesPrevias
       ? "Estoy listo para continuar con esta sección. No te presentes de nuevo; haz una transición breve y la primera pregunta."
       : "Estoy listo para comenzar. Preséntate, salúdame y haz la primera pregunta.";
+    const mensajesModelo = mensajesTextoParaModelo(uiMessages);
     const modelMessages =
-      uiMessages.length > 0
-        ? await convertToModelMessages(uiMessages)
+      mensajesModelo.length > 0
+        ? await convertToModelMessages(mensajesModelo)
         : [
             {
               content: kickoff,
@@ -158,7 +159,7 @@ export async function POST(request: Request) {
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
         const result = streamText({
-          activeTools: ["completarSeccion"],
+          activeTools: [...herramientasCierreActivas(uiMessages)],
           instructions: interviewSystemPrompt({
             descripcionSeccion: seccion.descripcion,
             firmaEntrevistado: entrevista.stakeholder_firma,
@@ -205,7 +206,7 @@ export async function POST(request: Request) {
           tools: {
             completarSeccion: tool({
               description:
-                "Completa la sección activa cuando sus temas guía estén suficientemente cubiertos.",
+                "Cierra la sección activa. Úsala solo cuando el entrevistado confirma que quiere finalizar y los temas guía ya están cubiertos.",
               execute: async ({ hallazgos, respuestas, sintesis }) => {
                 const avance = await completarSeccionEntrevista({
                   entrevistaId: entrevista.id,
@@ -225,24 +226,19 @@ export async function POST(request: Request) {
                   ok: true,
                 };
               },
-              inputSchema: z.object({
-                hallazgos: z
-                  .array(z.string())
-                  .describe("Hallazgos concretos de la sección"),
-                respuestas: z
-                  .array(
-                    z.object({
-                      pregunta: z.string(),
-                      respuesta_texto: z.string(),
-                    })
-                  )
-                  .describe(
-                    "Una entrada por cada pregunta guía cubierta, con la síntesis de lo respondido"
-                  ),
-                sintesis: z
-                  .string()
-                  .describe("Síntesis fiel y concisa de la sección"),
-              }),
+              inputSchema: cierreSeccionInputSchema,
+            }),
+            ofrecerCierreSeccion: tool({
+              description:
+                "Muestra el botón Finalizar sección cuando los temas guía ya están cubiertos. No cierra la sección; espera a que el entrevistado pulse el botón. Siempre escribe antes un mensaje de texto para la persona.",
+              execute: () => ({ ok: true as const }),
+              inputSchema: ofertaCierreInputSchema,
+            }),
+            ofrecerContinuarOGuardar: tool({
+              description:
+                "Muestra los botones Continuar y Guardar progreso cuando el entrevistado quiere cerrar pero todavía faltan temas. No hagas la siguiente pregunta en este turno.",
+              execute: () => ({ ok: true as const }),
+              inputSchema: pausaSeccionInputSchema,
             }),
           },
         });

@@ -86,34 +86,41 @@ function PureMessages({
             esEntrevista ? "max-w-[760px]" : "max-w-4xl"
           )}
         >
-          {messages.map((message, index) => (
-            <PreviewMessage
-              addToolApprovalResponse={addToolApprovalResponse}
-              chatId={chatId}
-              esEntrevista={esEntrevista}
-              isLoading={
-                status === "streaming" && messages.length - 1 === index
-              }
-              isReadonly={isReadonly}
-              key={message.id}
-              message={message}
-              onEdit={onEditMessage}
-              regenerate={regenerate}
-              requiresScrollPadding={
-                hasSentMessage && index === messages.length - 1
-              }
-              setMessages={setMessages}
-              vote={
-                votes
-                  ? votes.find((vote) => vote.messageId === message.id)
-                  : undefined
-              }
-            />
-          ))}
+          <div
+            className="flex min-w-0 flex-col gap-5 md:gap-7"
+            data-tour={esEntrevista ? "entrevista-chat" : undefined}
+          >
+            {messages.map((message, index) => (
+              <PreviewMessage
+                addToolApprovalResponse={addToolApprovalResponse}
+                chatId={chatId}
+                esEntrevista={esEntrevista}
+                isLast={index === messages.length - 1}
+                isLoading={
+                  status === "streaming" && messages.length - 1 === index
+                }
+                isReadonly={isReadonly}
+                key={message.id}
+                message={message}
+                onEdit={onEditMessage}
+                regenerate={regenerate}
+                requiresScrollPadding={
+                  hasSentMessage && index === messages.length - 1
+                }
+                setMessages={setMessages}
+                vote={
+                  votes
+                    ? votes.find((vote) => vote.messageId === message.id)
+                    : undefined
+                }
+              />
+            ))}
 
-          {status === "submitted" && messages.at(-1)?.role !== "assistant" && (
-            <ThinkingMessage esEntrevista={esEntrevista} />
-          )}
+            {status === "submitted" &&
+              messages.at(-1)?.role !== "assistant" && (
+                <ThinkingMessage esEntrevista={esEntrevista} />
+              )}
+          </div>
 
           <div
             className="min-h-[24px] min-w-[24px] shrink-0"

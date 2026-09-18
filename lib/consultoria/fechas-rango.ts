@@ -81,7 +81,7 @@ export function formatRangoFechas(
     }
 
     const aniosDistintos = partes(inicio).anio !== partes(cierre).anio;
-    return `Del ${formatCorto(inicio, aniosDistintos)} al ${formatCorto(cierre, aniosDistintos)}`;
+    return `${formatCorto(inicio, aniosDistintos)}-${formatCorto(cierre, aniosDistintos)}`;
   }
 
   if (inicio) {

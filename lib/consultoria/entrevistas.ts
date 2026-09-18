@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import {
   consolidarRespuestasEntrevista,
   type FlujoEntrevista,
@@ -94,7 +95,7 @@ function toEntrevista(row: EntrevistaRow): Entrevista {
   };
 }
 
-export async function getUsuarioPerfil() {
+export const getUsuarioPerfil = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -117,78 +118,99 @@ export async function getUsuarioPerfil() {
     rol: (perfil?.rol ?? null) as UserRole | null,
     user,
   };
-}
+});
 
 /** Stakeholder row matching the signed-in email, if any. */
-export async function getOwnStakeholderId(email: string | null | undefined) {
-  if (!email) {
-    return null;
-  }
+export const getOwnStakeholderId = cache(
+  async (email: string | null | undefined) => {
+    if (!email) {
+      return null;
+    }
 
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("stakeholder")
-    .select("id")
-    .ilike("email", email)
-    .maybeSingle();
-
-  return data?.id ?? null;
-}
-
-/**
- * True when the current user is the interviewed stakeholder. Clients see
- * progress in the portal; they do not answer on someone else's behalf.
- * Majoriti uses impersonation to enter as that stakeholder.
- */
-export async function canWriteEntrevista(entrevista: Entrevista) {
-  const context = await getUsuarioPerfil();
-  if (!context) {
-    return false;
-  }
-
-  const ownId = await getOwnStakeholderId(context.user.email);
-  return ownId !== null && entrevista.stakeholder_id === ownId;
-}
-
-export async function resolveEntrevista(
-  entrevistaId?: string | null
-): Promise<Entrevista | null> {
-  const supabase = await createClient();
-  const context = await getUsuarioPerfil();
-
-  if (!context) {
-    return null;
-  }
-
-  const { user } = context;
-
-  // RLS decides whether this id is actually reachable for the caller.
-  if (entrevistaId) {
+    const supabase = await createClient();
     const { data } = await supabase
-      .from("entrevista")
-      .select(ENTREVISTA_SELECT)
-      .eq("id", entrevistaId)
+      .from("stakeholder")
+      .select("id")
+      .ilike("email", email)
       .maybeSingle();
 
-    if (data) {
-      return toEntrevista(data as EntrevistaRow);
-    }
+    return data?.id ?? null;
   }
+);
 
-  const ownId = await getOwnStakeholderId(user.email);
-  if (!ownId) {
-    return null;
-  }
-
+async function entrevistaPorId(entrevistaId: string) {
+  const supabase = await createClient();
   const { data } = await supabase
     .from("entrevista")
     .select(ENTREVISTA_SELECT)
-    .eq("stakeholder_id", ownId)
+    .eq("id", entrevistaId)
+    .maybeSingle();
+
+  return data ? toEntrevista(data as EntrevistaRow) : null;
+}
+
+async function entrevistaPorStakeholder(stakeholderId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("entrevista")
+    .select(ENTREVISTA_SELECT)
+    .eq("stakeholder_id", stakeholderId)
     .order("id")
     .limit(1)
     .maybeSingle();
 
   return data ? toEntrevista(data as EntrevistaRow) : null;
+}
+
+export async function resolveEntrevista(
+  entrevistaId?: string | null
+): Promise<Entrevista | null> {
+  const context = await getUsuarioPerfil();
+
+  if (!context) {
+    return null;
+  }
+
+  if (entrevistaId) {
+    const entrevista = await entrevistaPorId(entrevistaId);
+    if (entrevista) {
+      return entrevista;
+    }
+  }
+
+  const ownId = await getOwnStakeholderId(context.user.email);
+  if (!ownId) {
+    return null;
+  }
+
+  return entrevistaPorStakeholder(ownId);
+}
+
+/**
+ * Loads the interview and confirms the caller is the stakeholder in one
+ * round: profile once, then interview + own stakeholder in parallel.
+ */
+export async function getEntrevistaEscribible(
+  entrevistaId?: string | null
+): Promise<Entrevista | null> {
+  const context = await getUsuarioPerfil();
+  if (!context) {
+    return null;
+  }
+
+  const [ownId, encontrada] = await Promise.all([
+    getOwnStakeholderId(context.user.email),
+    entrevistaId ? entrevistaPorId(entrevistaId) : Promise.resolve(null),
+  ]);
+
+  const entrevista =
+    encontrada ?? (ownId ? await entrevistaPorStakeholder(ownId) : null);
+
+  if (!entrevista || !ownId || entrevista.stakeholder_id !== ownId) {
+    return null;
+  }
+
+  return entrevista;
 }
 
 /** Turns stored so far, used to rehydrate the chat on reload. */
@@ -213,9 +235,9 @@ export async function avanzarFlujoEntrevista({
   entrevistaId: string;
   desde: "bienvenida" | "presentacion";
 }) {
-  const entrevista = await resolveEntrevista(entrevistaId);
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
 
-  if (!entrevista || !(await canWriteEntrevista(entrevista))) {
+  if (!entrevista) {
     throw new Error("No puedes avanzar esta entrevista");
   }
   if (entrevista.estado !== "abierta" || entrevista.flujo_estado !== desde) {
@@ -257,9 +279,9 @@ export async function completarSeccionEntrevista({
   respuestas: RespuestaResumen[];
   turnos?: TurnoEntrevista[];
 }) {
-  const entrevista = await resolveEntrevista(entrevistaId);
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
 
-  if (!entrevista || !(await canWriteEntrevista(entrevista))) {
+  if (!entrevista) {
     throw new Error("No puedes completar esta sección");
   }
   if (entrevista.estado !== "abierta" || entrevista.flujo_estado !== "chat") {
@@ -382,13 +404,9 @@ export async function guardarProgresoEntrevista({
   seccionId: string;
   turnos: TurnoEntrevista[];
 }) {
-  const entrevista = await resolveEntrevista(entrevistaId);
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
 
   if (!entrevista) {
-    throw new Error("Entrevista no encontrada");
-  }
-
-  if (!(await canWriteEntrevista(entrevista))) {
     throw new Error("No puedes guardar esta entrevista");
   }
 
@@ -414,13 +432,9 @@ export async function guardarProgresoEntrevista({
 }
 
 export async function enviarEntrevista(entrevistaId: string) {
-  const entrevista = await resolveEntrevista(entrevistaId);
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
 
   if (!entrevista) {
-    throw new Error("Entrevista no encontrada");
-  }
-
-  if (!(await canWriteEntrevista(entrevista))) {
     throw new Error("No puedes enviar esta entrevista");
   }
 
@@ -485,13 +499,9 @@ export async function marcarCorreoAgradecimientoEnviado(entrevistaId: string) {
  * does not show again, and the chat API will accept the kickoff.
  */
 export async function aceptarConsentimientoEntrevista(entrevistaId: string) {
-  const entrevista = await resolveEntrevista(entrevistaId);
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
 
   if (!entrevista) {
-    throw new Error("Entrevista no encontrada");
-  }
-
-  if (!(await canWriteEntrevista(entrevista))) {
     throw new Error("No puedes empezar esta entrevista");
   }
 

@@ -100,20 +100,12 @@ export function ChatShell({
       return;
     }
 
-    const entregar = () => {
-      if (advanceDeliveredRef.current) {
-        return;
-      }
-      advanceDeliveredRef.current = true;
-      onSeccionCompletada?.(pendingAdvance);
-    };
+    if (status === "submitted" || status === "streaming") {
+      return;
+    }
 
-    const espera =
-      status === "submitted" || status === "streaming" ? 1600 : 900;
-    const timeout = setTimeout(entregar, espera);
-    return () => {
-      clearTimeout(timeout);
-    };
+    advanceDeliveredRef.current = true;
+    onSeccionCompletada?.(pendingAdvance);
   }, [onSeccionCompletada, pendingAdvance, status]);
 
   const handleEditMessage = useCallback(

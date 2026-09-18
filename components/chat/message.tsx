@@ -1,6 +1,8 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { useCallback } from "react";
+import { CerrarSeccionEnChat } from "@/components/portal/cerrar-seccion-en-chat";
+import { PausaSeccionEnChat } from "@/components/portal/pausa-seccion-en-chat";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
@@ -32,7 +34,14 @@ function WaitingText({ esEntrevista }: { esEntrevista?: boolean }) {
   const label = esEntrevista ? "Pensando" : "Thinking";
 
   return (
-    <div className="flex min-h-[calc(13px*1.65)] min-w-0 items-center text-[13px] leading-[1.65]">
+    <div
+      className={cn(
+        "flex min-w-0 items-center leading-[1.65]",
+        esEntrevista
+          ? "min-h-[calc(15px*1.65)] text-[15px]"
+          : "min-h-[calc(13px*1.65)] text-[13px]"
+      )}
+    >
       {waitingStatus?.message ? (
         <Shimmer
           as="span"
@@ -103,6 +112,7 @@ const PurePreviewMessage = ({
   setMessages: _setMessages,
   regenerate: _regenerate,
   isReadonly,
+  isLast,
   requiresScrollPadding: _requiresScrollPadding,
   onEdit,
 }: {
@@ -115,6 +125,7 @@ const PurePreviewMessage = ({
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   isReadonly: boolean;
+  isLast?: boolean;
   requiresScrollPadding: boolean;
   onEdit?: (message: ChatMessage) => void;
 }) => {
@@ -155,6 +166,26 @@ const PurePreviewMessage = ({
     </div>
   );
 
+  const partesDelMensaje = (() => {
+    const partes = message.parts ?? [];
+    if (!esEntrevista) {
+      return partes;
+    }
+
+    return [
+      ...partes.filter(
+        (part) =>
+          part.type !== "tool-ofrecerCierreSeccion" &&
+          part.type !== "tool-ofrecerContinuarOGuardar"
+      ),
+      ...partes.filter(
+        (part) =>
+          part.type === "tool-ofrecerCierreSeccion" ||
+          part.type === "tool-ofrecerContinuarOGuardar"
+      ),
+    ];
+  })();
+
   const mergedReasoning = message.parts?.reduce(
     (acc, part) => {
       if (part.type === "reasoning" && part.text?.trim().length > 0) {
@@ -169,7 +200,7 @@ const PurePreviewMessage = ({
     { isStreaming: false, rendered: false, text: "" }
   ) ?? { isStreaming: false, rendered: false, text: "" };
 
-  const parts = message.parts?.map((part, index) => {
+  const parts = partesDelMensaje.map((part, index) => {
     const { type } = part;
     const key = `message-${message.id}-part-${index}`;
 
@@ -190,15 +221,37 @@ const PurePreviewMessage = ({
     if (type === "text") {
       return (
         <MessageContent
-          className={cn("text-[13px] leading-[1.65]", {
-            "w-fit max-w-[min(80%,56ch)] overflow-hidden break-words rounded-2xl rounded-br-lg border border-border/30 bg-gradient-to-br from-secondary to-muted px-3.5 py-2 shadow-[var(--shadow-card)]":
-              message.role === "user",
-          })}
+          className={cn(
+            "leading-[1.65]",
+            esEntrevista ? "text-[15px]" : "text-[13px]",
+            {
+              "w-fit max-w-[min(80%,56ch)] overflow-hidden break-words rounded-2xl rounded-br-lg border border-border/30 bg-gradient-to-br from-secondary to-muted px-3.5 py-2 shadow-[var(--shadow-card)]":
+                message.role === "user",
+            }
+          )}
           data-testid="message-content"
           key={key}
         >
           <MessageResponse>{sanitizeText(part.text)}</MessageResponse>
         </MessageContent>
+      );
+    }
+
+    if (type === "tool-ofrecerCierreSeccion") {
+      return (
+        <CerrarSeccionEnChat
+          key={key}
+          visible={Boolean(esEntrevista && isLast && !isLoading && !isReadonly)}
+        />
+      );
+    }
+
+    if (type === "tool-ofrecerContinuarOGuardar") {
+      return (
+        <PausaSeccionEnChat
+          key={key}
+          visible={Boolean(esEntrevista && isLast && !isLoading && !isReadonly)}
+        />
       );
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,13 +21,11 @@ export function GuardarEntrevistaButton({
   entrevistaId: string;
   seccionId: string;
 }) {
-  const { messages, status, stop } = useActiveChat();
+  const { marcarProgresoGuardado, messages, progresoGuardado, status, stop } =
+    useActiveChat();
   const [pending, startTransition] = useTransition();
-  const [claveGuardada, setClaveGuardada] = useState<string | null>(null);
-  const claveMensajes = messages.map((mensaje) => mensaje.id).join(",");
-  const guardado = claveGuardada !== null && claveGuardada === claveMensajes;
   const ocupado = pending || status === "submitted" || status === "streaming";
-  const noClickeable = ocupado || guardado;
+  const noClickeable = ocupado || progresoGuardado;
 
   const handleSave = useCallback(() => {
     if (noClickeable) {
@@ -57,20 +55,29 @@ export function GuardarEntrevistaButton({
           return;
         }
 
-        setClaveGuardada(claveMensajes);
+        marcarProgresoGuardado();
       } catch {
         toast.error("No se pudo guardar el progreso");
       }
     });
-  }, [claveMensajes, entrevistaId, messages, noClickeable, seccionId, stop]);
+  }, [
+    entrevistaId,
+    marcarProgresoGuardado,
+    messages,
+    noClickeable,
+    seccionId,
+    stop,
+  ]);
 
   const boton = (
     <Button
       aria-disabled={noClickeable}
       className={cn(
         "text-muted-foreground text-xs hover:text-foreground",
-        guardado && "cursor-not-allowed opacity-50 hover:text-muted-foreground"
+        progresoGuardado &&
+          "cursor-not-allowed opacity-50 hover:text-muted-foreground"
       )}
+      data-tour="entrevista-guardar"
       disabled={ocupado}
       onClick={handleSave}
       size="xs"
@@ -81,7 +88,7 @@ export function GuardarEntrevistaButton({
     </Button>
   );
 
-  if (!guardado) {
+  if (!progresoGuardado) {
     return boton;
   }
 

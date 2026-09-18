@@ -532,7 +532,7 @@ export async function invitarAlPortal({
     await asignarAccesoPortal({ email, proyectoId, rol });
     return {
       enviado: false,
-      message: `Agregado como ${rol}. Ya tenía cuenta: puede entrar al portal con su email.`,
+      message: `Agregado como ${rol}. Ya tenía cuenta: no sale correo nuevo. Avísale que entre al portal con su email.`,
     };
   }
 

@@ -1,5 +1,11 @@
 import type { Geo } from "@vercel/functions";
 import type { ArtifactKind } from "@/components/chat/artifact";
+import {
+  MENSAJE_CONTINUAR_SECCION,
+  MENSAJE_FINALIZAR_SECCION,
+  MENSAJE_FORZAR_CIERRE_SECCION,
+  MENSAJE_GUARDAR_PROGRESO,
+} from "@/lib/consultoria/finalizar-seccion";
 
 export const artifactsPrompt = `
 Artifacts is a side panel that displays content alongside the conversation. It supports scripts (code), documents (text), and spreadsheets. Changes appear in real-time.
@@ -124,7 +130,7 @@ function saludoEntrevista({
     return "Esta es una sección nueva de la misma entrevista: no te presentes de nuevo. Abre con una transición breve y la primera pregunta.";
   }
   if (nombre) {
-    return "En el primer turno, salúdala por su nombre de forma natural y breve.";
+    return "En el primer turno, saluda a la persona por su nombre de forma natural y breve.";
   }
   return "En el primer turno, saluda de forma genérica y profesional.";
 }
@@ -194,17 +200,21 @@ Reglas:
 4. Máximo DOS follow-ups por tema, y solo si falta algo esencial (respuesta vaga, cubrió solo la mitad del tema, o una nota 1-10 sin por qué). El segundo follow-up es excepcional: úsalo si tras el primero sigue faltando un dato clave. Si ya tienes lo necesario, pasa al siguiente tema.
 5. Puedes reordenar los temas de esta sección si mejora el flow de la conversación.
 6. Si un tema ya quedó cubierto en una sección previa o más temprano en esta, no lo vuelvas a preguntar. Sí puedes referenciar esa respuesta en un follow-up posterior.
-7. Tras cada respuesta del entrevistado: parafrasea en UNA frase breve para que se sienta escuchado, y recién ahí haz la siguiente pregunta o el follow-up.
+7. Tras cada respuesta: si no tienes contexto suficiente para el tema, haz un follow-up. Si ya tienes lo necesario, pasa a la siguiente pregunta. De vez en cuando (unas de cada tres o cuatro respuestas, o cuando algo dicho merezca marcarse), precede la pregunta con UNA frase breve que refleje lo que dijo. No lo hagas siempre: se siente programado. No lo omitas siempre: se siente robótico.
 8. Si un tema pide una nota del 1 al 10, pide la nota y un por qué breve. No insistas más si ambos están.
 9. No digas "pregunta 1", "siguiente en la lista", etc.
 10. Asegúrate de cubrir todos los temas guía de esta sección que aún no estén cubiertos antes de cerrarla.
-11. Cuando los temas de esta sección estén suficientemente cubiertos, avisa brevemente que ya tienes lo necesario y llama a la herramienta completarSeccion con:
-   - sintesis: síntesis de esta sección
-   - hallazgos: hallazgos concretos de esta sección, uno por punto
-   - respuestas: un ítem por cada pregunta guía, con la síntesis de lo respondido
-12. Después de llamar completarSeccion, no hagas más preguntas.
+11. Cuando los temas de esta sección estén suficientemente cubiertos, avisa brevemente que ya tienes lo necesario, pide que pulse "Finalizar sección" para pasar a la siguiente y llama a ofrecerCierreSeccion con listo=true. Escribe ese aviso en texto. No llames completarSeccion en ese momento. No hagas más preguntas en ese turno.
+12. Después de ofrecerCierreSeccion, espera. Si el entrevistado sigue hablando, continúa la conversación; si vuelve a cubrir todo, puedes ofrecer el cierre otra vez.
 13. No inventes hechos del entrevistado; basa el resumen solo en lo dicho.
-14. El entrevistado puede pausar y volver otro día. Trata el historial previo como parte de la misma entrevista.`;
+14. El entrevistado puede pausar y volver otro día. Trata el historial previo como parte de la misma entrevista.
+15. Si el entrevistado pide finalizar la sección (por ejemplo "${MENSAJE_FINALIZAR_SECCION}"):
+    - Si aún faltan temas guía por cubrir: NO llames completarSeccion. Di que todavía hay temas pendientes y llama solo a ofrecerContinuarOGuardar. No hagas la siguiente pregunta en ese turno. No te limites a pedirle que vuelva más tarde.
+    - Si los temas ya están suficientemente cubiertos: llama a completarSeccion con la síntesis, hallazgos y respuestas.
+16. Si el entrevistado elige "${MENSAJE_CONTINUAR_SECCION}": haz la siguiente pregunta pendiente (una sola) y aclara que puede contestarla ahora o volver más tarde.
+17. Si el entrevistado elige "${MENSAJE_GUARDAR_PROGRESO}": no hagas otra pregunta. Confirma breve que el progreso quedó guardado y que puede volver otro día.
+18. Si el entrevistado dice "${MENSAJE_FORZAR_CIERRE_SECCION}": cierra igual. Llama a completarSeccion con lo que tengas; en las preguntas no cubiertas indica que no se respondieron. No ofrezcas de nuevo Continuar ni Guardar progreso.
+19. No uses herramientas si no aplica una regla de cierre. Las preguntas y el diálogo van siempre en texto.`;
 };
 
 export const codePrompt = `

@@ -4,19 +4,13 @@ import { Toaster } from "sonner";
 import { DataStreamProvider } from "@/components/chat/data-stream-provider";
 import { ChatShell } from "@/components/chat/shell";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
+import { EntrevistaTour } from "@/components/portal/entrevista-tour";
 import { FinalizarEntrevistaButton } from "@/components/portal/finalizar-entrevista-button";
 import { GuardarEntrevistaButton } from "@/components/portal/guardar-entrevista-button";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ActiveChatProvider } from "@/hooks/use-active-chat";
 import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
 import type { ChatMessage, SectionCompletedData } from "@/lib/types";
-
-function avisoEntrevista(hayHistorial: boolean) {
-  if (hayHistorial) {
-    return "Continuas desde donde lo dejaste. Puedes guardar y volver otro día.";
-  }
-  return "No hace falta terminarla hoy: guarda tu progreso y continúa cuando quieras.";
-}
 
 /**
  * The interview chat without the template's sidebar chrome. The collapsed
@@ -25,6 +19,7 @@ function avisoEntrevista(hayHistorial: boolean) {
  */
 export function EntrevistaChat({
   entrevistaId,
+  indice,
   mensajesIniciales,
   mostrarPortal = true,
   onSeccionCompletada,
@@ -32,6 +27,7 @@ export function EntrevistaChat({
   titulo,
 }: {
   entrevistaId: string;
+  indice: number;
   mensajesIniciales: ChatMessage[];
   mostrarPortal?: boolean;
   onSeccionCompletada: (data: SectionCompletedData) => void;
@@ -49,6 +45,7 @@ export function EntrevistaChat({
         <ActiveChatProvider
           entrevistaId={entrevistaId}
           mensajesIniciales={mensajesIniciales}
+          onSeccionCompletada={onSeccionCompletada}
           seccionId={seccion.id}
         >
           <EntrevistaShell
@@ -58,21 +55,19 @@ export function EntrevistaChat({
                 seccionId={seccion.id}
               />
             }
-            aviso={avisoEntrevista(mensajesIniciales.length > 0)}
             mostrarPortal={mostrarPortal}
+            seccion={`Sección ${indice + 1}: ${seccion.titulo}`}
             titulo={titulo}
           >
             <ChatShell
-              composerAction={
-                <FinalizarEntrevistaButton
-                  entrevistaId={entrevistaId}
-                  onSeccionCompletada={onSeccionCompletada}
-                  seccionId={seccion.id}
-                />
-              }
+              composerAction={<FinalizarEntrevistaButton />}
               onSeccionCompletada={onSeccionCompletada}
             />
           </EntrevistaShell>
+          <EntrevistaTour
+            entrevistaId={entrevistaId}
+            habilitado={indice === 0}
+          />
           <Toaster position="top-center" />
         </ActiveChatProvider>
       </SidebarProvider>

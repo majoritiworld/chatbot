@@ -107,6 +107,9 @@ function textoBotonVoz(voiceState: "idle" | "recording" | "transcribing") {
   if (voiceState === "transcribing") {
     return "Transcribiendo";
   }
+  if (voiceState === "recording") {
+    return "Escuchando";
+  }
   return "Hablar";
 }
 
@@ -124,6 +127,41 @@ function etiquetaVoz(
     return `Hablar (${etiquetaAtajoVoz()})`;
   }
   return "Hablar";
+}
+
+function detenerPistas(stream: MediaStream | null) {
+  for (const track of stream?.getTracks() ?? []) {
+    track.stop();
+  }
+}
+
+function mimeGrabacionVoz() {
+  if (typeof MediaRecorder === "undefined") {
+    return "";
+  }
+  const tipos = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+  return tipos.find((tipo) => MediaRecorder.isTypeSupported(tipo)) ?? "";
+}
+
+function archivoVoz(blob: Blob, mime: string) {
+  const esMp4 =
+    mime.includes("mp4") || mime.includes("m4a") || mime.includes("aac");
+  const type = esMp4 ? "audio/mp4" : "audio/webm";
+  const extension = esMp4 ? "m4a" : "webm";
+  return new File([blob], `voice.${extension}`, { type });
+}
+
+function pedirDatosRecorder(recorder: MediaRecorder) {
+  try {
+    if (
+      recorder.state === "recording" &&
+      typeof recorder.requestData === "function"
+    ) {
+      recorder.requestData();
+    }
+  } catch {
+    // Safari may throw if the recorder is already stopping.
+  }
 }
 
 function setCookie(name: string, value: string) {
@@ -222,26 +260,42 @@ function PureMultimodalInput({
   const shortcutPressedRef = useRef(false);
   const voiceSessionRef = useRef(0);
   const voiceStateRef = useRef<"idle" | "recording" | "transcribing">("idle");
+  const stopRequestedRef = useRef(false);
 
   const stopVoiceRecording = useCallback(() => {
-    voiceSessionRef.current += 1;
-    const recorder = mediaRecorderRef.current;
-    if (!recorder || recorder.state === "inactive") {
-      for (const track of mediaStreamRef.current?.getTracks() ?? []) {
-        track.stop();
-      }
-      mediaStreamRef.current = null;
-      voiceStateRef.current = "idle";
-      setVoiceState("idle");
+    if (voiceStateRef.current !== "recording") {
       return;
     }
-    recorder.stop();
+    stopRequestedRef.current = true;
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      return;
+    }
+    pedirDatosRecorder(recorder);
+    try {
+      recorder.stop();
+    } catch {
+      detenerPistas(mediaStreamRef.current);
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      voiceStateRef.current = "idle";
+      setVoiceState("idle");
+    }
   }, []);
 
   const startVoiceRecording = useCallback(async () => {
     if (voiceStateRef.current !== "idle") {
       return;
     }
+    if (
+      typeof MediaRecorder === "undefined" ||
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      toast.error("Este navegador no puede grabar audio");
+      return;
+    }
+    stopRequestedRef.current = false;
     const session = voiceSessionRef.current + 1;
     voiceSessionRef.current = session;
     voiceStateRef.current = "recording";
@@ -249,18 +303,19 @@ function PureMultimodalInput({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       if (!mountedRef.current || voiceSessionRef.current !== session) {
-        for (const track of stream.getTracks()) {
-          track.stop();
-        }
+        detenerPistas(stream);
         return;
       }
       mediaStreamRef.current = stream;
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/mp4";
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const mimeType = mimeGrabacionVoz();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      const tipoAudio = recorder.mimeType || mimeType || "audio/webm";
       audioChunksRef.current = [];
       mediaRecorderRef.current = recorder;
+
+      let cerrada = false;
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -268,26 +323,26 @@ function PureMultimodalInput({
         }
       };
 
-      recorder.onstop = async () => {
-        for (const track of stream.getTracks()) {
-          track.stop();
+      const transcribir = async () => {
+        if (
+          cerrada ||
+          !mountedRef.current ||
+          voiceSessionRef.current !== session
+        ) {
+          mediaRecorderRef.current = null;
+          audioChunksRef.current = [];
+          return;
         }
-        mediaStreamRef.current = null;
+        cerrada = true;
         voiceStateRef.current = "transcribing";
         setVoiceState("transcribing");
         try {
-          const blob = new Blob(audioChunksRef.current, { type: mimeType });
+          const blob = new Blob(audioChunksRef.current, { type: tipoAudio });
+          if (blob.size === 0) {
+            throw new Error("No se capturó audio. Intenta de nuevo.");
+          }
           const formData = new FormData();
-          formData.append(
-            "audio",
-            new File(
-              [blob],
-              `voice.${mimeType.includes("webm") ? "webm" : "m4a"}`,
-              {
-                type: mimeType,
-              }
-            )
-          );
+          formData.append("audio", archivoVoz(blob, tipoAudio));
           const response = await fetch(
             `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/transcribe`,
             { body: formData, method: "POST" }
@@ -303,24 +358,56 @@ function PureMultimodalInput({
           if (text) {
             setInput((prev) => (prev ? `${prev.trim()} ${text}` : text));
             textareaRef.current?.focus();
+          } else {
+            toast.error("No se entendió el audio. Intenta de nuevo.");
           }
         } catch (error) {
           toast.error(
             error instanceof Error ? error.message : "No se pudo transcribir"
           );
         } finally {
-          voiceStateRef.current = "idle";
-          setVoiceState("idle");
+          if (voiceSessionRef.current === session) {
+            voiceStateRef.current = "idle";
+            setVoiceState("idle");
+          }
           mediaRecorderRef.current = null;
           audioChunksRef.current = [];
         }
       };
 
-      recorder.start();
-    } catch {
-      for (const track of mediaStreamRef.current?.getTracks() ?? []) {
-        track.stop();
+      recorder.onerror = () => {
+        cerrada = true;
+        detenerPistas(stream);
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+        audioChunksRef.current = [];
+        if (voiceSessionRef.current === session) {
+          toast.error("No se pudo grabar el audio");
+          voiceStateRef.current = "idle";
+          setVoiceState("idle");
+        }
+      };
+
+      recorder.onstop = () => {
+        detenerPistas(stream);
+        mediaStreamRef.current = null;
+        window.setTimeout(() => {
+          transcribir().catch(() => undefined);
+        }, 50);
+      };
+
+      const timeslice = tipoAudio.includes("webm") ? 250 : undefined;
+      if (timeslice) {
+        recorder.start(timeslice);
+      } else {
+        recorder.start();
       }
+      if (stopRequestedRef.current && recorder.state === "recording") {
+        pedirDatosRecorder(recorder);
+        recorder.stop();
+      }
+    } catch {
+      detenerPistas(mediaStreamRef.current);
       mediaStreamRef.current = null;
       if (voiceSessionRef.current === session) {
         toast.error("No se pudo acceder al micrófono");
@@ -331,14 +418,14 @@ function PureMultimodalInput({
   }, [setInput]);
 
   const toggleVoiceRecording = useCallback(() => {
-    if (voiceState === "recording") {
+    if (voiceStateRef.current === "recording") {
       stopVoiceRecording();
       return;
     }
-    if (voiceState === "idle") {
+    if (voiceStateRef.current === "idle") {
       startVoiceRecording().catch(() => undefined);
     }
-  }, [startVoiceRecording, stopVoiceRecording, voiceState]);
+  }, [startVoiceRecording, stopVoiceRecording]);
 
   useEffect(() => {
     if (!esEntrevista) {
@@ -347,12 +434,6 @@ function PureMultimodalInput({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!esAtajoMicrófono(event) || event.repeat) {
-        return;
-      }
-      if (
-        event.target instanceof HTMLElement &&
-        event.target.closest('[role="dialog"]')
-      ) {
         return;
       }
       event.preventDefault();
@@ -388,14 +469,13 @@ function PureMultimodalInput({
   useEffect(
     () => () => {
       mountedRef.current = false;
+      voiceSessionRef.current += 1;
       const recorder = mediaRecorderRef.current;
       if (recorder && recorder.state !== "inactive") {
         recorder.onstop = null;
         recorder.stop();
       }
-      for (const track of mediaStreamRef.current?.getTracks() ?? []) {
-        track.stop();
-      }
+      detenerPistas(mediaStreamRef.current);
       mediaStreamRef.current = null;
     },
     []
@@ -763,6 +843,7 @@ function PureMultimodalInput({
 
       <PromptInput
         className="[&>div]:rounded-2xl [&>div]:border [&>div]:border-border/30 [&>div]:bg-card/70 [&>div]:shadow-[var(--shadow-composer)] [&>div]:transition-shadow [&>div]:duration-300 [&>div]:focus-within:shadow-[var(--shadow-composer-focus)]"
+        data-tour={esEntrevista ? "entrevista-hablar" : undefined}
         onSubmit={handlePromptSubmit}
       >
         {(attachments.length > 0 || uploadQueue.length > 0) && (
@@ -793,7 +874,10 @@ function PureMultimodalInput({
           </div>
         )}
         <PromptInputTextarea
-          className="min-h-24 text-[13px] leading-relaxed px-4 pt-3.5 pb-1.5 placeholder:text-muted-foreground/35"
+          className={cn(
+            "min-h-24 leading-relaxed px-4 pt-3.5 pb-1.5 placeholder:text-muted-foreground/35",
+            esEntrevista ? "text-[15px]" : "text-[13px]"
+          )}
           data-testid="multimodal-input"
           onChange={handleInput}
           onKeyDown={handleTextareaKeyDown}
@@ -815,12 +899,14 @@ function PureMultimodalInput({
                 <Button
                   aria-keyshortcuts={esEntrevista ? "Alt+Space" : undefined}
                   aria-label={etiquetaVoz(voiceState, esEntrevista)}
+                  aria-live="polite"
                   aria-pressed={voiceState === "recording"}
                   className={cn(
-                    "h-7 gap-1.5 rounded-xl px-2.5 text-xs font-medium",
+                    "h-7 min-w-[8.25rem] gap-1.5 rounded-xl px-2.5 text-xs font-medium",
                     voiceState === "recording" &&
-                      "!border-red-500 !bg-red-500 !text-white hover:!bg-red-600 hover:!text-white",
-                    voiceState === "transcribing" && "opacity-60"
+                      "voice-pulse-listening !border-red-500 !bg-red-500 !text-white hover:!bg-red-600 hover:!text-white",
+                    voiceState === "transcribing" &&
+                      "voice-pulse-transcribing !border-amber-500/80 !bg-amber-500/15 !text-amber-800 dark:!text-amber-200"
                   )}
                   disabled={status !== "ready" || voiceState === "transcribing"}
                   onClick={toggleVoiceRecording}
@@ -828,7 +914,13 @@ function PureMultimodalInput({
                   variant="outline"
                 >
                   <MicIcon className="size-3.5" />
-                  {textoBotonVoz(voiceState)}
+                  <span
+                    className={
+                      voiceState === "idle" ? undefined : "animate-pulse"
+                    }
+                  >
+                    {textoBotonVoz(voiceState)}
+                  </span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>

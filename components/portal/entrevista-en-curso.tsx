@@ -284,6 +284,7 @@ export function EntrevistaEnCurso({
   return (
     <EntrevistaChat
       entrevistaId={entrevistaId}
+      indice={seccionActual}
       key={seccion.id}
       mensajesIniciales={
         seccionActual === seccionActualInicial ? mensajesIniciales : []

@@ -162,6 +162,77 @@ export async function getPlantillaDelProyecto(
   return { ...plantilla, fase };
 }
 
+type ClienteSupabase = Awaited<ReturnType<typeof createClient>>;
+
+type PlantillaGuionClFase1 = {
+  id: string;
+  secciones: unknown;
+};
+
+function seccionesConIdsEstables(
+  actuales: unknown,
+  deseadas: SeccionEntrevista[]
+): SeccionEntrevista[] {
+  const idsPorTitulo = new Map(
+    parseSecciones(actuales).map((seccion) => [seccion.titulo, seccion.id])
+  );
+
+  return deseadas.map((seccion) => {
+    const idActual = idsPorTitulo.get(seccion.titulo);
+    if (!idActual) {
+      return seccion;
+    }
+
+    return {
+      descripcion: seccion.descripcion,
+      id: idActual,
+      preguntas: seccion.preguntas,
+      titulo: seccion.titulo,
+    };
+  });
+}
+
+async function getPlantillaGuionClFase1(
+  supabase: ClienteSupabase,
+  proyectoId: string,
+  faseId: string
+): Promise<PlantillaGuionClFase1 | null> {
+  const { data, error } = await supabase
+    .from("entrevista_plantilla")
+    .select("id, secciones")
+    .eq("proyecto_id", proyectoId)
+    .eq("fase_id", faseId)
+    .eq("nombre", NOMBRE_PLANTILLA_CL_FASE_1)
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function borrarPlantillasGuionClFase1Duplicadas(
+  supabase: ClienteSupabase,
+  proyectoId: string,
+  faseId: string,
+  keeperId: string
+) {
+  const { error } = await supabase
+    .from("entrevista_plantilla")
+    .delete()
+    .eq("proyecto_id", proyectoId)
+    .eq("fase_id", faseId)
+    .eq("nombre", NOMBRE_PLANTILLA_CL_FASE_1)
+    .neq("id", keeperId);
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function asegurarPlantillaGuionClFase1({
   proyectoId,
   faseId,
@@ -170,19 +241,16 @@ export async function asegurarPlantillaGuionClFase1({
   faseId: string;
 }) {
   const supabase = await createClient();
-  const { data: existente, error: errorExistente } = await supabase
-    .from("entrevista_plantilla")
-    .select("id")
-    .eq("proyecto_id", proyectoId)
-    .eq("fase_id", faseId)
-    .eq("nombre", NOMBRE_PLANTILLA_CL_FASE_1)
-    .maybeSingle();
-
-  if (errorExistente) {
-    throw errorExistente;
+  const existente = await getPlantillaGuionClFase1(
+    supabase,
+    proyectoId,
+    faseId
+  );
+  const seccionesDeseadas = seccionesDeGuionClFase1();
+  let secciones = seccionesDeseadas;
+  if (existente) {
+    secciones = seccionesConIdsEstables(existente.secciones, seccionesDeseadas);
   }
-
-  const secciones = seccionesDeGuionClFase1();
   const preguntas = preguntasDeSecciones(secciones);
 
   if (existente) {
@@ -195,6 +263,12 @@ export async function asegurarPlantillaGuionClFase1({
       throw error;
     }
 
+    await borrarPlantillasGuionClFase1Duplicadas(
+      supabase,
+      proyectoId,
+      faseId,
+      existente.id
+    );
     return existente.id;
   }
 
@@ -211,7 +285,35 @@ export async function asegurarPlantillaGuionClFase1({
     .maybeSingle();
 
   if (error) {
-    throw error;
+    if (error.code !== "23505") {
+      throw error;
+    }
+
+    const deNuevo = await getPlantillaGuionClFase1(
+      supabase,
+      proyectoId,
+      faseId
+    );
+    if (!deNuevo) {
+      throw error;
+    }
+
+    await borrarPlantillasGuionClFase1Duplicadas(
+      supabase,
+      proyectoId,
+      faseId,
+      deNuevo.id
+    );
+    return deNuevo.id;
+  }
+
+  if (data?.id) {
+    await borrarPlantillasGuionClFase1Duplicadas(
+      supabase,
+      proyectoId,
+      faseId,
+      data.id
+    );
   }
 
   return data?.id ?? null;
@@ -356,13 +458,18 @@ export async function enviarPlantillaALista({
 }
 
 export function mensajeResumenEnvio(resumen: ResultadoEnvioPlantilla) {
+  const hechos = resumen.enviados + resumen.asignados;
+  const sinCorreo = Math.max(0, hechos - resumen.correosEnviados);
   const partes = [
     resumen.enviados > 0 ? `${resumen.enviados} invitados` : null,
     resumen.asignados > 0
       ? `${resumen.asignados} con entrevista asignada`
       : null,
     resumen.correosEnviados > 0
-      ? `${resumen.correosEnviados} correos salieron`
+      ? `${resumen.correosEnviados} correos de acceso al portal salieron`
+      : null,
+    sinCorreo > 0
+      ? `${sinCorreo} no recibieron correo nuevo (ya tenían cuenta o el invite falló): avísales que entren al portal`
       : null,
     resumen.omitidos > 0 ? `${resumen.omitidos} omitidos` : null,
     resumen.errores > 0 ? `${resumen.errores} con error` : null,

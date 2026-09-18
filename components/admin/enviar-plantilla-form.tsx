@@ -49,6 +49,11 @@ export function EnviarPlantillaForm({
           email, nombre, apellido, firma. Hasta 50. Si ya está en el proyecto
           con entrevista, se omite.
         </p>
+        <p className="text-muted-foreground text-xs">
+          El correo que sale es de acceso al portal de Majoriti, no un briefing
+          de la entrevista. Quien ya tenía cuenta no recibe mail nuevo: avísale
+          por WhatsApp o correo que entre al portal, ahí está la entrevista.
+        </p>
       </div>
 
       <div className="flex flex-col gap-1.5">

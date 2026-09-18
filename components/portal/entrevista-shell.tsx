@@ -8,15 +8,15 @@ import type { ReactNode } from "react";
  */
 export function EntrevistaShell({
   acciones,
-  aviso,
   children,
   mostrarPortal = true,
+  seccion,
   titulo = "Entrevista",
 }: {
   acciones?: ReactNode;
-  aviso?: string;
   children?: ReactNode;
   mostrarPortal?: boolean;
+  seccion?: string;
   titulo?: ReactNode;
 }) {
   return (
@@ -35,17 +35,18 @@ export function EntrevistaShell({
           </>
         ) : null}
         <span className="text-foreground text-xs">{titulo}</span>
+        {seccion ? (
+          <>
+            <span className="text-border text-xs">/</span>
+            <span className="text-muted-foreground text-xs">{seccion}</span>
+          </>
+        ) : null}
         {acciones ? (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {acciones}
           </div>
         ) : null}
       </header>
-      {aviso ? (
-        <p className="shrink-0 border-border/40 border-b px-6 py-2 text-muted-foreground text-xs">
-          {aviso}
-        </p>
-      ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>

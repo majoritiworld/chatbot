@@ -21,11 +21,29 @@ type requestSuggestionsTool = InferUITool<
   ReturnType<typeof requestSuggestions>
 >;
 
+type cierreSeccionTool = {
+  input: {
+    hallazgos: string[];
+    respuestas: Array<{ pregunta: string; respuesta_texto: string }>;
+    sintesis: string;
+  };
+  output: { message?: string; ok: true };
+};
+
 export type ChatTools = {
   getWeather: weatherTool;
   createDocument: createDocumentTool;
   updateDocument: updateDocumentTool;
   requestSuggestions: requestSuggestionsTool;
+  ofrecerCierreSeccion: {
+    input: { listo: boolean };
+    output: { ok: true };
+  };
+  ofrecerContinuarOGuardar: {
+    input: { temasPendientes: string[] };
+    output: { ok: true };
+  };
+  completarSeccion: cierreSeccionTool;
 };
 
 export type WaitingStatusData = {

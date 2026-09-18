@@ -332,6 +332,26 @@ textarea:focus-visible {
   }
 }
 
+@keyframes voice-pulse-listening {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(239 68 68 / 45%);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgb(239 68 68 / 0%);
+  }
+}
+
+@keyframes voice-pulse-transcribing {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(245 158 11 / 40%);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgb(245 158 11 / 0%);
+  }
+}
+
 @keyframes subtle-lift {
   from {
     transform: translateY(0);
@@ -376,6 +396,14 @@ textarea:focus-visible {
 
 @utility composer-glow {
   animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@utility voice-pulse-listening {
+  animation: voice-pulse-listening 1.4s ease-out infinite;
+}
+
+@utility voice-pulse-transcribing {
+  animation: voice-pulse-transcribing 1.4s ease-out infinite;
 }
 
 .ProseMirror {

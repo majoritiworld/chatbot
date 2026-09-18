@@ -9,6 +9,7 @@ import {
   type Dispatch,
   type ReactNode,
   type SetStateAction,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -25,7 +26,7 @@ import { useAutoResume } from "@/hooks/use-auto-resume";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import type { Vote } from "@/lib/db/schema";
 import { ChatbotError } from "@/lib/errors";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, SectionCompletedData } from "@/lib/types";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 
 type ActiveChatContextValue = {
@@ -49,6 +50,11 @@ type ActiveChatContextValue = {
   setCurrentModelId: (id: string) => void;
   showCreditCardAlert: boolean;
   setShowCreditCardAlert: Dispatch<SetStateAction<boolean>>;
+  entrevistaId?: string;
+  seccionId?: string;
+  onSeccionCompletada?: (data: SectionCompletedData) => void;
+  progresoGuardado: boolean;
+  marcarProgresoGuardado: () => void;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -62,6 +68,7 @@ export function ActiveChatProvider({
   children,
   entrevistaId,
   mensajesIniciales,
+  onSeccionCompletada,
   seccionId,
 }: {
   children: ReactNode;
@@ -69,6 +76,7 @@ export function ActiveChatProvider({
   entrevistaId?: string;
   /** Transcript already stored for this interview, replayed on reload. */
   mensajesIniciales?: ChatMessage[];
+  onSeccionCompletada?: (data: SectionCompletedData) => void;
   /** Active section snapshot for interview requests. */
   seccionId?: string;
 }) {
@@ -102,6 +110,7 @@ export function ActiveChatProvider({
 
   const [input, setInput] = useState("");
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
+  const [claveGuardada, setClaveGuardada] = useState<string | null>(null);
 
   const { data: chatData, isLoading } = useSWR(
     isNewChat
@@ -291,17 +300,29 @@ export function ActiveChatProvider({
     { revalidateOnFocus: false }
   );
 
+  const claveMensajes = messages.map((mensaje) => mensaje.id).join(",");
+  const progresoGuardado =
+    claveGuardada !== null && claveGuardada === claveMensajes;
+  const marcarProgresoGuardado = useCallback(() => {
+    setClaveGuardada(messages.map((mensaje) => mensaje.id).join(","));
+  }, [messages]);
+
   const value = useMemo<ActiveChatContextValue>(
     () => ({
       addToolApprovalResponse,
       chatId,
       currentModelId,
+      entrevistaId,
       esEntrevista,
       input,
       isLoading: !isNewChat && isLoading,
       isReadonly,
+      marcarProgresoGuardado,
       messages,
+      onSeccionCompletada,
+      progresoGuardado,
       regenerate,
+      seccionId,
       sendMessage,
       setCurrentModelId,
       setInput,
@@ -314,23 +335,28 @@ export function ActiveChatProvider({
       votes,
     }),
     [
+      addToolApprovalResponse,
       chatId,
+      currentModelId,
+      entrevistaId,
       esEntrevista,
+      input,
+      isLoading,
+      isNewChat,
+      isReadonly,
+      marcarProgresoGuardado,
       messages,
-      setMessages,
+      onSeccionCompletada,
+      progresoGuardado,
+      regenerate,
+      seccionId,
       sendMessage,
+      setMessages,
+      showCreditCardAlert,
       status,
       stop,
-      regenerate,
-      addToolApprovalResponse,
-      input,
       visibility,
-      isReadonly,
-      isNewChat,
-      isLoading,
       votes,
-      currentModelId,
-      showCreditCardAlert,
     ]
   );
 

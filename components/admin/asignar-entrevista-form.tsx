@@ -50,7 +50,7 @@ export function AsignarEntrevistaForm({
         <h2 className="font-medium text-base">Asignar entrevista</h2>
         <p className="text-muted-foreground text-sm">
           {nombre} tiene acceso al portal pero no tiene entrevista. Elige el
-          skill que le toca.
+          skill que le toca. Esto no envía correo: avísale que entre al portal.
         </p>
       </div>
 
