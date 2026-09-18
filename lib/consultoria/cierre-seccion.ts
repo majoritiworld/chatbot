@@ -64,7 +64,7 @@ export function cierreDeMensaje(
   message: ChatMessage
 ): CierreSeccionInput | null {
   for (const part of message.parts ?? []) {
-    if (part.type !== "tool-ofrecerCierreSeccion" || !("input" in part)) {
+    if (part.type !== "tool-completarSeccion" || !("input" in part)) {
       continue;
     }
     const parsed = cierreSeccionInputSchema.safeParse(part.input);

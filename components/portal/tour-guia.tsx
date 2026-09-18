@@ -2,7 +2,7 @@
 
 import {
   type CSSProperties,
-  type RefObject,
+  type Ref,
   useCallback,
   useEffect,
   useRef,
@@ -234,10 +234,10 @@ function TourTarjeta({
   onSaltar: () => void;
   onSiguiente: () => void;
   pasoId: string;
-  primarioRef: RefObject<HTMLButtonElement | null>;
+  primarioRef: Ref<HTMLButtonElement>;
   spotlightIds: string[];
   style: CSSProperties;
-  tarjetaRef: RefObject<HTMLDivElement | null>;
+  tarjetaRef: Ref<HTMLDivElement>;
   titulo: string;
 }) {
   let cta = "Siguiente";

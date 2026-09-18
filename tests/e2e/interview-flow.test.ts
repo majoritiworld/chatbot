@@ -377,7 +377,7 @@ test.describe("Interview section close offer", () => {
             output: { ok: true },
             state: "output-available",
             toolCallId: "t1",
-            type: "tool-ofrecerCierreSeccion",
+            type: "tool-completarSeccion",
           },
         ],
         role: "assistant",
