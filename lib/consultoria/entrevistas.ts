@@ -17,6 +17,11 @@ import {
 } from "@/lib/consultoria/entrevista-contenido";
 import { decisionReintentoCorreo } from "@/lib/consultoria/entrevista-piloto";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
+import {
+  accesoEntrevistaPortal,
+  coincideFaseYViewer,
+  type EntrevistaPortalCarga,
+} from "@/lib/consultoria/portal-carga-acceso";
 import { mismoEmail } from "@/lib/consultoria/roles";
 import { createClient } from "@/lib/supabase/server";
 import type { Entrevista, UserRole } from "@/lib/supabase/types";
@@ -56,8 +61,59 @@ type EntrevistaRow = {
   fecha_completada: string | null;
   consentimiento_en: string | null;
   correo_agradecimiento_en: string | null;
+  transcripcion?: unknown;
   stakeholder?: StakeholderEmbed | StakeholderEmbed[];
 };
+
+type FaseEmbed = {
+  id: string;
+  proyecto_id: string;
+};
+
+type TareaEntrevistaCargaRow = {
+  entrevista: EntrevistaRow | EntrevistaRow[] | null;
+  entrevista_id: string | null;
+  fase: FaseEmbed | FaseEmbed[] | null;
+};
+
+type TareaFaseEmbed = {
+  fase: FaseEmbed | FaseEmbed[] | null;
+  fase_id: string;
+  tipo: string;
+};
+
+type EntrevistaEnFaseRow = EntrevistaRow & {
+  tarea?: TareaFaseEmbed | TareaFaseEmbed[] | null;
+};
+
+function filasDesdeEntrevistasEnFase(
+  rows: EntrevistaEnFaseRow[]
+): TareaEntrevistaCargaRow[] {
+  const filas: TareaEntrevistaCargaRow[] = [];
+
+  for (const row of rows) {
+    let tareas: TareaFaseEmbed[] = [];
+    if (Array.isArray(row.tarea)) {
+      tareas = row.tarea;
+    } else if (row.tarea) {
+      tareas = [row.tarea];
+    }
+
+    for (const tarea of tareas) {
+      filas.push({
+        entrevista: row,
+        entrevista_id: row.id,
+        fase: tarea.fase,
+      });
+    }
+  }
+
+  return filas;
+}
+
+const ENTREVISTA_CON_TRANSCRIPCION_SELECT = `${ENTREVISTA_SELECT},
+  transcripcion
+`;
 
 function parseFlujoEstado(value: string): FlujoEntrevista {
   if (value === "presentacion" || value === "chat" || value === "revision") {
@@ -194,6 +250,118 @@ export async function getTranscripcionEntrevista(
     .maybeSingle();
 
   return parseTranscripcion(data?.transcripcion);
+}
+
+export function entrevistaPropiaEnFilasDeFase(
+  rows: TareaEntrevistaCargaRow[],
+  proyectoId: string,
+  viewerEmail: string | null
+): { entrevista: Entrevista; turnos: TurnoEntrevista[] } | null {
+  if (!viewerEmail) {
+    return null;
+  }
+
+  for (const row of rows) {
+    const fase = asOne(row.fase);
+    const entrevistaRow = asOne(row.entrevista);
+    if (!(fase && entrevistaRow)) {
+      continue;
+    }
+
+    const entrevista = toEntrevista(entrevistaRow);
+    if (
+      !coincideFaseYViewer({
+        faseProyectoId: fase.proyecto_id,
+        proyectoId,
+        stakeholderEmail: entrevista.stakeholder_email,
+        viewerEmail,
+      })
+    ) {
+      continue;
+    }
+
+    return {
+      entrevista,
+      turnos: parseTranscripcion(entrevistaRow.transcripcion),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Interview page load after identity: one entrevista row, ownership in app
+ * code, transcript included so the page does not issue a second read.
+ */
+export async function getEntrevistaPortalCarga(
+  entrevistaId: string,
+  viewerEmail: string | null
+): Promise<EntrevistaPortalCarga> {
+  if (!viewerEmail) {
+    return { acceso: "ausente" };
+  }
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("entrevista")
+    .select(ENTREVISTA_CON_TRANSCRIPCION_SELECT)
+    .eq("id", entrevistaId)
+    .maybeSingle();
+
+  if (!data) {
+    return { acceso: "ausente" };
+  }
+
+  const row = data as EntrevistaRow;
+  return accesoEntrevistaPortal(
+    toEntrevista(row),
+    viewerEmail,
+    row.transcripcion
+  );
+}
+
+/**
+ * Phase page companion read: the viewer's interview in that phase/project.
+ * Independent of getFase after identity; still filtered by project and email.
+ */
+export async function getEntrevistaPropiaEnFaseDelProyecto({
+  faseId,
+  proyectoId,
+  viewerEmail,
+}: {
+  faseId: string;
+  proyectoId: string | null;
+  viewerEmail: string | null;
+}): Promise<{ entrevista: Entrevista; turnos: TurnoEntrevista[] } | null> {
+  if (!(proyectoId && viewerEmail)) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("entrevista")
+    .select(`
+      ${ENTREVISTA_CON_TRANSCRIPCION_SELECT},
+      tarea!inner (
+        fase_id,
+        tipo,
+        fase:fase_id!inner ( id, proyecto_id )
+      )
+    `)
+    .eq("tarea.fase_id", faseId)
+    .eq("tarea.tipo", "entrevista")
+    .eq("tarea.fase.proyecto_id", proyectoId)
+    .ilike("stakeholder.email", viewerEmail);
+
+  if (error) {
+    throw error;
+  }
+
+  return entrevistaPropiaEnFilasDeFase(
+    filasDesdeEntrevistasEnFase((data ?? []) as EntrevistaEnFaseRow[]),
+    proyectoId,
+    viewerEmail
+  );
 }
 
 export async function avanzarFlujoEntrevista({

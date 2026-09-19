@@ -4,14 +4,19 @@ import { EntrevistaEnCurso } from "@/components/portal/entrevista-en-curso";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { turnosDeSeccion } from "@/lib/consultoria/entrevista-contenido";
-import {
-  getTranscripcionEntrevista,
-  resolveEntrevista,
-} from "@/lib/consultoria/entrevistas";
+import { getEntrevistaPropiaEnFaseDelProyecto } from "@/lib/consultoria/entrevistas";
 import { getFase } from "@/lib/consultoria/fases";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
+import { resolverVistaFasePortal } from "@/lib/consultoria/portal-carga-acceso";
 import { isClienteRole } from "@/lib/consultoria/roles";
+
+const AVISO_FASE = {
+  bloqueada: "Esta fase todavía está bloqueada.",
+  "sin-entrevista": "Esta fase todavía no tiene una entrevista asignada.",
+  "sin-respondible":
+    "El progreso de las entrevistas de esta fase se ve en el listado. Solo quien fue invitado puede responder.",
+} as const;
 
 export default function FasePage({
   params,
@@ -28,11 +33,21 @@ export default function FasePage({
 async function FaseContenido({ id }: { id: Promise<string> }) {
   const portalUser = await requirePortalUser();
   const mostrarPortal = isClienteRole(portalUser.rol);
-  const fase = await getFase(portalUser.proyectoId, await id);
+  const faseId = await id;
+  const [fase, propia] = await Promise.all([
+    getFase(portalUser.proyectoId, faseId, portalUser.email),
+    getEntrevistaPropiaEnFaseDelProyecto({
+      faseId,
+      proyectoId: portalUser.proyectoId,
+      viewerEmail: portalUser.email,
+    }),
+  ]);
+
+  const vista = resolverVistaFasePortal(fase, propia);
 
   // Blocked and unknown phases render a message rather than redirecting:
   // this component streams, so a redirect here would become a meta refresh.
-  if (!fase) {
+  if (vista.tipo === "ausente") {
     return (
       <FaseLayout mostrarPortal={mostrarPortal}>
         <FaseAviso
@@ -43,44 +58,18 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
     );
   }
 
-  if (fase.estado === "bloqueado") {
+  if (vista.tipo === "aviso") {
     return (
-      <FaseLayout mostrarPortal={mostrarPortal} nombre={fase.nombre}>
+      <FaseLayout mostrarPortal={mostrarPortal} nombre={vista.nombre}>
         <FaseAviso
-          mensaje="Esta fase todavía está bloqueada."
+          mensaje={AVISO_FASE[vista.clave]}
           mostrarPortal={mostrarPortal}
         />
       </FaseLayout>
     );
   }
 
-  const respondible = fase.entrevistas.find((item) => item.puedeResponder);
-
-  if (!respondible) {
-    return (
-      <FaseLayout mostrarPortal={mostrarPortal} nombre={fase.nombre}>
-        <FaseAviso
-          mensaje="El progreso de las entrevistas de esta fase se ve en el listado. Solo quien fue invitado puede responder."
-          mostrarPortal={mostrarPortal}
-        />
-      </FaseLayout>
-    );
-  }
-
-  const entrevista = await resolveEntrevista(respondible.id);
-
-  if (!entrevista) {
-    return (
-      <FaseLayout mostrarPortal={mostrarPortal} nombre={fase.nombre}>
-        <FaseAviso
-          mensaje="Esta fase todavía no tiene una entrevista asignada."
-          mostrarPortal={mostrarPortal}
-        />
-      </FaseLayout>
-    );
-  }
-
-  const turnos = await getTranscripcionEntrevista(entrevista.id);
+  const { entrevista, turnos, nombre } = vista;
   const seccionActiva = entrevista.secciones.at(entrevista.seccion_actual);
   const turnosActivos = seccionActiva
     ? turnosDeSeccion(turnos, seccionActiva.id, entrevista.seccion_actual === 0)
@@ -98,7 +87,7 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
       seccionActualInicial={entrevista.seccion_actual}
       secciones={entrevista.secciones}
       stakeholderNombre={entrevista.stakeholder_nombre}
-      titulo={fase.nombre}
+      titulo={nombre}
     />
   );
 }

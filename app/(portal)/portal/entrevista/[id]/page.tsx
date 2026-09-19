@@ -5,13 +5,10 @@ import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pan
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { turnosDeSeccion } from "@/lib/consultoria/entrevista-contenido";
-import {
-  getTranscripcionEntrevista,
-  resolveEntrevista,
-} from "@/lib/consultoria/entrevistas";
+import { getEntrevistaPortalCarga } from "@/lib/consultoria/entrevistas";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
-import { isClienteRole, mismoEmail } from "@/lib/consultoria/roles";
+import { isClienteRole } from "@/lib/consultoria/roles";
 
 export default function EntrevistaPage({
   params,
@@ -29,9 +26,9 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
   const entrevistaId = await id;
   const portalUser = await requirePortalUser({ conProyecto: false });
   const mostrarPortal = isClienteRole(portalUser.rol);
-  const entrevista = await resolveEntrevista(entrevistaId);
+  const carga = await getEntrevistaPortalCarga(entrevistaId, portalUser.email);
 
-  if (!entrevista) {
+  if (carga.acceso === "ausente") {
     return (
       <EntrevistaShell mostrarPortal={mostrarPortal}>
         <Aviso
@@ -42,9 +39,7 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     );
   }
 
-  const esPropia = mismoEmail(entrevista.stakeholder_email, portalUser.email);
-
-  if (!esPropia) {
+  if (carga.acceso === "ajena") {
     return (
       <EntrevistaShell mostrarPortal={mostrarPortal}>
         <Aviso
@@ -59,7 +54,7 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     );
   }
 
-  const turnos = await getTranscripcionEntrevista(entrevista.id);
+  const { entrevista, turnos } = carga;
   const seccionActiva = entrevista.secciones.at(entrevista.seccion_actual);
   const turnosActivos = seccionActiva
     ? turnosDeSeccion(turnos, seccionActiva.id, entrevista.seccion_actual === 0)

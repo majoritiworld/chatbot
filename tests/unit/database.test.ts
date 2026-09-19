@@ -248,3 +248,61 @@ test("participants cannot bypass the flow with a direct update or premature subm
     db.query("SELECT public.submit_interview($1, '{}', '[]')", [INTERVIEW])
   ).rejects.toThrow(/not ready/);
 });
+
+test("transcript rows stay visible to the owner and same-project client, not to other projects", async () => {
+  const secreto = "SECRETO-TRANSCRIPCION-AJENA";
+  const otherProject = "20000000-0000-4000-8000-000000000002";
+  const otherClient = "10000000-0000-4000-8000-000000000004";
+
+  await db.exec("RESET ROLE");
+  await db.query(
+    "UPDATE public.entrevista SET transcripcion = $1::jsonb WHERE id = $2",
+    [JSON.stringify([{ texto: secreto }]), INTERVIEW]
+  );
+  await db.query("UPDATE public.usuario SET proyecto_id = $1 WHERE id = $2", [
+    PROJECT,
+    OTHER,
+  ]);
+  await db.query(
+    "INSERT INTO public.proyecto (id, nombre, cliente) VALUES ($1, 'Other', 'Other')",
+    [otherProject]
+  );
+  await db.query(
+    "INSERT INTO auth.users (id, email, raw_app_meta_data) VALUES ($1, 'cross@example.test', '{\"role\":\"cliente\"}')",
+    [otherClient]
+  );
+  await db.query("UPDATE public.usuario SET proyecto_id = $1 WHERE id = $2", [
+    otherProject,
+    otherClient,
+  ]);
+
+  await actAs(db, USER, "participant@example.test");
+  expect(
+    (
+      await db.query<{ transcripcion: { texto: string }[] }>(
+        "SELECT transcripcion FROM public.entrevista WHERE id = $1",
+        [INTERVIEW]
+      )
+    ).rows[0]?.transcripcion[0]?.texto
+  ).toBe(secreto);
+
+  await actAs(db, OTHER, "other@example.test");
+  expect(
+    (
+      await db.query<{ transcripcion: { texto: string }[] }>(
+        "SELECT transcripcion FROM public.entrevista WHERE id = $1",
+        [INTERVIEW]
+      )
+    ).rows[0]?.transcripcion[0]?.texto
+  ).toBe(secreto);
+
+  await actAs(db, otherClient, "cross@example.test");
+  expect(
+    (
+      await db.query(
+        "SELECT transcripcion FROM public.entrevista WHERE id = $1",
+        [INTERVIEW]
+      )
+    ).rows
+  ).toHaveLength(0);
+});

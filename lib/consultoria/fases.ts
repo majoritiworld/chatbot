@@ -280,16 +280,16 @@ export async function getFasesDelProyecto(
 
 export async function getFase(
   proyectoId: string | null,
-  faseId: string
+  faseId: string,
+  viewerEmail?: string | null
 ): Promise<FaseDelPortal | null> {
   if (!proyectoId) {
     return null;
   }
 
-  const [{ email }, supabase] = await Promise.all([
-    viewerContext(),
-    createClient(),
-  ]);
+  const supabase = await createClient();
+  const email =
+    viewerEmail === undefined ? (await viewerContext()).email : viewerEmail;
 
   const { data, error } = await supabase
     .from("fase")
