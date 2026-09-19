@@ -24,6 +24,7 @@ import {
 } from "@/hooks/use-salida-entrevista";
 import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
 import { etiquetaProgresoTema } from "@/lib/consultoria/entrevista-piloto";
+import type { DemoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
 import type { ChatMessage, SectionCompletedData } from "@/lib/types";
 
 function EntrevistaChatCuerpo({
@@ -113,6 +114,7 @@ function EntrevistaChatCuerpo({
 
 export function EntrevistaChat({
   demoAislada = false,
+  demoVoz,
   entrevistaId,
   indice,
   mensajesIniciales,
@@ -123,6 +125,7 @@ export function EntrevistaChat({
   titulo,
 }: {
   demoAislada?: boolean;
+  demoVoz?: DemoVozEntrevista;
   entrevistaId: string;
   indice: number;
   mensajesIniciales: ChatMessage[];
@@ -137,6 +140,7 @@ export function EntrevistaChat({
       <SidebarProvider className="h-full min-h-0 bg-white" defaultOpen={false}>
         <ActiveChatProvider
           demoAislada={demoAislada}
+          demoVoz={demoVoz}
           entrevistaId={entrevistaId}
           indiceSeccion={indice}
           mensajesIniciales={mensajesIniciales}

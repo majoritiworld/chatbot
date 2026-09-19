@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   avisoGuardadoRespuestas,
   consentimientoEntrevistaListo,
+  debeConfirmarCierrePorBorrador,
   decisionReintentoCorreo,
   encadenarAvanceInicial,
   entrevistaAceptaChat,
@@ -206,11 +207,16 @@ test.describe("Pilot interview helpers", () => {
     );
   });
 
-  test("keeps an interview draft in memory across topic remounts", () => {
+  test("scopes interview drafts to the current topic", () => {
     reiniciarBorradoresEntrevistaParaPruebas();
-    escribirBorradorEntrevista("entrevista-1", "texto sin enviar");
-    expect(leerBorradorEntrevista("entrevista-1")).toBe("texto sin enviar");
-    escribirBorradorEntrevista("entrevista-1", "  ");
-    expect(leerBorradorEntrevista("entrevista-1")).toBe("");
+    escribirBorradorEntrevista("entrevista-1", "tema-a", "texto del tema A");
+    expect(leerBorradorEntrevista("entrevista-1", "tema-a")).toBe(
+      "texto del tema A"
+    );
+    expect(leerBorradorEntrevista("entrevista-1", "tema-b")).toBe("");
+    expect(debeConfirmarCierrePorBorrador("  hola  ")).toBe(true);
+    expect(debeConfirmarCierrePorBorrador("   ")).toBe(false);
+    escribirBorradorEntrevista("entrevista-1", "tema-a", "  ");
+    expect(leerBorradorEntrevista("entrevista-1", "tema-a")).toBe("");
   });
 });

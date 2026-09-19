@@ -1,0 +1,393 @@
+"use client";
+
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { toast } from "sonner";
+import {
+  barrasDesdeOnda,
+  barrasSinteticas,
+  clasificarErrorMicrofono,
+  type DemoVozEntrevista,
+  formatearDuracionGrabacion,
+  mensajeErrorMicrofono,
+  unirTextoTranscrito,
+} from "@/lib/consultoria/entrevista-voz";
+
+type EstadoVoz = "idle" | "recording" | "transcribing";
+
+function mimeGrabacionVoz() {
+  if (typeof MediaRecorder === "undefined") {
+    return "";
+  }
+  const tipos = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+  return tipos.find((tipo) => MediaRecorder.isTypeSupported(tipo)) ?? "";
+}
+
+function archivoVoz(blob: Blob, mime: string) {
+  const esMp4 =
+    mime.includes("mp4") || mime.includes("m4a") || mime.includes("aac");
+  const type = esMp4 ? "audio/mp4" : "audio/webm";
+  const extension = esMp4 ? "m4a" : "webm";
+  return new File([blob], `voice.${extension}`, { type });
+}
+
+function detenerPistas(stream: MediaStream | null) {
+  for (const track of stream?.getTracks() ?? []) {
+    track.stop();
+  }
+}
+
+function pedirDatosRecorder(recorder: MediaRecorder) {
+  try {
+    if (
+      recorder.state === "recording" &&
+      typeof recorder.requestData === "function"
+    ) {
+      recorder.requestData();
+    }
+  } catch {
+    // Safari may throw if the recorder is already stopping.
+  }
+}
+
+export function useEntrevistaVoz({
+  demoVoz,
+  setInput,
+}: {
+  demoVoz?: DemoVozEntrevista;
+  setInput: Dispatch<SetStateAction<string>>;
+}) {
+  const [estado, setEstado] = useState<EstadoVoz>("idle");
+  const [barras, setBarras] = useState<number[]>(() => barrasSinteticas(0));
+  const [duracionMs, setDuracionMs] = useState(0);
+  const [errorVoz, setErrorVoz] = useState<string | null>(null);
+  const estadoRef = useRef<EstadoVoz>("idle");
+  const sessionRef = useRef(0);
+  const mountedRef = useRef(true);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const rafRef = useRef<number>(0);
+  const startedAtRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const descartarRef = useRef(false);
+
+  const setEstadoVoz = useCallback((siguiente: EstadoVoz) => {
+    estadoRef.current = siguiente;
+    setEstado(siguiente);
+  }, []);
+
+  const liberarCaptura = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+    const contexto = audioContextRef.current;
+    audioContextRef.current = null;
+    if (contexto) {
+      contexto.close().catch(() => undefined);
+    }
+    detenerPistas(streamRef.current);
+    streamRef.current = null;
+    recorderRef.current = null;
+    chunksRef.current = [];
+  }, []);
+
+  const animarSintetico = useCallback((inicio: number) => {
+    const tick = (ahora: number) => {
+      if (estadoRef.current !== "recording") {
+        return;
+      }
+      setBarras(barrasSinteticas(ahora - inicio));
+      setDuracionMs(ahora - inicio);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  const animarAnalizador = useCallback(
+    (analizador: AnalyserNode, inicio: number) => {
+      const datos = new Uint8Array(new ArrayBuffer(analizador.fftSize));
+      const tick = (ahora: number) => {
+        if (estadoRef.current !== "recording") {
+          return;
+        }
+        analizador.getByteTimeDomainData(datos);
+        setBarras(barrasDesdeOnda(datos));
+        setDuracionMs(ahora - inicio);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    },
+    []
+  );
+
+  const transcribir = useCallback(
+    async (blob: Blob, tipoAudio: string, session: number) => {
+      abortRef.current?.abort();
+      const abort = new AbortController();
+      abortRef.current = abort;
+      setEstadoVoz("transcribing");
+      try {
+        if (demoVoz === "fallo") {
+          await new Promise((resolve) => {
+            window.setTimeout(resolve, 350);
+          });
+          throw new Error(
+            "No se pudo transcribir. Tu texto escrito se conserva."
+          );
+        }
+
+        if (demoVoz) {
+          await new Promise((resolve, reject) => {
+            const espera = window.setTimeout(resolve, 400);
+            abort.signal.addEventListener("abort", () => {
+              window.clearTimeout(espera);
+              reject(new DOMException("Aborted", "AbortError"));
+            });
+          });
+          if (!mountedRef.current || sessionRef.current !== session) {
+            return;
+          }
+          setInput((previo) =>
+            unirTextoTranscrito(previo, "Esto es una transcripción simulada.")
+          );
+          return;
+        }
+
+        if (blob.size === 0) {
+          throw new Error("No se capturó audio. Intenta de nuevo.");
+        }
+
+        const formData = new FormData();
+        formData.append("audio", archivoVoz(blob, tipoAudio));
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/transcribe`,
+          { body: formData, method: "POST", signal: abort.signal }
+        );
+        const json = (await response.json()) as {
+          error?: string;
+          text?: string;
+        };
+        if (!response.ok) {
+          throw new Error(
+            json.error ??
+              "No se pudo transcribir. Tu texto escrito se conserva."
+          );
+        }
+        const text = (json.text ?? "").trim();
+        if (!text) {
+          toast.error("No se entendió el audio. Intenta de nuevo.");
+          return;
+        }
+        setInput((previo) => unirTextoTranscrito(previo, text));
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        const mensaje =
+          error instanceof Error
+            ? error.message
+            : "No se pudo transcribir. Tu texto escrito se conserva.";
+        setErrorVoz(mensaje);
+        toast.error(mensaje);
+      } finally {
+        if (sessionRef.current === session && mountedRef.current) {
+          setEstadoVoz("idle");
+        }
+      }
+    },
+    [demoVoz, setEstadoVoz, setInput]
+  );
+
+  const cancelarGrabacion = useCallback(() => {
+    if (estadoRef.current !== "recording") {
+      return;
+    }
+    descartarRef.current = true;
+    sessionRef.current += 1;
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.onstop = null;
+      try {
+        recorder.stop();
+      } catch {
+        // Already stopping.
+      }
+    }
+    liberarCaptura();
+    setDuracionMs(0);
+    setEstadoVoz("idle");
+  }, [liberarCaptura, setEstadoVoz]);
+
+  const detenerGrabacion = useCallback(() => {
+    if (estadoRef.current !== "recording") {
+      return;
+    }
+    descartarRef.current = false;
+    if (demoVoz) {
+      const session = sessionRef.current;
+      liberarCaptura();
+      transcribir(new Blob(), "audio/webm", session).catch(() => undefined);
+      return;
+    }
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      return;
+    }
+    pedirDatosRecorder(recorder);
+    try {
+      recorder.stop();
+    } catch {
+      liberarCaptura();
+      setEstadoVoz("idle");
+    }
+  }, [demoVoz, liberarCaptura, setEstadoVoz, transcribir]);
+
+  const empezarGrabacion = useCallback(async () => {
+    if (estadoRef.current !== "idle") {
+      return;
+    }
+    if (demoVoz === "denegado") {
+      const mensaje = mensajeErrorMicrofono("denegado");
+      setErrorVoz(mensaje);
+      toast.error(mensaje);
+      return;
+    }
+    if (demoVoz === "sin-mic") {
+      const mensaje = mensajeErrorMicrofono("sin-mic");
+      setErrorVoz(mensaje);
+      toast.error(mensaje);
+      return;
+    }
+
+    const session = sessionRef.current + 1;
+    sessionRef.current = session;
+    descartarRef.current = false;
+    startedAtRef.current = performance.now();
+    setDuracionMs(0);
+    setErrorVoz(null);
+    setEstadoVoz("recording");
+
+    if (demoVoz) {
+      animarSintetico(startedAtRef.current);
+      return;
+    }
+
+    if (
+      typeof MediaRecorder === "undefined" ||
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
+      const mensaje = mensajeErrorMicrofono("sin-mic");
+      setErrorVoz(mensaje);
+      toast.error(mensaje);
+      setEstadoVoz("idle");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mountedRef.current || sessionRef.current !== session) {
+        detenerPistas(stream);
+        return;
+      }
+      streamRef.current = stream;
+      const mimeType = mimeGrabacionVoz();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      const tipoAudio = recorder.mimeType || mimeType || "audio/webm";
+      chunksRef.current = [];
+      recorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+      recorder.onerror = () => {
+        if (sessionRef.current !== session) {
+          return;
+        }
+        liberarCaptura();
+        const mensaje = "No se pudo grabar el audio";
+        setErrorVoz(mensaje);
+        toast.error(mensaje);
+        setEstadoVoz("idle");
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: tipoAudio });
+        liberarCaptura();
+        if (descartarRef.current || sessionRef.current !== session) {
+          return;
+        }
+        transcribir(blob, tipoAudio, session).catch(() => undefined);
+      };
+
+      const contexto = new AudioContext();
+      audioContextRef.current = contexto;
+      const fuente = contexto.createMediaStreamSource(stream);
+      const analizador = contexto.createAnalyser();
+      analizador.fftSize = 64;
+      fuente.connect(analizador);
+      animarAnalizador(analizador, startedAtRef.current);
+
+      const timeslice = tipoAudio.includes("webm") ? 250 : undefined;
+      if (timeslice) {
+        recorder.start(timeslice);
+      } else {
+        recorder.start();
+      }
+    } catch (error) {
+      liberarCaptura();
+      const mensaje = mensajeErrorMicrofono(clasificarErrorMicrofono(error));
+      setErrorVoz(mensaje);
+      toast.error(mensaje);
+      setEstadoVoz("idle");
+    }
+  }, [
+    animarAnalizador,
+    animarSintetico,
+    demoVoz,
+    liberarCaptura,
+    setEstadoVoz,
+    transcribir,
+  ]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      sessionRef.current += 1;
+      abortRef.current?.abort();
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.onstop = null;
+        try {
+          recorder.stop();
+        } catch {
+          // Already stopping.
+        }
+      }
+      liberarCaptura();
+    };
+  }, [liberarCaptura]);
+
+  return {
+    barras,
+    cancelarGrabacion,
+    detenerGrabacion,
+    duracion: formatearDuracionGrabacion(duracionMs),
+    empezarGrabacion,
+    errorVoz,
+    estado,
+  };
+}

@@ -46,6 +46,7 @@ export function ChatShell({
   const {
     chatId,
     demoAislada,
+    demoVoz,
     esEntrevista,
     messages,
     setMessages,
@@ -213,6 +214,7 @@ export function ChatShell({
                   chatId={chatId}
                   composerAction={composerAction}
                   demoAislada={demoAislada}
+                  demoVoz={demoVoz}
                   editingMessage={editingMessage}
                   esEntrevista={esEntrevista}
                   hayMensajeFallido={hayMensajeFallido}

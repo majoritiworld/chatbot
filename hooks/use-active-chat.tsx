@@ -29,6 +29,7 @@ import {
   escribirBorradorEntrevista,
   leerBorradorEntrevista,
 } from "@/lib/consultoria/entrevista-piloto";
+import type { DemoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
 import {
   claveKickoff,
   liberarKickoff,
@@ -78,6 +79,7 @@ type ActiveChatContextValue = {
   guardadoEnCurso: boolean;
   setGuardadoEnCurso: Dispatch<SetStateAction<boolean>>;
   demoAislada: boolean;
+  demoVoz?: DemoVozEntrevista;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -90,6 +92,7 @@ function extractChatId(pathname: string): string | null {
 export function ActiveChatProvider({
   children,
   demoAislada = false,
+  demoVoz,
   entrevistaId,
   indiceSeccion,
   mensajesIniciales,
@@ -99,6 +102,7 @@ export function ActiveChatProvider({
 }: {
   children: ReactNode;
   demoAislada?: boolean;
+  demoVoz?: DemoVozEntrevista;
   entrevistaId?: string;
   indiceSeccion?: number;
   mensajesIniciales?: ChatMessage[];
@@ -135,7 +139,7 @@ export function ActiveChatProvider({
   }, [currentModelId]);
 
   const [input, setInputState] = useState(() =>
-    leerBorradorEntrevista(entrevistaId)
+    leerBorradorEntrevista(entrevistaId, seccionId)
   );
   const setInput = useCallback<Dispatch<SetStateAction<string>>>(
     (actualizacion) => {
@@ -144,11 +148,11 @@ export function ActiveChatProvider({
           typeof actualizacion === "function"
             ? actualizacion(actual)
             : actualizacion;
-        escribirBorradorEntrevista(entrevistaId, siguiente);
+        escribirBorradorEntrevista(entrevistaId, seccionId, siguiente);
         return siguiente;
       });
     },
-    [entrevistaId]
+    [entrevistaId, seccionId]
   );
   const [guardadoEnCurso, setGuardadoEnCurso] = useState(false);
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
@@ -395,6 +399,7 @@ export function ActiveChatProvider({
       chatId,
       currentModelId,
       demoAislada,
+      demoVoz,
       entrevistaId,
       esEntrevista,
       guardadoEnCurso,
@@ -428,6 +433,7 @@ export function ActiveChatProvider({
       chatId,
       currentModelId,
       demoAislada,
+      demoVoz,
       entrevistaId,
       esEntrevista,
       guardadoEnCurso,

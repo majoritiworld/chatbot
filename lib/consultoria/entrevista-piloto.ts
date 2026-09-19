@@ -173,28 +173,49 @@ export function estadoEntregaEntrevista({
 
 const borradoresEntrevista = new Map<string, string>();
 
-export function leerBorradorEntrevista(entrevistaId: string | undefined) {
-  if (!entrevistaId) {
+export function claveBorradorEntrevista(
+  entrevistaId: string | undefined,
+  seccionId: string | undefined
+) {
+  if (!(entrevistaId && seccionId)) {
+    return null;
+  }
+
+  return `${entrevistaId}:${seccionId}`;
+}
+
+export function debeConfirmarCierrePorBorrador(texto: string) {
+  return texto.trim().length > 0;
+}
+
+export function leerBorradorEntrevista(
+  entrevistaId: string | undefined,
+  seccionId: string | undefined
+) {
+  const clave = claveBorradorEntrevista(entrevistaId, seccionId);
+  if (!clave) {
     return "";
   }
 
-  return borradoresEntrevista.get(entrevistaId) ?? "";
+  return borradoresEntrevista.get(clave) ?? "";
 }
 
 export function escribirBorradorEntrevista(
   entrevistaId: string | undefined,
+  seccionId: string | undefined,
   texto: string
 ) {
-  if (!entrevistaId) {
+  const clave = claveBorradorEntrevista(entrevistaId, seccionId);
+  if (!clave) {
     return;
   }
 
   if (texto.trim().length === 0) {
-    borradoresEntrevista.delete(entrevistaId);
+    borradoresEntrevista.delete(clave);
     return;
   }
 
-  borradoresEntrevista.set(entrevistaId, texto);
+  borradoresEntrevista.set(clave, texto);
 }
 
 export function reiniciarBorradoresEntrevistaParaPruebas() {

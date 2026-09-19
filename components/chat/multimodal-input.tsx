@@ -38,12 +38,15 @@ import {
   ModelSelectorName,
   ModelSelectorTrigger,
 } from "@/components/ai-elements/model-selector";
+import { EntrevistaVozCompositor } from "@/components/portal/entrevista-voz-compositor";
+import { useEntrevistaVoz } from "@/hooks/use-entrevista-voz";
 import {
   type ChatModel,
   chatModels,
   DEFAULT_CHAT_MODEL,
   type ModelCapabilities,
 } from "@/lib/ai/models";
+import type { DemoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
 import type { Attachment, ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -174,6 +177,7 @@ function PureMultimodalInput({
   chatId,
   composerAction,
   demoAislada,
+  demoVoz,
   esEntrevista,
   input,
   setInput,
@@ -197,6 +201,7 @@ function PureMultimodalInput({
   chatId: string;
   composerAction?: ReactNode;
   demoAislada?: boolean;
+  demoVoz?: DemoVozEntrevista;
   esEntrevista?: boolean;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
@@ -240,16 +245,22 @@ function PureMultimodalInput({
   );
 
   useEffect(() => {
+    if (esEntrevista) {
+      return;
+    }
     if (textareaRef.current) {
       const domValue = textareaRef.current.value;
       const finalValue = domValue || localStorageInput || "";
       setInput(finalValue);
     }
-  }, [localStorageInput, setInput]);
+  }, [esEntrevista, localStorageInput, setInput]);
 
   useEffect(() => {
+    if (esEntrevista) {
+      return;
+    }
     setLocalStorageInput(input);
-  }, [input, setLocalStorageInput]);
+  }, [esEntrevista, input, setLocalStorageInput]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadQueue, setUploadQueue] = useState<string[]>([]);
@@ -259,6 +270,13 @@ function PureMultimodalInput({
   const [voiceState, setVoiceState] = useState<
     "idle" | "recording" | "transcribing"
   >("idle");
+  const vozEntrevista = useEntrevistaVoz({
+    demoVoz: esEntrevista ? demoVoz : undefined,
+    setInput,
+  });
+  const handleEmpezarVozEntrevista = useCallback(() => {
+    vozEntrevista.empezarGrabacion().catch(() => undefined);
+  }, [vozEntrevista.empezarGrabacion]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mountedRef = useRef(true);
@@ -434,7 +452,7 @@ function PureMultimodalInput({
   }, [startVoiceRecording, stopVoiceRecording]);
 
   useEffect(() => {
-    if (!esEntrevista || demoAislada) {
+    if (!esEntrevista) {
       return;
     }
 
@@ -446,13 +464,17 @@ function PureMultimodalInput({
       if (
         shortcutPressedRef.current ||
         status !== "ready" ||
-        voiceState === "transcribing" ||
+        vozEntrevista.estado === "transcribing" ||
         editingMessage
       ) {
         return;
       }
       shortcutPressedRef.current = true;
-      toggleVoiceRecording();
+      if (vozEntrevista.estado === "recording") {
+        vozEntrevista.detenerGrabacion();
+        return;
+      }
+      vozEntrevista.empezarGrabacion().catch(() => undefined);
     };
     const handleKeyUp = (event: KeyboardEvent) => {
       if (
@@ -471,12 +493,12 @@ function PureMultimodalInput({
       window.removeEventListener("keyup", handleKeyUp);
     };
   }, [
-    demoAislada,
     editingMessage,
     esEntrevista,
     status,
-    toggleVoiceRecording,
-    voiceState,
+    vozEntrevista.detenerGrabacion,
+    vozEntrevista.empezarGrabacion,
+    vozEntrevista.estado,
   ]);
 
   useEffect(
@@ -913,53 +935,65 @@ function PureMultimodalInput({
                 status={status}
               />
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  aria-keyshortcuts={esEntrevista ? "Alt+Space" : undefined}
-                  aria-label={
-                    demoAislada
-                      ? "Hablar"
-                      : etiquetaVoz(voiceState, esEntrevista)
-                  }
-                  aria-live="polite"
-                  aria-pressed={voiceState === "recording"}
-                  className={cn(
-                    esEntrevista
-                      ? "size-8 rounded-full p-0"
-                      : "h-7 min-w-[8.25rem] gap-1.5 rounded-xl px-2.5 text-xs font-medium",
-                    !esEntrevista &&
-                      voiceState === "recording" &&
-                      "voice-pulse-listening !border-red-500 !bg-red-500 !text-white hover:!bg-red-600 hover:!text-white",
-                    !esEntrevista &&
-                      voiceState === "transcribing" &&
-                      "voice-pulse-transcribing !border-amber-500/80 !bg-amber-500/15 !text-amber-800 dark:!text-amber-200"
-                  )}
-                  disabled={
-                    demoAislada ||
-                    status !== "ready" ||
-                    voiceState === "transcribing"
-                  }
-                  onClick={toggleVoiceRecording}
-                  type="button"
-                  variant="outline"
-                >
-                  <MicIcon className="size-3.5" />
-                  {esEntrevista ? null : (
-                    <span
-                      className={
-                        voiceState === "idle" ? undefined : "animate-pulse"
-                      }
-                    >
-                      {textoBotonVoz(voiceState)}
-                    </span>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {etiquetaVoz(voiceState, esEntrevista)}
-              </TooltipContent>
-            </Tooltip>
+            {esEntrevista ? (
+              <EntrevistaVozCompositor
+                barras={vozEntrevista.barras}
+                cancelarGrabacion={vozEntrevista.cancelarGrabacion}
+                detenerGrabacion={vozEntrevista.detenerGrabacion}
+                duracion={vozEntrevista.duracion}
+                empezarGrabacion={handleEmpezarVozEntrevista}
+                errorVoz={vozEntrevista.errorVoz}
+                estado={vozEntrevista.estado}
+              />
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    aria-keyshortcuts={esEntrevista ? "Alt+Space" : undefined}
+                    aria-label={
+                      demoAislada
+                        ? "Hablar"
+                        : etiquetaVoz(voiceState, esEntrevista)
+                    }
+                    aria-live="polite"
+                    aria-pressed={voiceState === "recording"}
+                    className={cn(
+                      esEntrevista
+                        ? "size-8 rounded-full p-0"
+                        : "h-7 min-w-[8.25rem] gap-1.5 rounded-xl px-2.5 text-xs font-medium",
+                      !esEntrevista &&
+                        voiceState === "recording" &&
+                        "voice-pulse-listening !border-red-500 !bg-red-500 !text-white hover:!bg-red-600 hover:!text-white",
+                      !esEntrevista &&
+                        voiceState === "transcribing" &&
+                        "voice-pulse-transcribing !border-amber-500/80 !bg-amber-500/15 !text-amber-800 dark:!text-amber-200"
+                    )}
+                    disabled={
+                      demoAislada ||
+                      status !== "ready" ||
+                      voiceState === "transcribing"
+                    }
+                    onClick={toggleVoiceRecording}
+                    type="button"
+                    variant="outline"
+                  >
+                    <MicIcon className="size-3.5" />
+                    {esEntrevista ? null : (
+                      <span
+                        className={
+                          voiceState === "idle" ? undefined : "animate-pulse"
+                        }
+                      >
+                        {textoBotonVoz(voiceState)}
+                      </span>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {etiquetaVoz(voiceState, esEntrevista)}
+                </TooltipContent>
+              </Tooltip>
+            )}
             {esEntrevista ? null : (
               <ModelSelectorCompact
                 onModelChange={onModelChange}
@@ -1006,7 +1040,11 @@ function PureMultimodalInput({
                       : "bg-muted text-muted-foreground/25 cursor-not-allowed"
                 )}
                 data-testid="send-button"
-                disabled={!input.trim() || uploadQueue.length > 0}
+                disabled={
+                  !input.trim() ||
+                  uploadQueue.length > 0 ||
+                  (Boolean(esEntrevista) && vozEntrevista.estado !== "idle")
+                }
                 status={status}
                 variant={esEntrevista ? "default" : "secondary"}
               >
@@ -1048,6 +1086,9 @@ export const MultimodalInput = memo(
       return false;
     }
     if (prevProps.demoAislada !== nextProps.demoAislada) {
+      return false;
+    }
+    if (prevProps.demoVoz !== nextProps.demoVoz) {
       return false;
     }
     if (prevProps.messages.length !== nextProps.messages.length) {
