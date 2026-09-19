@@ -22,12 +22,13 @@ import {
   ofertaCierreInputSchema,
   pausaSeccionInputSchema,
 } from "@/lib/consultoria/cierre-seccion";
+import { entrevistaAceptaChat } from "@/lib/consultoria/entrevista-piloto";
 import {
   completarSeccionEntrevista,
   getEntrevistaEscribible,
-  getTranscripcionEntrevista,
   registrarTurnosEntrevista,
 } from "@/lib/consultoria/entrevistas";
+import { textoKickoffEntrevista } from "@/lib/consultoria/kickoff-entrevista";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
 import {
   ErrorGuardadoTranscripcion,
@@ -95,14 +96,11 @@ export async function POST(request: Request) {
       ).toResponse();
     }
 
-    if (!entrevista.consentimiento_en) {
-      const turnosPrevios = await getTranscripcionEntrevista(entrevista.id);
-      if (turnosPrevios.length === 0) {
-        return new ChatbotError(
-          "forbidden:chat",
-          "Acepta las indicaciones antes de empezar la entrevista"
-        ).toResponse();
-      }
+    if (!entrevistaAceptaChat(entrevista.consentimiento_en)) {
+      return new ChatbotError(
+        "forbidden:chat",
+        "Acepta las indicaciones antes de empezar la entrevista"
+      ).toResponse();
     }
 
     let uiMessages: ChatMessage[] = [];
@@ -148,9 +146,7 @@ export async function POST(request: Request) {
     const haySeccionesPrevias = seccionesPrevias.length > 0;
     // The portal opens the interview with no user turn: the agent speaks
     // first. This opener is never persisted to the transcript.
-    const kickoff = haySeccionesPrevias
-      ? "Estoy listo para continuar con esta sección. No te presentes de nuevo; haz una transición breve y la primera pregunta."
-      : "Estoy listo para comenzar. Preséntate, salúdame y haz la primera pregunta.";
+    const kickoff = textoKickoffEntrevista(haySeccionesPrevias);
     const mensajesModelo = mensajesTextoParaModelo(uiMessages);
     const modelMessages =
       mensajesModelo.length > 0
@@ -215,7 +211,7 @@ export async function POST(request: Request) {
             }),
             ofrecerCierreSeccion: tool({
               description:
-                "Muestra el botón Finalizar sección cuando los temas guía ya están cubiertos. No cierra la sección; espera a que el entrevistado pulse el botón. Siempre escribe antes un mensaje de texto para la persona.",
+                "Muestra el botón para cerrar el tema actual cuando los temas guía ya están cubiertos. No cierra la sección; espera a que el entrevistado pulse el botón. Siempre escribe antes un mensaje de texto para la persona.",
               execute: () => ({ ok: true as const }),
               inputSchema: ofertaCierreInputSchema,
             }),

@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -12,9 +11,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { useActiveChat } from "@/hooks/use-active-chat";
 import { useCerrarSeccionEntrevista } from "@/hooks/use-cerrar-seccion-entrevista";
 
 export function FinalizarEntrevistaButton() {
+  const { indiceSeccion, numeroSecciones } = useActiveChat();
   const {
     busy,
     forzarCierre,
@@ -23,6 +24,10 @@ export function FinalizarEntrevistaButton() {
     seccionListaParaCerrar,
   } = useCerrarSeccionEntrevista();
   const [confirmar, setConfirmar] = useState(false);
+  const esUltimo =
+    typeof indiceSeccion === "number" &&
+    typeof numeroSecciones === "number" &&
+    indiceSeccion >= numeroSecciones - 1;
 
   const handleClick = useCallback(() => {
     if (seccionListaParaCerrar) {
@@ -45,45 +50,52 @@ export function FinalizarEntrevistaButton() {
   return (
     <>
       <Button
-        className="text-muted-foreground text-xs hover:text-foreground"
+        className={
+          seccionListaParaCerrar
+            ? "text-xs"
+            : "text-muted-foreground text-xs hover:text-foreground"
+        }
         data-tour="entrevista-finalizar"
         disabled={busy}
         onClick={handleClick}
         size="xs"
         type="button"
-        variant="outline"
+        variant={seccionListaParaCerrar ? "default" : "outline"}
       >
-        Finalizar sección
+        {busy ? "Cerrando tema…" : null}
+        {busy || esUltimo ? null : "Siguiente tema (cierra este)"}
+        {busy || !esUltimo ? null : "Terminar tema y revisar"}
       </Button>
       <AlertDialog onOpenChange={setConfirmar} open={confirmar}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Finalizar esta sección?</AlertDialogTitle>
+            <AlertDialogTitle>Este tema aún no está completo</AlertDialogTitle>
             <AlertDialogDescription>
-              Todavía hay temas por cubrir. Puedes continuar, guardar y volver
-              otro día, o cerrar de todas maneras.
+              Puedes seguir ahora o guardar las respuestas ya enviadas y volver
+              luego. Cerrar este tema igual no envía la entrevista.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              className="text-muted-foreground"
-              disabled={busy}
-              onClick={handleForzar}
-              variant="ghost"
-            >
-              Cerrar de todas maneras
-            </AlertDialogAction>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col sm:justify-stretch">
+            <AlertDialogCancel disabled={busy} variant="default">
+              Seguir respondiendo
+            </AlertDialogCancel>
             <Button
               disabled={busy}
               onClick={handleGuardar}
               type="button"
               variant="outline"
             >
-              Guardar progreso
+              Guardar
             </Button>
-            <AlertDialogCancel disabled={busy} variant="default">
-              Continuar sección
-            </AlertDialogCancel>
+            <Button
+              className="text-muted-foreground"
+              disabled={busy}
+              onClick={handleForzar}
+              type="button"
+              variant="ghost"
+            >
+              Cerrar este tema igual
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

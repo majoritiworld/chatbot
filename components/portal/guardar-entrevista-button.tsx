@@ -3,16 +3,9 @@
 import { useCallback, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useActiveChat } from "@/hooks/use-active-chat";
+import { avisoGuardadoRespuestas } from "@/lib/consultoria/entrevista-piloto";
 import { cn } from "@/lib/utils";
-
-const AVISO_GUARDADO =
-  "Progreso guardado. Puedes salir y volver a entrar cuando quieras.";
 
 export function GuardarEntrevistaButton({
   entrevistaId,
@@ -21,11 +14,19 @@ export function GuardarEntrevistaButton({
   entrevistaId: string;
   seccionId: string;
 }) {
-  const { marcarProgresoGuardado, messages, progresoGuardado, status, stop } =
-    useActiveChat();
+  const {
+    input,
+    marcarProgresoGuardado,
+    messages,
+    progresoGuardado,
+    setGuardadoEnCurso,
+    status,
+    stop,
+  } = useActiveChat();
   const [pending, startTransition] = useTransition();
   const ocupado = pending || status === "submitted" || status === "streaming";
   const noClickeable = ocupado || progresoGuardado;
+  const hayBorrador = input.trim().length > 0;
 
   const handleSave = useCallback(() => {
     if (noClickeable) {
@@ -34,6 +35,7 @@ export function GuardarEntrevistaButton({
 
     startTransition(async () => {
       stop();
+      setGuardadoEnCurso(true);
 
       try {
         const response = await fetch(
@@ -51,51 +53,62 @@ export function GuardarEntrevistaButton({
         } | null;
 
         if (!response.ok) {
-          toast.error(data?.error ?? "No se pudo guardar el progreso");
+          toast.error(
+            data?.error ??
+              "No se pudo guardar. Revisa la conexión e inténtalo de nuevo."
+          );
           return;
         }
 
         marcarProgresoGuardado();
+        toast.success(avisoGuardadoRespuestas(hayBorrador));
       } catch {
-        toast.error("No se pudo guardar el progreso");
+        toast.error(
+          "No se pudo guardar. Revisa la conexión e inténtalo de nuevo."
+        );
+      } finally {
+        setGuardadoEnCurso(false);
       }
     });
   }, [
     entrevistaId,
+    hayBorrador,
     marcarProgresoGuardado,
     messages,
     noClickeable,
     seccionId,
+    setGuardadoEnCurso,
     stop,
   ]);
 
-  const boton = (
-    <Button
-      aria-disabled={noClickeable}
-      className={cn(
-        "text-muted-foreground text-xs hover:text-foreground",
-        progresoGuardado &&
-          "cursor-not-allowed opacity-50 hover:text-muted-foreground"
-      )}
-      data-tour="entrevista-guardar"
-      disabled={ocupado}
-      onClick={handleSave}
-      size="xs"
-      type="button"
-      variant="outline"
-    >
-      {pending ? "Guardando…" : "Guardar"}
-    </Button>
-  );
-
-  if (!progresoGuardado) {
-    return boton;
-  }
-
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{boton}</TooltipTrigger>
-      <TooltipContent>{AVISO_GUARDADO}</TooltipContent>
-    </Tooltip>
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        aria-disabled={noClickeable}
+        className={cn(
+          "text-muted-foreground text-xs hover:text-foreground",
+          progresoGuardado &&
+            "cursor-not-allowed opacity-50 hover:text-muted-foreground"
+        )}
+        data-tour="entrevista-guardar"
+        disabled={ocupado}
+        onClick={handleSave}
+        size="xs"
+        type="button"
+        variant="outline"
+      >
+        {pending ? "Guardando…" : "Guardar"}
+      </Button>
+      {hayBorrador ? (
+        <p className="max-w-48 text-right text-muted-foreground text-xs">
+          Hay texto sin enviar
+        </p>
+      ) : null}
+      {progresoGuardado && !hayBorrador ? (
+        <p className="max-w-48 text-right text-muted-foreground text-xs">
+          Respuestas de este tema guardadas
+        </p>
+      ) : null}
+    </div>
   );
 }

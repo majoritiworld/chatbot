@@ -25,6 +25,12 @@ import type { VisibilityType } from "@/components/chat/visibility-selector";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import {
+  claveKickoff,
+  liberarKickoff,
+  recordarKickoffHecho,
+  reservarKickoff,
+} from "@/lib/consultoria/kickoff-entrevista";
+import {
   avisarErrorUnaVez,
   payloadReintento,
   ultimoMensajeUsuario,
@@ -59,9 +65,13 @@ type ActiveChatContextValue = {
   setShowCreditCardAlert: Dispatch<SetStateAction<boolean>>;
   entrevistaId?: string;
   seccionId?: string;
+  indiceSeccion?: number;
+  numeroSecciones?: number;
   onSeccionCompletada?: (data: SectionCompletedData) => void;
   progresoGuardado: boolean;
   marcarProgresoGuardado: () => void;
+  guardadoEnCurso: boolean;
+  setGuardadoEnCurso: Dispatch<SetStateAction<boolean>>;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -74,17 +84,18 @@ function extractChatId(pathname: string): string | null {
 export function ActiveChatProvider({
   children,
   entrevistaId,
+  indiceSeccion,
   mensajesIniciales,
+  numeroSecciones,
   onSeccionCompletada,
   seccionId,
 }: {
   children: ReactNode;
-  /** Pins the chat to one interview. Used by the client portal embed. */
   entrevistaId?: string;
-  /** Transcript already stored for this interview, replayed on reload. */
+  indiceSeccion?: number;
   mensajesIniciales?: ChatMessage[];
+  numeroSecciones?: number;
   onSeccionCompletada?: (data: SectionCompletedData) => void;
-  /** Active section snapshot for interview requests. */
   seccionId?: string;
 }) {
   const pathname = usePathname();
@@ -116,6 +127,7 @@ export function ActiveChatProvider({
   }, [currentModelId]);
 
   const [input, setInput] = useState("");
+  const [guardadoEnCurso, setGuardadoEnCurso] = useState(false);
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [claveGuardada, setClaveGuardada] = useState<string | null>(null);
   const [mensajeFallido, setMensajeFallido] = useState<ChatMessage | null>(
@@ -288,23 +300,28 @@ export function ActiveChatProvider({
     }
   }, [sendMessage, chatId, esEntrevista]);
 
-  // The interview opens itself: with no transcript to replay, ask the agent
-  // for its greeting and first question instead of waiting on the user.
-  const kickoffRef = useRef(false);
+  const kickoffClave =
+    entrevistaId && seccionId ? claveKickoff(entrevistaId, seccionId) : null;
   useEffect(() => {
-    if (!esEntrevista || kickoffRef.current) {
+    if (!esEntrevista || !kickoffClave) {
       return;
     }
     if (messages.length > 0) {
-      kickoffRef.current = true;
+      recordarKickoffHecho(kickoffClave);
+      return;
+    }
+    if (status === "error") {
+      liberarKickoff(kickoffClave);
       return;
     }
     if (status !== "ready") {
       return;
     }
-    kickoffRef.current = true;
+    if (!reservarKickoff(kickoffClave)) {
+      return;
+    }
     sendMessage();
-  }, [esEntrevista, messages.length, status, sendMessage]);
+  }, [esEntrevista, kickoffClave, messages.length, sendMessage, status]);
 
   useAutoResume({
     autoResume: !isNewChat && !!chatData,
@@ -347,12 +364,15 @@ export function ActiveChatProvider({
       currentModelId,
       entrevistaId,
       esEntrevista,
+      guardadoEnCurso,
       hayMensajeFallido,
+      indiceSeccion,
       input,
       isLoading: !isNewChat && isLoading,
       isReadonly,
       marcarProgresoGuardado,
       messages,
+      numeroSecciones,
       onSeccionCompletada,
       progresoGuardado,
       regenerate,
@@ -360,6 +380,7 @@ export function ActiveChatProvider({
       seccionId,
       sendMessage,
       setCurrentModelId,
+      setGuardadoEnCurso,
       setInput,
       setMessages,
       setShowCreditCardAlert,
@@ -375,13 +396,16 @@ export function ActiveChatProvider({
       currentModelId,
       entrevistaId,
       esEntrevista,
+      guardadoEnCurso,
       hayMensajeFallido,
+      indiceSeccion,
       input,
       isLoading,
       isNewChat,
       isReadonly,
       marcarProgresoGuardado,
       messages,
+      numeroSecciones,
       onSeccionCompletada,
       progresoGuardado,
       regenerate,

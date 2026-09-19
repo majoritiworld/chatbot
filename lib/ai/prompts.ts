@@ -1,5 +1,6 @@
 import type { Geo } from "@vercel/functions";
 import type { ArtifactKind } from "@/components/chat/artifact";
+import { etiquetaCierreTema } from "@/lib/consultoria/entrevista-piloto";
 import {
   MENSAJE_CONTINUAR_SECCION,
   MENSAJE_FINALIZAR_SECCION,
@@ -130,9 +131,9 @@ function saludoEntrevista({
     return "Esta es una sección nueva de la misma entrevista: no te presentes de nuevo. Abre con una transición breve y la primera pregunta.";
   }
   if (nombre) {
-    return "En el primer turno, saluda a la persona por su nombre de forma natural y breve.";
+    return "En el primer turno, saluda a la persona por su nombre en una frase y haz de inmediato la primera pregunta. No te presentes en un párrafo aparte.";
   }
-  return "En el primer turno, saluda de forma genérica y profesional.";
+  return "En el primer turno, saluda en una frase y haz de inmediato la primera pregunta. No te presentes en un párrafo aparte.";
 }
 
 export const interviewSystemPrompt = ({
@@ -204,7 +205,7 @@ Reglas:
 8. Si un tema pide una nota del 1 al 10, pide la nota y un por qué breve. No insistas más si ambos están.
 9. No digas "pregunta 1", "siguiente en la lista", etc.
 10. Asegúrate de cubrir todos los temas guía de esta sección que aún no estén cubiertos antes de cerrarla.
-11. Cuando los temas de esta sección estén suficientemente cubiertos, avisa brevemente que ya tienes lo necesario, pide que pulse "Finalizar sección" para pasar a la siguiente y llama a ofrecerCierreSeccion con listo=true. Escribe ese aviso en texto. No llames completarSeccion en ese momento. No hagas más preguntas en ese turno.
+11. Cuando los temas de esta sección estén suficientemente cubiertos, avisa brevemente que ya tienes lo necesario, pide que pulse "${etiquetaCierreTema(false)}" o, si es el último tema, "${etiquetaCierreTema(true)}", y llama a ofrecerCierreSeccion con listo=true. Escribe ese aviso en texto. No llames completarSeccion en ese momento. No hagas más preguntas en ese turno.
 12. Después de ofrecerCierreSeccion, espera. Si el entrevistado sigue hablando, continúa la conversación; si vuelve a cubrir todo, puedes ofrecer el cierre otra vez.
 13. No inventes hechos del entrevistado; basa el resumen solo en lo dicho.
 14. El entrevistado puede pausar y volver otro día. Trata el historial previo como parte de la misma entrevista.

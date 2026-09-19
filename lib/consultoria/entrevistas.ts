@@ -15,6 +15,7 @@ import {
   type SeccionCompletada,
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
+import { decisionReintentoCorreo } from "@/lib/consultoria/entrevista-piloto";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { mismoEmail } from "@/lib/consultoria/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -457,6 +458,42 @@ export async function enviarEntrevista(entrevistaId: string) {
   return {
     alreadyDone: guardado.alreadyDone,
     correoEnviado: false,
+    email: entrevista.stakeholder_email,
+    nombre: entrevista.stakeholder_nombre,
+  };
+}
+
+export async function entrevistaParaReintentoCorreo(entrevistaId: string) {
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
+
+  if (!entrevista) {
+    throw new Error("No puedes reenviar el correo de esta entrevista");
+  }
+
+  const decision = decisionReintentoCorreo({
+    correoAgradecimientoEn: entrevista.correo_agradecimiento_en,
+    email: entrevista.stakeholder_email,
+    estado: entrevista.estado,
+  });
+
+  if (decision === "no_enviada") {
+    throw new Error("La entrevista todavía no está enviada");
+  }
+
+  if (decision === "ya_enviado") {
+    return {
+      alreadyDone: true as const,
+      email: entrevista.stakeholder_email,
+      nombre: entrevista.stakeholder_nombre,
+    };
+  }
+
+  if (decision === "sin_email") {
+    throw new Error("No hay email para el correo de confirmación");
+  }
+
+  return {
+    alreadyDone: false as const,
     email: entrevista.stakeholder_email,
     nombre: entrevista.stakeholder_nombre,
   };

@@ -30,17 +30,10 @@ export async function abrirEntrevista(page: Page, path?: string) {
 export async function descartarTour(page: Page) {
   const saltar = page.getByRole("button", { name: "Saltar" });
   const tour = page.getByRole("dialog", { name: "Las preguntas" });
-  try {
-    await saltar.waitFor({ state: "visible", timeout: 15_000 });
+  if (await saltar.isVisible().catch(() => false)) {
     await saltar.click();
-  } catch (error) {
-    if (await tour.isVisible().catch(() => false)) {
-      throw new Error("El tour sigue visible y Saltar no se pudo pulsar", {
-        cause: error,
-      });
-    }
   }
-  await expect(tour).toHaveCount(0, { timeout: 10_000 });
+  await expect(tour).toHaveCount(0, { timeout: 3000 });
 }
 
 type SnapshotEntrevista = {

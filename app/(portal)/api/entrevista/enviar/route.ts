@@ -2,13 +2,30 @@ import { z } from "zod";
 import { auth } from "@/app/(auth)/auth";
 import { enviarCorreoAgradecimiento } from "@/lib/consultoria/email-entrevista";
 import {
+  entrevistaParaReintentoCorreo,
   enviarEntrevista,
   marcarCorreoAgradecimientoEnviado,
 } from "@/lib/consultoria/entrevistas";
 
 const bodySchema = z.object({
   entrevistaId: z.guid(),
+  soloCorreo: z.boolean().optional(),
 });
+
+async function enviarNotificacion(entrevistaId: string) {
+  const destino = await entrevistaParaReintentoCorreo(entrevistaId);
+  if (destino.alreadyDone) {
+    return { correoEnviado: true, ok: true as const };
+  }
+
+  await enviarCorreoAgradecimiento({
+    email: destino.email,
+    entrevistaId,
+    nombre: destino.nombre,
+  });
+  await marcarCorreoAgradecimientoEnviado(entrevistaId);
+  return { correoEnviado: true, ok: true as const };
+}
 
 export async function POST(request: Request) {
   try {
@@ -20,6 +37,20 @@ export async function POST(request: Request) {
     const parsed = bodySchema.safeParse(await request.json());
     if (!parsed.success) {
       return Response.json({ error: "Datos inválidos" }, { status: 400 });
+    }
+
+    if (parsed.data.soloCorreo) {
+      try {
+        return Response.json(
+          await enviarNotificacion(parsed.data.entrevistaId)
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "No se pudo reenviar el correo";
+        return Response.json({ error: message }, { status: 400 });
+      }
     }
 
     const result = await enviarEntrevista(parsed.data.entrevistaId);
@@ -46,7 +77,7 @@ export async function POST(request: Request) {
         correoEnviado: false,
         ok: true,
         warning:
-          "La entrevista se envió, pero el correo de agradecimiento quedó pendiente.",
+          "La entrevista se envió, pero el correo de confirmación sigue pendiente.",
       });
     }
   } catch (error) {

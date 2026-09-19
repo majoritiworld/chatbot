@@ -72,7 +72,7 @@ test.describe("Staging interview application flow", () => {
     page,
   }) => {
     await abrirEntrevista(page);
-    const completa = page.getByText("Entrevista completa");
+    const completa = page.getByText("Listo para enviar");
     if (await completa.isVisible().catch(() => false)) {
       await expect(completa).toBeVisible();
       return;
@@ -217,7 +217,7 @@ test.describe("Staging interview application flow", () => {
       process.env.STAGING_INTERVIEW_PATH ?? ""
     );
     await abrirEntrevista(page);
-    await expect(page.getByText("Entrevista completa")).toBeVisible({
+    await expect(page.getByText("Listo para enviar")).toBeVisible({
       timeout: 20_000,
     });
     await expect(
@@ -230,7 +230,7 @@ test.describe("Staging interview application flow", () => {
     const completed = before.secciones_completadas.length;
 
     await page.reload();
-    await expect(page.getByText("Entrevista completa")).toBeVisible();
+    await expect(page.getByText("Listo para enviar")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Enviar entrevista" })
     ).toBeVisible();

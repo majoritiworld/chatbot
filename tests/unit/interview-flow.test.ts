@@ -317,7 +317,8 @@ test.describe("Interview prompt context", () => {
     expect(prompt).toContain(MENSAJE_FINALIZAR_SECCION);
     expect(prompt).toContain("ofrecerContinuarOGuardar");
     expect(prompt).toContain("ofrecerCierreSeccion");
-    expect(prompt).toContain('pulse "Finalizar sección"');
+    expect(prompt).toContain("Siguiente tema (cierra este)");
+    expect(prompt).toContain("Terminar tema y revisar");
     expect(prompt).toContain("puede contestarla ahora o volver más tarde");
     expect(prompt).toContain("no hagas otra pregunta");
     expect(prompt).toContain("listo=true");
@@ -332,6 +333,7 @@ test.describe("Interview prompt context", () => {
     });
 
     expect(prompt).toContain("saluda a la persona por su nombre");
+    expect(prompt).toContain("haz de inmediato la primera pregunta");
     expect(prompt).not.toContain("salúdala");
   });
 });

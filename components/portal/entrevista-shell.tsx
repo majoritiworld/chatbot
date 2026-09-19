@@ -1,21 +1,19 @@
 import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
-/**
- * Chrome around the interview: a quiet breadcrumb plus a slot for secondary
- * actions, so the conversation below stays the focus of the screen.
- */
 export function EntrevistaShell({
   acciones,
   children,
-  mostrarPortal = false,
+  mostrarPortal = true,
+  onIrAlPortal,
   seccion,
   titulo = "Entrevista",
 }: {
   acciones?: ReactNode;
   children?: ReactNode;
   mostrarPortal?: boolean;
+  onIrAlPortal?: (event: MouseEvent<HTMLAnchorElement>) => void;
   seccion?: string;
   titulo?: ReactNode;
 }) {
@@ -27,6 +25,7 @@ export function EntrevistaShell({
             <Link
               className="flex items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground"
               href="/portal"
+              onClick={onIrAlPortal}
             >
               <ArrowLeftIcon className="size-3" />
               Fases
