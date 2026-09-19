@@ -99,11 +99,7 @@ test.describe("Interview section flow", () => {
     });
   });
 
-  test("treats a repeated complete-section as already advanced", () => {
-    const primera = resolverAvanceSeccion(0, 2);
-    const repetida = resolverAvanceSeccion(0, 2);
-
-    expect(repetida).toEqual(primera);
+  test("detects pending sections from saved completions", () => {
     expect(haySeccionesPendientes([SECCION_CONTEXTO, SECCION_CIERRE], [])).toBe(
       true
     );
@@ -149,7 +145,7 @@ test.describe("Interview section flow", () => {
     ).toBe(false);
   });
 
-  test("consolidates answers for an idempotent submit", () => {
+  test("consolidates answers and marks unanswered questions", () => {
     const resumen = consolidarRespuestasEntrevista(
       [SECCION_CONTEXTO, SECCION_CIERRE],
       [

@@ -5,7 +5,6 @@ import {
   isStepCount,
   streamText,
   tool,
-  toUIMessageStream,
 } from "ai";
 import { auth } from "@/app/(auth)/auth";
 import {
@@ -30,8 +29,12 @@ import {
   registrarTurnosEntrevista,
 } from "@/lib/consultoria/entrevistas";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
+import {
+  ErrorGuardadoTranscripcion,
+  streamEntrevista,
+} from "@/lib/consultoria/stream-entrevista";
 import { ChatbotError } from "@/lib/errors";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, SectionCompletedData } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 
@@ -114,14 +117,17 @@ export async function POST(request: Request) {
       uiMessages = [...uiMessages, message as ChatMessage];
     }
 
-    // Kick off the write without blocking the model. A failed turn still
-    // stamps activity if this lands; a slow write must not delay the first token.
-    registrarTurnosEntrevista({
-      entrevistaId: entrevista.id,
-      turnos: mensajesATurnos(uiMessages, seccion.id),
-    }).catch((error: unknown) => {
-      console.error("No se pudo guardar la transcripción", error);
-    });
+    // Confirm the user's answer is durable before asking the next question.
+    try {
+      await registrarTurnosEntrevista({
+        entrevistaId: entrevista.id,
+        estricto: true,
+        turnos: mensajesATurnos(uiMessages, seccion.id),
+      });
+    } catch (error) {
+      // biome-ignore lint/style/useErrorCause: this subclass forwards options.cause to Error
+      throw new ErrorGuardadoTranscripcion({ cause: error });
+    }
 
     const modelConfig = chatModels.find((m) => m.id === chatModel);
     const isReasoningModel =
@@ -158,6 +164,7 @@ export async function POST(request: Request) {
 
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
+        let avancePendiente: SectionCompletedData | undefined;
         const result = streamText({
           activeTools: [...herramientasCierreActivas(uiMessages)],
           instructions: interviewSystemPrompt({
@@ -171,25 +178,6 @@ export async function POST(request: Request) {
           }),
           messages: modelMessages,
           model: getLanguageModel(chatModel),
-          onEnd: async ({ steps }) => {
-            await registrarTurnosEntrevista({
-              entrevistaId: entrevista.id,
-              turnos: steps.flatMap((step) => {
-                const texto = step.text.trim();
-                return texto
-                  ? [
-                      {
-                        at: new Date().toISOString(),
-                        id: generateUUID(),
-                        rol: "entrevistador" as const,
-                        seccionId: seccion.id,
-                        texto,
-                      },
-                    ]
-                  : [];
-              }),
-            });
-          },
           providerOptions: {
             ...(modelConfig?.gatewayOrder && {
               gateway: { order: modelConfig.gatewayOrder },
@@ -217,10 +205,7 @@ export async function POST(request: Request) {
                   sintesis,
                   turnos: mensajesATurnos(uiMessages, seccion.id),
                 });
-                dataStream.write({
-                  data: avance,
-                  type: "data-seccion-completada",
-                });
+                avancePendiente = avance;
                 return {
                   message: "Sección guardada. Continúa con el siguiente paso.",
                   ok: true,
@@ -244,7 +229,21 @@ export async function POST(request: Request) {
         });
 
         dataStream.merge(
-          toUIMessageStream({
+          streamEntrevista({
+            despuesDeGuardar: () => {
+              if (avancePendiente) {
+                dataStream.write({
+                  data: avancePendiente,
+                  type: "data-seccion-completada",
+                });
+              }
+            },
+            guardar: (responseMessage) =>
+              registrarTurnosEntrevista({
+                entrevistaId: entrevista.id,
+                estricto: true,
+                turnos: mensajesATurnos([responseMessage], seccion.id),
+              }),
             sendReasoning: isReasoningModel,
             stream: result.stream,
           })
@@ -253,13 +252,18 @@ export async function POST(request: Request) {
       generateId: generateUUID,
       onError: (error) => {
         console.error("entrevista chat error", error);
-        return "Error en la entrevista";
+        return error instanceof ErrorGuardadoTranscripcion
+          ? error.message
+          : "Error en la entrevista. Inténtalo de nuevo.";
       },
     });
 
     return createUIMessageStreamResponse({ stream });
   } catch (error) {
     console.error(error);
+    if (error instanceof ErrorGuardadoTranscripcion) {
+      return new ChatbotError("save_failed:chat").toResponse();
+    }
     if (error instanceof ChatbotError) {
       return error.toResponse();
     }

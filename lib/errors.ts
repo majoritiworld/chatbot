@@ -4,7 +4,8 @@ export type ErrorType =
   | "forbidden"
   | "not_found"
   | "rate_limit"
-  | "offline";
+  | "offline"
+  | "save_failed";
 
 export type Surface =
   | "chat"
@@ -104,6 +105,8 @@ export function getMessageByErrorCode(errorCode: ErrorCode): string {
       return "This chat belongs to another user. Please check the chat ID and try again.";
     case "unauthorized:chat":
       return "You need to sign in to view this chat. Please sign in and try again.";
+    case "save_failed:chat":
+      return "No se pudo guardar la conversación. Intenta guardar el progreso antes de salir.";
     case "offline:chat":
       return "We're having trouble sending your message. Please check your internet connection and try again.";
 
@@ -133,6 +136,7 @@ function getStatusCodeByType(type: ErrorType) {
       return 404;
     case "rate_limit":
       return 429;
+    case "save_failed":
     case "offline":
       return 503;
     default:

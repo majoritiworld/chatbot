@@ -278,17 +278,29 @@ export async function completarSeccionEntrevista({
   hallazgos: string[];
   respuestas: RespuestaResumen[];
   turnos?: TurnoEntrevista[];
-}) {
+}): Promise<{
+  flujoEstado: FlujoEntrevista;
+  seccionActual: number;
+  seccionId: string;
+}> {
   const entrevista = await getEntrevistaEscribible(entrevistaId);
 
   if (!entrevista) {
     throw new Error("No puedes completar esta sección");
   }
-  if (entrevista.estado !== "abierta" || entrevista.flujo_estado !== "chat") {
+  const yaCompletada = entrevista.secciones_completadas.some(
+    (item) => item.seccionId === seccionId
+  );
+  if (
+    !yaCompletada &&
+    (entrevista.estado !== "abierta" || entrevista.flujo_estado !== "chat")
+  ) {
     throw new Error("La entrevista cambió. Recarga para continuar.");
   }
 
-  const seccion = entrevista.secciones.at(entrevista.seccion_actual);
+  const seccion = yaCompletada
+    ? entrevista.secciones.find((item) => item.id === seccionId)
+    : entrevista.secciones.at(entrevista.seccion_actual);
   if (!seccion || seccion.id !== seccionId) {
     throw new Error("Esta sección ya no está activa");
   }

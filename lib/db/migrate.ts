@@ -9,6 +9,13 @@ config({
 });
 
 const runMigrate = async () => {
+  // Consultoría schema is applied via supabase/migrations, not Drizzle.
+  // Vercel Production currently lists POSTGRES_URL; never run this on deploy.
+  if (process.env.VERCEL && process.env.RUN_DRIZZLE_MIGRATE !== "1") {
+    console.log("Skipping Drizzle migrations on Vercel");
+    process.exit(0);
+  }
+
   const url = getPostgresUrl();
   if (!url) {
     console.log("POSTGRES_URL not defined or invalid, skipping migrations");

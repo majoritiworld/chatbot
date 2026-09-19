@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbo",
-    "build": "tsx lib/db/migrate && next build",
+    "build": "next build",
     "start": "next start",
     "check": "ultracite check",
     "fix": "ultracite fix",
@@ -16,7 +16,11 @@
     "db:pull": "drizzle-kit pull",
     "db:check": "drizzle-kit check",
     "db:up": "drizzle-kit up",
-    "test": "export PLAYWRIGHT=True && pnpm exec playwright test"
+    "test": "pnpm test:unit && pnpm test:e2e",
+    "test:unit": "playwright test --config=playwright.unit.config.ts",
+    "test:e2e": "playwright test",
+    "test:staging": "playwright test --config=playwright.staging.config.ts",
+    "typecheck": "tsc --noEmit --incremental false"
   },
   "dependencies": {
     "@ai-sdk/otel": "^1.0.15",
@@ -93,6 +97,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.2",
+    "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.2",
     "@tailwindcss/typography": "^0.5.20",

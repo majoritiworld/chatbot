@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
     : {}),
   cacheComponents: true,
   devIndicators: false,
+  distDir: process.env.PLAYWRIGHT_ISOLATED === "1" ? ".next-test" : ".next",
   env: {
     NEXT_PUBLIC_BASE_PATH: basePath,
   },
