@@ -229,10 +229,10 @@ const PurePreviewMessage = ({
               "w-fit max-w-[min(80%,56ch)] overflow-hidden break-words rounded-2xl rounded-br-lg border border-border/30 bg-gradient-to-br from-secondary to-muted px-3.5 py-2 shadow-[var(--shadow-card)]",
             esEntrevista &&
               message.role === "user" &&
-              "max-w-[min(88%,40rem)] rounded-3xl rounded-br-md px-4 py-2.5",
+              "max-w-[min(88%,100%)] rounded-3xl rounded-br-md px-4 py-2.5",
             esEntrevista &&
               message.role === "assistant" &&
-              "w-fit max-w-[min(92%,42rem)] rounded-3xl rounded-bl-md bg-card/90 px-4 py-2.5 shadow-[var(--shadow-card)]"
+              "w-fit max-w-[min(92%,100%)] rounded-3xl rounded-bl-md bg-card/90 px-4 py-2.5 shadow-[var(--shadow-card)]"
           )}
           data-testid="message-content"
           key={key}
