@@ -6,13 +6,12 @@ import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { turnosDeSeccion } from "@/lib/consultoria/entrevista-contenido";
 import {
-  getOwnStakeholderId,
   getTranscripcionEntrevista,
   resolveEntrevista,
 } from "@/lib/consultoria/entrevistas";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
-import { isClienteRole } from "@/lib/consultoria/roles";
+import { isClienteRole, mismoEmail } from "@/lib/consultoria/roles";
 
 export default function EntrevistaPage({
   params,
@@ -28,7 +27,7 @@ export default function EntrevistaPage({
 
 async function EntrevistaContenido({ id }: { id: Promise<string> }) {
   const entrevistaId = await id;
-  const portalUser = await requirePortalUser();
+  const portalUser = await requirePortalUser({ conProyecto: false });
   const mostrarPortal = isClienteRole(portalUser.rol);
   const entrevista = await resolveEntrevista(entrevistaId);
 
@@ -43,9 +42,7 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     );
   }
 
-  const ownStakeholderId = await getOwnStakeholderId(portalUser.email);
-  const esPropia =
-    ownStakeholderId !== null && entrevista.stakeholder_id === ownStakeholderId;
+  const esPropia = mismoEmail(entrevista.stakeholder_email, portalUser.email);
 
   if (!esPropia) {
     return (
@@ -105,7 +102,7 @@ function Aviso({
 
 function EntrevistaSkeleton() {
   return (
-    <EntrevistaShell>
+    <EntrevistaShell mostrarPortal={false}>
       <div className="flex flex-col gap-3 px-6 py-8">
         <Skeleton className="h-4 w-48" />
         <Skeleton className="h-24 w-full" />

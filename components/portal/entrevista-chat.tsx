@@ -20,7 +20,7 @@ export function EntrevistaChat({
   entrevistaId,
   indice,
   mensajesIniciales,
-  mostrarPortal = true,
+  mostrarPortal = false,
   onSeccionCompletada,
   seccion,
   titulo,

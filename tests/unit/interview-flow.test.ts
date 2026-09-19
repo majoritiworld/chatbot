@@ -31,7 +31,11 @@ import {
   GUION_CL_FASE_1,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
-import { resolveAuthLanding } from "@/lib/consultoria/roles";
+import {
+  mismoEmail,
+  resolveAuthLanding,
+  stakeholderPathNeedsLandingInterview,
+} from "@/lib/consultoria/roles";
 import type { ChatMessage } from "@/lib/types";
 
 const SECCION_CONTEXTO = {
@@ -526,5 +530,27 @@ test.describe("Auth landing", () => {
     expect(
       resolveAuthLanding("stakeholder", "/chat/abc", "/portal/entrevista/1")
     ).toBe("/portal/entrevista/1");
+  });
+
+  test("landing interview lookup is only for home redirects", () => {
+    expect(stakeholderPathNeedsLandingInterview("/portal")).toBe(true);
+    expect(stakeholderPathNeedsLandingInterview("/portal/fase/x")).toBe(true);
+    expect(stakeholderPathNeedsLandingInterview("/chat/abc")).toBe(true);
+    expect(stakeholderPathNeedsLandingInterview("/admin")).toBe(true);
+    expect(
+      stakeholderPathNeedsLandingInterview(
+        "/portal/entrevista/8668e9fc-6fc5-42c0-b858-6cc3cc1162cc"
+      )
+    ).toBe(false);
+    expect(stakeholderPathNeedsLandingInterview("/api/chat")).toBe(false);
+    expect(stakeholderPathNeedsLandingInterview("/api/entrevista/flujo")).toBe(
+      false
+    );
+  });
+
+  test("ownership compares emails without depending on a second id lookup", () => {
+    expect(mismoEmail("QA@Majoriti.world", "qa@majoriti.world")).toBe(true);
+    expect(mismoEmail("a@x.com", "b@x.com")).toBe(false);
+    expect(mismoEmail(null, "a@x.com")).toBe(false);
   });
 });

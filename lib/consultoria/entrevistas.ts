@@ -16,6 +16,7 @@ import {
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
+import { mismoEmail } from "@/lib/consultoria/roles";
 import { createClient } from "@/lib/supabase/server";
 import type { Entrevista, UserRole } from "@/lib/supabase/types";
 
@@ -95,6 +96,10 @@ function toEntrevista(row: EntrevistaRow): Entrevista {
   };
 }
 
+/**
+ * Request-local only (React `cache`). It does not reuse proxy `getUser`
+ * results, page data, or another handler.
+ */
 export const getUsuarioPerfil = cache(async () => {
   const supabase = await createClient();
   const {
@@ -120,43 +125,12 @@ export const getUsuarioPerfil = cache(async () => {
   };
 });
 
-/** Stakeholder row matching the signed-in email, if any. */
-export const getOwnStakeholderId = cache(
-  async (email: string | null | undefined) => {
-    if (!email) {
-      return null;
-    }
-
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("stakeholder")
-      .select("id")
-      .ilike("email", email)
-      .maybeSingle();
-
-    return data?.id ?? null;
-  }
-);
-
 async function entrevistaPorId(entrevistaId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("entrevista")
     .select(ENTREVISTA_SELECT)
     .eq("id", entrevistaId)
-    .maybeSingle();
-
-  return data ? toEntrevista(data as EntrevistaRow) : null;
-}
-
-async function entrevistaPorStakeholder(stakeholderId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("entrevista")
-    .select(ENTREVISTA_SELECT)
-    .eq("stakeholder_id", stakeholderId)
-    .order("id")
-    .limit(1)
     .maybeSingle();
 
   return data ? toEntrevista(data as EntrevistaRow) : null;
@@ -171,42 +145,35 @@ export async function resolveEntrevista(
     return null;
   }
 
-  if (entrevistaId) {
-    const entrevista = await entrevistaPorId(entrevistaId);
-    if (entrevista) {
-      return entrevista;
-    }
-  }
-
-  const ownId = await getOwnStakeholderId(context.user.email);
-  if (!ownId) {
+  if (!entrevistaId) {
     return null;
   }
 
-  return entrevistaPorStakeholder(ownId);
+  return entrevistaPorId(entrevistaId);
 }
 
 /**
- * Loads the interview and confirms the caller is the stakeholder in one
- * round: profile once, then interview + own stakeholder in parallel.
+ * Loads the requested interview and confirms the caller owns it.
+ * Does not fall back to another interview assigned to the same email.
  */
 export async function getEntrevistaEscribible(
   entrevistaId?: string | null
 ): Promise<Entrevista | null> {
+  if (!entrevistaId) {
+    return null;
+  }
+
   const context = await getUsuarioPerfil();
   if (!context) {
     return null;
   }
 
-  const [ownId, encontrada] = await Promise.all([
-    getOwnStakeholderId(context.user.email),
-    entrevistaId ? entrevistaPorId(entrevistaId) : Promise.resolve(null),
-  ]);
+  const entrevista = await entrevistaPorId(entrevistaId);
 
-  const entrevista =
-    encontrada ?? (ownId ? await entrevistaPorStakeholder(ownId) : null);
-
-  if (!entrevista || !ownId || entrevista.stakeholder_id !== ownId) {
+  if (
+    !entrevista ||
+    !mismoEmail(entrevista.stakeholder_email, context.user.email)
+  ) {
     return null;
   }
 

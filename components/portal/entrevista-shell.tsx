@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 export function EntrevistaShell({
   acciones,
   children,
-  mostrarPortal = true,
+  mostrarPortal = false,
   seccion,
   titulo = "Entrevista",
 }: {

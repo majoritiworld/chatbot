@@ -6,6 +6,7 @@ import {
   isPortalRole,
   isStakeholderRole,
   stakeholderNeedsInterviewLanding,
+  stakeholderPathNeedsLandingInterview,
 } from "@/lib/consultoria/roles";
 import { updateSession } from "@/lib/supabase/middleware";
 
@@ -80,9 +81,11 @@ export async function proxy(request: NextRequest) {
     const portalRole = isPortalRole(perfil?.rol);
     const isMajoriti = perfil?.rol === "majoriti";
     const url = request.nextUrl.clone();
-    const entrevistaId = isStakeholderRole(perfil?.rol)
-      ? await getEntrevistaIdByEmail(supabase, user.email)
-      : null;
+    const entrevistaId =
+      isStakeholderRole(perfil?.rol) &&
+      stakeholderPathNeedsLandingInterview(pathname)
+        ? await getEntrevistaIdByEmail(supabase, user.email)
+        : null;
     const home = `${base}${homePathForRol(perfil?.rol, entrevistaId)}`;
 
     if (isGenericChatPath(pathname)) {

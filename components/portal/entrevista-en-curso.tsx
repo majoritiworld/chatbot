@@ -27,7 +27,7 @@ export function EntrevistaEnCurso({
   estadoInicial,
   flujoEstadoInicial,
   mensajesIniciales,
-  mostrarPortal = true,
+  mostrarPortal = false,
   seccionActualInicial,
   secciones,
   stakeholderNombre,

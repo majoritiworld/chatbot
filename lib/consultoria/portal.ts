@@ -65,7 +65,9 @@ export async function landingPathForCurrentUser() {
 }
 
 /** Redirects anyone who is not a portal user. Never returns for those roles. */
-export async function requirePortalUser(): Promise<PortalUser> {
+export async function requirePortalUser(opciones?: {
+  conProyecto?: boolean;
+}): Promise<PortalUser> {
   const context = await getUsuarioPerfil();
 
   if (!context?.user) {
@@ -82,11 +84,10 @@ export async function requirePortalUser(): Promise<PortalUser> {
     redirect(rol === "majoriti" ? "/admin" : "/sin-acceso");
   }
 
-  const proyectoId = await resolveProyectoId(
-    rol,
-    perfil?.proyecto_id,
-    user.email
-  );
+  const proyectoId =
+    opciones?.conProyecto === false
+      ? (perfil?.proyecto_id ?? null)
+      : await resolveProyectoId(rol, perfil?.proyecto_id, user.email);
 
   return {
     email: user.email ?? null,

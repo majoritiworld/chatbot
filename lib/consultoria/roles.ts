@@ -54,6 +54,29 @@ export function stakeholderNeedsInterviewLanding(pathname: string) {
 }
 
 /**
+ * Paths that must resolve the stakeholder's home interview to redirect.
+ * Interview pages and API routes authorize the requested id instead.
+ */
+export function stakeholderPathNeedsLandingInterview(pathname: string) {
+  return (
+    isGenericChatPath(pathname) ||
+    stakeholderNeedsInterviewLanding(pathname) ||
+    pathname.startsWith("/admin")
+  );
+}
+
+export function mismoEmail(
+  izquierda: string | null | undefined,
+  derecha: string | null | undefined
+) {
+  if (!(izquierda && derecha)) {
+    return false;
+  }
+
+  return izquierda.trim().toLowerCase() === derecha.trim().toLowerCase();
+}
+
+/**
  * Leftover Chat SDK routes. Sending a message in the interview used to
  * `pushState` here; Next.js treats that as a real navigation.
  */

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export function EntrevistaCompletada({
   correoPendiente = false,
-  mostrarPortal = true,
+  mostrarPortal = false,
   onReintentarCorreo,
   pending = false,
 }: {
