@@ -1,6 +1,6 @@
 import { Output, streamText, tool, type UIMessageStreamWriter } from "ai";
-import type { AppSession } from "@/app/(auth)/auth";
 import { z } from "zod";
+import type { AppSession } from "@/app/(auth)/auth";
 import { getDocumentById, saveSuggestions } from "@/lib/db/queries";
 import type { Suggestion } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";

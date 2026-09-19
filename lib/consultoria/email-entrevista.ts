@@ -56,8 +56,7 @@ export async function enviarCorreoAgradecimiento({
   const copiaEquipo =
     process.env.INTERVIEW_EMAIL_BCC?.trim() || "hello@majoriti.world";
   const destinatario = email.trim();
-  const mismaBandeja =
-    destinatario.toLowerCase() === copiaEquipo.toLowerCase();
+  const mismaBandeja = destinatario.toLowerCase() === copiaEquipo.toLowerCase();
 
   const resend = new Resend(apiKey);
   const plantilla = plantillaAgradecimiento(nombre);
