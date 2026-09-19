@@ -5,10 +5,13 @@ import {
   decisionReintentoCorreo,
   encadenarAvanceInicial,
   entrevistaAceptaChat,
+  escribirBorradorEntrevista,
   estadoEntregaEntrevista,
   etiquetaCierreTema,
   etiquetaProgresoTema,
+  leerBorradorEntrevista,
   mensajeSalidaInsegura,
+  reiniciarBorradoresEntrevistaParaPruebas,
   salidaEntrevistaInsegura,
   siguienteTransicionInicial,
 } from "@/lib/consultoria/entrevista-piloto";
@@ -201,5 +204,13 @@ test.describe("Pilot interview helpers", () => {
     expect(homePathForRol("stakeholder", "entrevista-1")).toBe(
       "/portal/entrevista/entrevista-1"
     );
+  });
+
+  test("keeps an interview draft in memory across topic remounts", () => {
+    reiniciarBorradoresEntrevistaParaPruebas();
+    escribirBorradorEntrevista("entrevista-1", "texto sin enviar");
+    expect(leerBorradorEntrevista("entrevista-1")).toBe("texto sin enviar");
+    escribirBorradorEntrevista("entrevista-1", "  ");
+    expect(leerBorradorEntrevista("entrevista-1")).toBe("");
   });
 });

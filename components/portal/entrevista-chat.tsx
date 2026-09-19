@@ -5,7 +5,6 @@ import { DataStreamProvider } from "@/components/chat/data-stream-provider";
 import { ChatShell } from "@/components/chat/shell";
 import { EntrevistaAyuda } from "@/components/portal/entrevista-ayuda";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
-import { FinalizarEntrevistaButton } from "@/components/portal/finalizar-entrevista-button";
 import { GuardarEntrevistaButton } from "@/components/portal/guardar-entrevista-button";
 import {
   AlertDialog,
@@ -40,7 +39,7 @@ function EntrevistaChatCuerpo({
   indice: number;
   mostrarPortal: boolean;
   numeroSecciones: number;
-  onSeccionCompletada: (data: SectionCompletedData) => void;
+  onSeccionCompletada?: (data: SectionCompletedData) => void;
   seccion: SeccionEntrevista;
   titulo?: string;
 }) {
@@ -87,10 +86,7 @@ function EntrevistaChatCuerpo({
       seccion={`${etiquetaProgresoTema(indice, numeroSecciones)}: ${seccion.titulo}`}
       titulo={titulo}
     >
-      <ChatShell
-        composerAction={<FinalizarEntrevistaButton />}
-        onSeccionCompletada={onSeccionCompletada}
-      />
+      <ChatShell onSeccionCompletada={onSeccionCompletada} />
       <AlertDialog
         onOpenChange={handleDialogChange}
         open={Boolean(destinoPendiente)}
@@ -116,6 +112,7 @@ function EntrevistaChatCuerpo({
 }
 
 export function EntrevistaChat({
+  demoAislada = false,
   entrevistaId,
   indice,
   mensajesIniciales,
@@ -125,22 +122,21 @@ export function EntrevistaChat({
   seccion,
   titulo,
 }: {
+  demoAislada?: boolean;
   entrevistaId: string;
   indice: number;
   mensajesIniciales: ChatMessage[];
   mostrarPortal?: boolean;
   numeroSecciones: number;
-  onSeccionCompletada: (data: SectionCompletedData) => void;
+  onSeccionCompletada?: (data: SectionCompletedData) => void;
   seccion: SeccionEntrevista;
   titulo?: string;
 }) {
   return (
     <DataStreamProvider>
-      <SidebarProvider
-        className="h-full min-h-0 bg-background"
-        defaultOpen={false}
-      >
+      <SidebarProvider className="h-full min-h-0 bg-white" defaultOpen={false}>
         <ActiveChatProvider
+          demoAislada={demoAislada}
           entrevistaId={entrevistaId}
           indiceSeccion={indice}
           mensajesIniciales={mensajesIniciales}

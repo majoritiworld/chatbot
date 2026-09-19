@@ -170,3 +170,33 @@ export function estadoEntregaEntrevista({
 
   return "revision";
 }
+
+const borradoresEntrevista = new Map<string, string>();
+
+export function leerBorradorEntrevista(entrevistaId: string | undefined) {
+  if (!entrevistaId) {
+    return "";
+  }
+
+  return borradoresEntrevista.get(entrevistaId) ?? "";
+}
+
+export function escribirBorradorEntrevista(
+  entrevistaId: string | undefined,
+  texto: string
+) {
+  if (!entrevistaId) {
+    return;
+  }
+
+  if (texto.trim().length === 0) {
+    borradoresEntrevista.delete(entrevistaId);
+    return;
+  }
+
+  borradoresEntrevista.set(entrevistaId, texto);
+}
+
+export function reiniciarBorradoresEntrevistaParaPruebas() {
+  borradoresEntrevista.clear();
+}

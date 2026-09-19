@@ -66,7 +66,12 @@ function PureMessages({
   }, [scrollToBottom]);
 
   return (
-    <div className="relative flex-1 bg-background">
+    <div
+      className={cn(
+        "relative flex-1",
+        esEntrevista ? "bg-white" : "bg-background"
+      )}
+    >
       {messages.length === 0 && !(isLoading || esEntrevista) && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <Greeting />
@@ -75,7 +80,11 @@ function PureMessages({
       <div
         className={cn(
           "absolute inset-0 touch-pan-y overflow-y-auto",
-          messages.length > 0 ? "bg-background" : "bg-transparent"
+          messages.length > 0
+            ? esEntrevista
+              ? "bg-white"
+              : "bg-background"
+            : "bg-transparent"
         )}
         ref={messagesContainerRef}
         style={isArtifactVisible ? { scrollbarWidth: "none" } : undefined}

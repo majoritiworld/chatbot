@@ -15,6 +15,7 @@ export function GuardarEntrevistaButton({
   seccionId: string;
 }) {
   const {
+    demoAislada,
     input,
     marcarProgresoGuardado,
     messages,
@@ -34,6 +35,12 @@ export function GuardarEntrevistaButton({
     }
 
     startTransition(async () => {
+      if (demoAislada) {
+        marcarProgresoGuardado();
+        toast.success(avisoGuardadoRespuestas(hayBorrador));
+        return;
+      }
+
       stop();
       setGuardadoEnCurso(true);
 
@@ -71,6 +78,7 @@ export function GuardarEntrevistaButton({
       }
     });
   }, [
+    demoAislada,
     entrevistaId,
     hayBorrador,
     marcarProgresoGuardado,

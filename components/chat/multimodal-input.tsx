@@ -173,6 +173,7 @@ function setCookie(name: string, value: string) {
 function PureMultimodalInput({
   chatId,
   composerAction,
+  demoAislada,
   esEntrevista,
   input,
   setInput,
@@ -195,6 +196,7 @@ function PureMultimodalInput({
 }: {
   chatId: string;
   composerAction?: ReactNode;
+  demoAislada?: boolean;
   esEntrevista?: boolean;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
@@ -432,7 +434,7 @@ function PureMultimodalInput({
   }, [startVoiceRecording, stopVoiceRecording]);
 
   useEffect(() => {
-    if (!esEntrevista) {
+    if (!esEntrevista || demoAislada) {
       return;
     }
 
@@ -468,7 +470,14 @@ function PureMultimodalInput({
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [editingMessage, esEntrevista, status, toggleVoiceRecording, voiceState]);
+  }, [
+    demoAislada,
+    editingMessage,
+    esEntrevista,
+    status,
+    toggleVoiceRecording,
+    voiceState,
+  ]);
 
   useEffect(
     () => () => {
@@ -847,10 +856,9 @@ function PureMultimodalInput({
 
       <PromptInput
         className={cn(
-          "[&>div]:border [&>div]:border-border/30 [&>div]:bg-card/70 [&>div]:shadow-[var(--shadow-composer)] [&>div]:transition-shadow [&>div]:duration-300 [&>div]:focus-within:shadow-[var(--shadow-composer-focus)]",
           esEntrevista
-            ? "[&>div]:rounded-[1.75rem] [&>div]:has-[textarea]:rounded-[1.75rem] [&>div]:has-data-[align=block-end]:rounded-[1.75rem]"
-            : "[&>div]:rounded-2xl"
+            ? "[&>div]:rounded-[1.25rem] [&>div]:border [&>div]:border-black/10 [&>div]:bg-white [&>div]:shadow-[0_1px_3px_rgba(15,23,42,0.06)] [&>div]:has-[textarea]:rounded-[1.25rem] [&>div]:has-data-[align=block-end]:rounded-[1.25rem]"
+            : "[&>div]:rounded-2xl [&>div]:border [&>div]:border-border/30 [&>div]:bg-card/70 [&>div]:shadow-[var(--shadow-composer)] [&>div]:transition-shadow [&>div]:duration-300 [&>div]:focus-within:shadow-[var(--shadow-composer-focus)]"
         )}
         data-tour={esEntrevista ? "entrevista-hablar" : undefined}
         onSubmit={handlePromptSubmit}
@@ -886,7 +894,7 @@ function PureMultimodalInput({
           className={cn(
             "px-4 pt-3.5 pb-1.5 placeholder:text-muted-foreground/35",
             esEntrevista
-              ? "min-h-28 text-base leading-[1.7]"
+              ? "min-h-12 text-base leading-[1.7] md:text-[17px]"
               : "min-h-24 text-[13px] leading-relaxed"
           )}
           data-testid="multimodal-input"
@@ -909,29 +917,43 @@ function PureMultimodalInput({
               <TooltipTrigger asChild>
                 <Button
                   aria-keyshortcuts={esEntrevista ? "Alt+Space" : undefined}
-                  aria-label={etiquetaVoz(voiceState, esEntrevista)}
+                  aria-label={
+                    demoAislada
+                      ? "Hablar"
+                      : etiquetaVoz(voiceState, esEntrevista)
+                  }
                   aria-live="polite"
                   aria-pressed={voiceState === "recording"}
                   className={cn(
-                    "h-7 min-w-[8.25rem] gap-1.5 rounded-xl px-2.5 text-xs font-medium",
-                    voiceState === "recording" &&
+                    esEntrevista
+                      ? "size-8 rounded-full p-0"
+                      : "h-7 min-w-[8.25rem] gap-1.5 rounded-xl px-2.5 text-xs font-medium",
+                    !esEntrevista &&
+                      voiceState === "recording" &&
                       "voice-pulse-listening !border-red-500 !bg-red-500 !text-white hover:!bg-red-600 hover:!text-white",
-                    voiceState === "transcribing" &&
+                    !esEntrevista &&
+                      voiceState === "transcribing" &&
                       "voice-pulse-transcribing !border-amber-500/80 !bg-amber-500/15 !text-amber-800 dark:!text-amber-200"
                   )}
-                  disabled={status !== "ready" || voiceState === "transcribing"}
+                  disabled={
+                    demoAislada ||
+                    status !== "ready" ||
+                    voiceState === "transcribing"
+                  }
                   onClick={toggleVoiceRecording}
                   type="button"
                   variant="outline"
                 >
                   <MicIcon className="size-3.5" />
-                  <span
-                    className={
-                      voiceState === "idle" ? undefined : "animate-pulse"
-                    }
-                  >
-                    {textoBotonVoz(voiceState)}
-                  </span>
+                  {esEntrevista ? null : (
+                    <span
+                      className={
+                        voiceState === "idle" ? undefined : "animate-pulse"
+                      }
+                    >
+                      {textoBotonVoz(voiceState)}
+                    </span>
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -947,12 +969,14 @@ function PureMultimodalInput({
           </PromptInputTools>
 
           <div className="flex items-center gap-2">
-            <fieldset
-              className="contents"
-              disabled={voiceState !== "idle" || status !== "ready"}
-            >
-              {composerAction}
-            </fieldset>
+            {composerAction ? (
+              <fieldset
+                className="contents"
+                disabled={voiceState !== "idle" || status !== "ready"}
+              >
+                {composerAction}
+              </fieldset>
+            ) : null}
             {hayMensajeFallido ? (
               <Button
                 className="h-7 rounded-xl px-2.5 text-xs font-medium"
@@ -968,16 +992,23 @@ function PureMultimodalInput({
               <StopButton setMessages={setMessages} stop={stop} />
             ) : (
               <PromptInputSubmit
+                aria-label="Enviar respuesta"
                 className={cn(
-                  "h-7 w-7 rounded-xl transition-all duration-200",
+                  esEntrevista
+                    ? "size-8 rounded-full bg-neutral-900 text-white hover:bg-neutral-800"
+                    : "h-7 w-7 rounded-xl transition-all duration-200",
                   input.trim()
-                    ? "bg-foreground text-background hover:opacity-85 active:scale-95"
-                    : "bg-muted text-muted-foreground/25 cursor-not-allowed"
+                    ? esEntrevista
+                      ? "opacity-100"
+                      : "bg-foreground text-background hover:opacity-85 active:scale-95"
+                    : esEntrevista
+                      ? "bg-neutral-300 text-white"
+                      : "bg-muted text-muted-foreground/25 cursor-not-allowed"
                 )}
                 data-testid="send-button"
                 disabled={!input.trim() || uploadQueue.length > 0}
                 status={status}
-                variant="secondary"
+                variant={esEntrevista ? "default" : "secondary"}
               >
                 <ArrowUpIcon className="size-4" />
               </PromptInputSubmit>
@@ -1014,6 +1045,9 @@ export const MultimodalInput = memo(
       return false;
     }
     if (prevProps.esEntrevista !== nextProps.esEntrevista) {
+      return false;
+    }
+    if (prevProps.demoAislada !== nextProps.demoAislada) {
       return false;
     }
     if (prevProps.messages.length !== nextProps.messages.length) {

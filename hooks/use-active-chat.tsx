@@ -24,6 +24,11 @@ import { toast } from "@/components/chat/toast";
 import type { VisibilityType } from "@/components/chat/visibility-selector";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
+import { transporteChatAislado } from "@/lib/consultoria/chat-aislado";
+import {
+  escribirBorradorEntrevista,
+  leerBorradorEntrevista,
+} from "@/lib/consultoria/entrevista-piloto";
 import {
   claveKickoff,
   liberarKickoff,
@@ -72,6 +77,7 @@ type ActiveChatContextValue = {
   marcarProgresoGuardado: () => void;
   guardadoEnCurso: boolean;
   setGuardadoEnCurso: Dispatch<SetStateAction<boolean>>;
+  demoAislada: boolean;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -83,6 +89,7 @@ function extractChatId(pathname: string): string | null {
 
 export function ActiveChatProvider({
   children,
+  demoAislada = false,
   entrevistaId,
   indiceSeccion,
   mensajesIniciales,
@@ -91,6 +98,7 @@ export function ActiveChatProvider({
   seccionId,
 }: {
   children: ReactNode;
+  demoAislada?: boolean;
   entrevistaId?: string;
   indiceSeccion?: number;
   mensajesIniciales?: ChatMessage[];
@@ -126,7 +134,22 @@ export function ActiveChatProvider({
     currentModelIdRef.current = currentModelId;
   }, [currentModelId]);
 
-  const [input, setInput] = useState("");
+  const [input, setInputState] = useState(() =>
+    leerBorradorEntrevista(entrevistaId)
+  );
+  const setInput = useCallback<Dispatch<SetStateAction<string>>>(
+    (actualizacion) => {
+      setInputState((actual) => {
+        const siguiente =
+          typeof actualizacion === "function"
+            ? actualizacion(actual)
+            : actualizacion;
+        escribirBorradorEntrevista(entrevistaId, siguiente);
+        return siguiente;
+      });
+    },
+    [entrevistaId]
+  );
   const [guardadoEnCurso, setGuardadoEnCurso] = useState(false);
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [claveGuardada, setClaveGuardada] = useState<string | null>(null);
@@ -211,26 +234,28 @@ export function ActiveChatProvider({
         ) ?? false
       );
     },
-    transport: new DefaultChatTransport({
-      api: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chat`,
-      fetch: fetchWithErrorHandlers,
-      prepareSendMessagesRequest(request) {
-        const lastMessage = request.messages.at(-1);
+    transport: demoAislada
+      ? transporteChatAislado
+      : new DefaultChatTransport({
+          api: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chat`,
+          fetch: fetchWithErrorHandlers,
+          prepareSendMessagesRequest(request) {
+            const lastMessage = request.messages.at(-1);
 
-        return {
-          body: {
-            entrevistaId: entrevistaIdRef.current,
-            id: request.id,
-            message: lastMessage?.role === "user" ? lastMessage : undefined,
-            messages: request.messages,
-            seccionId: seccionIdRef.current,
-            selectedChatModel: currentModelIdRef.current,
-            selectedVisibilityType: visibility,
-            ...request.body,
+            return {
+              body: {
+                entrevistaId: entrevistaIdRef.current,
+                id: request.id,
+                message: lastMessage?.role === "user" ? lastMessage : undefined,
+                messages: request.messages,
+                seccionId: seccionIdRef.current,
+                selectedChatModel: currentModelIdRef.current,
+                selectedVisibilityType: visibility,
+                ...request.body,
+              },
+            };
           },
-        };
-      },
-    }),
+        }),
   });
 
   messagesErrorRef.current = messages;
@@ -303,7 +328,7 @@ export function ActiveChatProvider({
   const kickoffClave =
     entrevistaId && seccionId ? claveKickoff(entrevistaId, seccionId) : null;
   useEffect(() => {
-    if (!esEntrevista || !kickoffClave) {
+    if (!esEntrevista || !kickoffClave || demoAislada) {
       return;
     }
     if (messages.length > 0) {
@@ -321,7 +346,14 @@ export function ActiveChatProvider({
       return;
     }
     sendMessage();
-  }, [esEntrevista, kickoffClave, messages.length, sendMessage, status]);
+  }, [
+    demoAislada,
+    esEntrevista,
+    kickoffClave,
+    messages.length,
+    sendMessage,
+    status,
+  ]);
 
   useAutoResume({
     autoResume: !isNewChat && !!chatData,
@@ -362,6 +394,7 @@ export function ActiveChatProvider({
       addToolApprovalResponse,
       chatId,
       currentModelId,
+      demoAislada,
       entrevistaId,
       esEntrevista,
       guardadoEnCurso,
@@ -394,6 +427,7 @@ export function ActiveChatProvider({
       addToolApprovalResponse,
       chatId,
       currentModelId,
+      demoAislada,
       entrevistaId,
       esEntrevista,
       guardadoEnCurso,
@@ -412,6 +446,7 @@ export function ActiveChatProvider({
       reintentarMensajeFallido,
       seccionId,
       sendMessage,
+      setInput,
       setMessages,
       showCreditCardAlert,
       status,

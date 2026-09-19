@@ -45,6 +45,7 @@ export function ChatShell({
 } = {}) {
   const {
     chatId,
+    demoAislada,
     esEntrevista,
     messages,
     setMessages,
@@ -176,7 +177,8 @@ export function ChatShell({
 
           <div
             className={cn(
-              "relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+              "relative flex min-h-0 flex-1 flex-col overflow-hidden",
+              esEntrevista ? "bg-white" : "bg-background",
               !esEntrevista &&
                 "md:rounded-tl-[12px] md:border-t md:border-l md:border-border/40"
             )}
@@ -201,8 +203,8 @@ export function ChatShell({
               className={cn(
                 "sticky bottom-0 z-1 mx-auto flex w-full gap-2 border-t-0 bg-background pb-3 md:pb-4",
                 esEntrevista
-                  ? "max-w-[760px] px-3 md:px-4"
-                  : "max-w-4xl px-2 md:px-4"
+                  ? "max-w-[760px] bg-white px-3 md:px-4"
+                  : "max-w-4xl bg-background px-2 md:px-4"
               )}
             >
               {!isReadonly && (
@@ -210,6 +212,7 @@ export function ChatShell({
                   attachments={attachments}
                   chatId={chatId}
                   composerAction={composerAction}
+                  demoAislada={demoAislada}
                   editingMessage={editingMessage}
                   esEntrevista={esEntrevista}
                   hayMensajeFallido={hayMensajeFallido}
