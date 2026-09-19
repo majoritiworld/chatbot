@@ -199,8 +199,10 @@ export function ChatShell({
 
             <div
               className={cn(
-                "sticky bottom-0 z-1 mx-auto flex w-full gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4",
-                esEntrevista ? "max-w-[760px]" : "max-w-4xl"
+                "sticky bottom-0 z-1 mx-auto flex w-full gap-2 border-t-0 bg-background pb-3 md:pb-4",
+                esEntrevista
+                  ? "max-w-[760px] px-3 md:px-4"
+                  : "max-w-4xl px-2 md:px-4"
               )}
             >
               {!isReadonly && (

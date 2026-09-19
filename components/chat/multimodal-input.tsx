@@ -846,7 +846,12 @@ function PureMultimodalInput({
       </div>
 
       <PromptInput
-        className="[&>div]:rounded-2xl [&>div]:border [&>div]:border-border/30 [&>div]:bg-card/70 [&>div]:shadow-[var(--shadow-composer)] [&>div]:transition-shadow [&>div]:duration-300 [&>div]:focus-within:shadow-[var(--shadow-composer-focus)]"
+        className={cn(
+          "[&>div]:border [&>div]:border-border/30 [&>div]:bg-card/70 [&>div]:shadow-[var(--shadow-composer)] [&>div]:transition-shadow [&>div]:duration-300 [&>div]:focus-within:shadow-[var(--shadow-composer-focus)]",
+          esEntrevista
+            ? "[&>div]:rounded-[1.75rem] [&>div]:has-[textarea]:rounded-[1.75rem] [&>div]:has-data-[align=block-end]:rounded-[1.75rem]"
+            : "[&>div]:rounded-2xl"
+        )}
         data-tour={esEntrevista ? "entrevista-hablar" : undefined}
         onSubmit={handlePromptSubmit}
       >
@@ -879,8 +884,10 @@ function PureMultimodalInput({
         )}
         <PromptInputTextarea
           className={cn(
-            "min-h-24 leading-relaxed px-4 pt-3.5 pb-1.5 placeholder:text-muted-foreground/35",
-            esEntrevista ? "text-[15px]" : "text-[13px]"
+            "px-4 pt-3.5 pb-1.5 placeholder:text-muted-foreground/35",
+            esEntrevista
+              ? "min-h-28 text-base leading-[1.7]"
+              : "min-h-24 text-[13px] leading-relaxed"
           )}
           data-testid="multimodal-input"
           onChange={handleInput}

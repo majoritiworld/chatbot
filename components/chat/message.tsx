@@ -38,8 +38,8 @@ function WaitingText({ esEntrevista }: { esEntrevista?: boolean }) {
       className={cn(
         "flex min-w-0 items-center leading-[1.65]",
         esEntrevista
-          ? "min-h-[calc(15px*1.65)] text-[15px]"
-          : "min-h-[calc(13px*1.65)] text-[13px]"
+          ? "min-h-[calc(1rem*1.7)] text-base leading-[1.7]"
+          : "min-h-[calc(13px*1.65)] text-[13px] leading-[1.65]"
       )}
     >
       {waitingStatus?.message ? (
@@ -222,12 +222,17 @@ const PurePreviewMessage = ({
       return (
         <MessageContent
           className={cn(
-            "leading-[1.65]",
-            esEntrevista ? "text-[15px]" : "text-[13px]",
-            {
-              "w-fit max-w-[min(80%,56ch)] overflow-hidden break-words rounded-2xl rounded-br-lg border border-border/30 bg-gradient-to-br from-secondary to-muted px-3.5 py-2 shadow-[var(--shadow-card)]":
-                message.role === "user",
-            }
+            esEntrevista
+              ? "text-base leading-[1.7]"
+              : "text-[13px] leading-[1.65]",
+            message.role === "user" &&
+              "w-fit max-w-[min(80%,56ch)] overflow-hidden break-words rounded-2xl rounded-br-lg border border-border/30 bg-gradient-to-br from-secondary to-muted px-3.5 py-2 shadow-[var(--shadow-card)]",
+            esEntrevista &&
+              message.role === "user" &&
+              "max-w-[min(88%,40rem)] rounded-3xl rounded-br-md px-4 py-2.5",
+            esEntrevista &&
+              message.role === "assistant" &&
+              "w-fit max-w-[min(92%,42rem)] rounded-3xl rounded-bl-md bg-card/90 px-4 py-2.5 shadow-[var(--shadow-card)]"
           )}
           data-testid="message-content"
           key={key}

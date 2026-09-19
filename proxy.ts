@@ -19,6 +19,13 @@ export async function proxy(request: NextRequest) {
     return new Response("pong");
   }
 
+  if (
+    process.env.PLAYWRIGHT_ISOLATED === "1" &&
+    pathname.startsWith("/vista-previa-entrevista")
+  ) {
+    return NextResponse.next();
+  }
+
   const { supabase, supabaseResponse, user } = await updateSession(request);
   const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
