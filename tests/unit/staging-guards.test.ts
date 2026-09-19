@@ -1,20 +1,99 @@
 import { expect, test } from "@playwright/test";
 import { withRestoredProyectoId } from "../support/restore-proyecto";
 import {
-  esEmailDePrueba,
   exigirCuentasDePrueba,
+  exigirListaAutorizada,
+  extraerAccessToken,
+  sesionAutorizada,
 } from "../support/staging-accounts";
 
-test("staging emails must belong to the test domain", () => {
-  expect(esEmailDePrueba("participante@example.test")).toBe(true);
-  expect(esEmailDePrueba("cliente@empresa.com")).toBe(false);
+const cuentas = {
+  majoriti: {
+    email: "qa-majoriti@majoriti.world",
+    id: "33333333-3333-4333-8333-333333333333",
+  },
+  other: {
+    email: "qa-otro@majoriti.world",
+    id: "22222222-2222-4222-8222-222222222222",
+  },
+  participant: {
+    email: "qa-participante@majoriti.world",
+    id: "11111111-1111-4111-8111-111111111111",
+  },
+};
+
+test("staging accounts must be an explicit allowlist of real mailboxes", () => {
   expect(() =>
     exigirCuentasDePrueba({
-      majoritiEmail: "admin@example.test",
-      otherEmail: "otro@example.test",
-      participantEmail: "cliente@empresa.com",
+      ...cuentas,
+      participant: {
+        ...cuentas.participant,
+        email: "participante@example.test",
+      },
     })
-  ).toThrow(/solo admiten cuentas/);
+  ).toThrow(/buzones reales/);
+  expect(() =>
+    exigirListaAutorizada({
+      allowedEmails: [
+        cuentas.participant.email,
+        cuentas.other.email,
+        "cliente@empresa.com",
+      ],
+      allowedIds: [
+        cuentas.participant.id,
+        cuentas.other.id,
+        cuentas.majoriti.id,
+      ],
+      cuentas,
+    })
+  ).toThrow(/fuera de STAGING_ALLOWED_EMAILS/);
+  exigirListaAutorizada({
+    allowedEmails: [
+      cuentas.participant.email,
+      cuentas.other.email,
+      cuentas.majoriti.email,
+    ],
+    allowedIds: [cuentas.participant.id, cuentas.other.id, cuentas.majoriti.id],
+    cuentas,
+  });
+});
+
+test("a session is rejected when uuid or email do not match the allowlist", () => {
+  expect(
+    sesionAutorizada(
+      { email: cuentas.participant.email, id: cuentas.participant.id },
+      cuentas.participant
+    )
+  ).toBe(true);
+  expect(
+    sesionAutorizada(
+      { email: cuentas.other.email, id: cuentas.participant.id },
+      cuentas.participant
+    )
+  ).toBe(false);
+  expect(
+    sesionAutorizada(
+      { email: cuentas.participant.email, id: cuentas.other.id },
+      cuentas.participant
+    )
+  ).toBe(false);
+});
+
+test("storage state access tokens are read without sharing them", () => {
+  const token =
+    "eyJhbGciOiJub25lIn0.eyJzdWIiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEiLCJlbWFpbCI6InAxQG0uZXhhbXBsZSJ9.";
+  expect(
+    extraerAccessToken({
+      cookies: [
+        {
+          name: "sb-auth-token",
+          value: `base64-${Buffer.from(
+            JSON.stringify({ access_token: token })
+          ).toString("base64")}`,
+        },
+      ],
+    })
+  ).toBe(token);
 });
 
 test("authorized project assignment restores the original value after failure", async () => {

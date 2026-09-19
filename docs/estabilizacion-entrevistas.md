@@ -73,21 +73,31 @@ Esta lectura no demuestra que Preview u otro proyecto de Vercel usen la misma ba
 
 ## Pruebas de staging (cuentas de prueba)
 
-Hace falta un proyecto o datos de prueba. Preview de Vercel apunta a la misma base que producción: solo usa personas *@example.test.
+Hace falta un proyecto o datos de prueba. Preview de Vercel apunta a la misma base que producción: no uses cuentas de clientes.
 
-Copia `.env.staging.example` a `.env.staging.local` (gitignored vía `.env*.local`). No pegues tokens en el chat ni en Git. `pnpm test:staging` carga ese archivo.
+Configura **tres buzones reales que tú controles**, exclusivos para estas pruebas. `@example.test` y otros dominios reservados no reciben el código OTP del login.
 
-Cómo obtener sesiones normales (no `service_role`):
+Las tres direcciones y sus roles:
 
-1. Invita en el admin a `participante@example.test`, `otro@example.test` y `majoriti@example.test`.
-2. Entra en el portal con cada cuenta de prueba (código de correo, como un usuario real).
-3. Playwright: `pnpm exec playwright codegen "$STAGING_BASE_URL/login" --save-storage=tests/staging/.auth/participant.json` y guarda la sesión después del login. Esa carpeta está en `.gitignore`.
-4. El JWT de acceso sale de la sesión del navegador (almacenamiento de Supabase). Pégalo solo en `.env.staging.local`.
-5. `STAGING_SUPABASE_ANON_KEY` es la clave pública; no uses la service role.
+| Variable | Rol en `public.usuario` | Para qué sirve |
+| --- | --- | --- |
+| `STAGING_PARTICIPANT_EMAIL` | `stakeholder` | Titular de la entrevista de prueba. No debe ser Majoriti. |
+| `STAGING_OTHER_EMAIL` | `cliente` o `stakeholder` | Segunda persona de prueba. Solo se usa para comprobar que un participante no puede PATCH a otro perfil. |
+| `STAGING_MAJORITI_EMAIL` | `majoriti` | Administración: asignar `proyecto_id` y luego restaurarlo. |
 
-Las pruebas abortan si algún correo no termina en `@example.test` (o `STAGING_TEST_EMAIL_DOMAIN`). Un PATCH autorizado de `proyecto_id` restaura el valor original en `finally` y vuelve a leerlo para comprobarlo.
+Copia `.env.staging.example` a `.env.staging.local` (gitignored vía `.env*.local`). `STAGING_ALLOWED_EMAILS` y `STAGING_ALLOWED_IDS` son la lista explícita: exactamente esos tres correos y UUID, en el mismo archivo. No pegues tokens en el chat ni en Git. `pnpm test:staging` carga ese archivo.
 
-El SQL `supabase/audits/staging-entrevista-checks.sql` exige el mismo dominio, restaura `proyecto_id` como postgres y termina en `ROLLBACK`.
+Cómo preparar roles y sesiones (sin compartir secretos):
+
+1. Reserva los tres buzones. Anota en `.env.staging.local` correo y UUID de `auth.users` / `public.usuario` cuando existan. Todavía no hace falta invitar si las cuentas no están creadas.
+2. Cuando existan: el participante queda como `stakeholder` y ligado a un `stakeholder` + entrevista + `STAGING_PROJECT_ID` de prueba. La segunda cuenta no es Majoriti. La tercera es `majoriti`.
+3. Entra en el portal con cada cuenta (código al buzón real, como un usuario). No uses `service_role`.
+4. Playwright, en tu máquina: `pnpm exec playwright codegen "$STAGING_BASE_URL/login" --save-storage=tests/staging/.auth/participant.json` y guarda la sesión después del login. Esa carpeta está en `.gitignore`.
+5. El JWT de acceso sale del almacenamiento de Supabase en el navegador. Pégalo solo en `.env.staging.local` (`STAGING_*_ACCESS_TOKEN`). `STAGING_SUPABASE_ANON_KEY` es la clave pública.
+
+Antes de cualquier escritura, las pruebas piden `/auth/v1/user` y exigen que `id` y `email` coincidan con el par autorizado. Un PATCH autorizado de `proyecto_id` restaura el valor original y vuelve a leerlo.
+
+El SQL `supabase/audits/staging-entrevista-checks.sql` exige la misma lista, comprueba el par UUID/correo en `usuario`, restaura `proyecto_id` como postgres y termina en `ROLLBACK`.
 
 `pnpm test:staging` no corre en CI. Sin `.env.staging.local` las pruebas se omiten; eso no cuenta como aprobado.
 
@@ -153,7 +163,7 @@ Con una cuenta de **prueba**, confirma que el PATCH a `/rest/v1/usuario` del pro
 
 ### 5. Desplegar la aplicación
 
-Todavía no hay commit con estos cambios: están en el working tree de `main`. Tras autorizar: commit, push a `main` (GitHub `majoritiworld/chatbot`; Vercel despliega ese repo). Confirma en el dashboard que el build command efectivo es `next build`. Espera READY en `portal.majoriti.world`. No ejecutes `pnpm db:migrate` ni `supabase db push`.
+La persistencia de entrevistas y el DROP de auto-actualización de perfil están en el commit local `c2091c045779b2e64320962cddda3e23f9ac11cd`. El procedimiento de cuentas de prueba autenticadas está en este mismo árbol de documentación y tests. **No hay push ni deploy todavía.** Tras autorizar: push a `main` (GitHub `majoritiworld/chatbot`; Vercel despliega ese repo). Confirma en el dashboard que el build command efectivo es `next build`. Espera READY en `portal.majoriti.world`. No ejecutes `pnpm db:migrate` ni `supabase db push`.
 
 ### 6. Comprobaciones posteriores
 

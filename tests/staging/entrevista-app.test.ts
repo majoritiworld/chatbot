@@ -1,29 +1,51 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { exigirCuentasDePrueba } from "../support/staging-accounts";
+import {
+  cuentasDesdeEntorno,
+  exigirSesionAutorizada,
+  extraerAccessToken,
+} from "../support/staging-accounts";
 
 const configured = Boolean(
   process.env.STAGING_BASE_URL &&
+    process.env.STAGING_SUPABASE_URL &&
+    process.env.STAGING_SUPABASE_ANON_KEY &&
+    process.env.STAGING_ALLOWED_EMAILS &&
+    process.env.STAGING_ALLOWED_IDS &&
     process.env.STAGING_PARTICIPANT_STORAGE_STATE &&
     process.env.STAGING_INTERVIEW_PATH &&
     process.env.STAGING_PARTICIPANT_EMAIL &&
     process.env.STAGING_OTHER_EMAIL &&
-    process.env.STAGING_MAJORITI_EMAIL
+    process.env.STAGING_MAJORITI_EMAIL &&
+    process.env.STAGING_PARTICIPANT_ID &&
+    process.env.STAGING_OTHER_ID &&
+    process.env.STAGING_MAJORITI_ID
 );
 
 test.describe("Staging interview application flow", () => {
   test.skip(
     !configured,
-    "Copia .env.staging.example a .env.staging.local con cuentas *@example.test."
+    "Copia .env.staging.example a .env.staging.local con tres cuentas exclusivas de prueba."
   );
 
-  test.beforeAll(() => {
+  test.beforeAll(async () => {
     if (!configured) {
       return;
     }
-    exigirCuentasDePrueba({
-      majoritiEmail: process.env.STAGING_MAJORITI_EMAIL ?? "",
-      otherEmail: process.env.STAGING_OTHER_EMAIL ?? "",
-      participantEmail: process.env.STAGING_PARTICIPANT_EMAIL ?? "",
+    const cuentas = cuentasDesdeEntorno();
+    const storagePath = process.env.STAGING_PARTICIPANT_STORAGE_STATE ?? "";
+    const storage = JSON.parse(readFileSync(storagePath, "utf8")) as unknown;
+    const token = extraerAccessToken(storage);
+    if (!token) {
+      throw new Error(
+        "El storageState de Playwright no tiene un access token de la cuenta de prueba."
+      );
+    }
+    await exigirSesionAutorizada({
+      anonKey: process.env.STAGING_SUPABASE_ANON_KEY ?? "",
+      expected: cuentas.participant,
+      supabaseUrl: process.env.STAGING_SUPABASE_URL ?? "",
+      token,
     });
   });
 
