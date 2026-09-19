@@ -1,0 +1,172 @@
+import type { FlujoEntrevista } from "@/lib/consultoria/entrevista-contenido";
+
+export function consentimientoEntrevistaListo(
+  consentimientoEn: string | null | undefined
+) {
+  return Boolean(consentimientoEn);
+}
+
+export function siguienteTransicionInicial(
+  flujoEstado: FlujoEntrevista,
+  seccionActual: number
+): "bienvenida" | "presentacion" | null {
+  if (flujoEstado === "bienvenida") {
+    return "bienvenida";
+  }
+
+  if (flujoEstado === "presentacion" && seccionActual === 0) {
+    return "presentacion";
+  }
+
+  return null;
+}
+
+export async function encadenarAvanceInicial({
+  avanzar,
+  flujoEstado,
+  seccionActual,
+  signal,
+}: {
+  avanzar: (desde: "bienvenida" | "presentacion") => Promise<FlujoEntrevista>;
+  flujoEstado: FlujoEntrevista;
+  seccionActual: number;
+  signal?: { cancelled: boolean };
+}): Promise<FlujoEntrevista> {
+  let flujo = flujoEstado;
+
+  while (true) {
+    if (signal?.cancelled) {
+      return flujo;
+    }
+
+    const paso = siguienteTransicionInicial(flujo, seccionActual);
+    if (!paso) {
+      return flujo;
+    }
+
+    // Sequential RPCs: each step requires the previous flujo_estado.
+    // biome-ignore lint/performance/noAwaitInLoops: valid interview transitions cannot run in parallel
+    flujo = await avanzar(paso);
+  }
+}
+
+export function etiquetaProgresoTema(indice: number, numeroSecciones: number) {
+  return `Tema ${indice + 1} de ${numeroSecciones}`;
+}
+
+export function etiquetaCierreTema(esUltimo: boolean) {
+  return esUltimo ? "Terminar tema y revisar" : "Siguiente tema (cierra este)";
+}
+
+export function entrevistaAceptaChat(
+  consentimientoEn: string | null | undefined
+) {
+  return Boolean(consentimientoEn);
+}
+
+export function salidaEntrevistaInsegura({
+  guardadoEnCurso,
+  hayBorrador,
+  ocupadoChat,
+}: {
+  guardadoEnCurso: boolean;
+  hayBorrador: boolean;
+  ocupadoChat: boolean;
+}) {
+  return hayBorrador || guardadoEnCurso || ocupadoChat;
+}
+
+export function avisoGuardadoRespuestas(hayBorrador: boolean) {
+  if (hayBorrador) {
+    return "Respuestas guardadas. El texto que aún no enviaste no se guardó.";
+  }
+
+  return "Respuestas guardadas. Puedes salir y continuar después.";
+}
+
+export function mensajeSalidaInsegura({
+  guardadoEnCurso,
+  hayBorrador,
+  ocupadoChat,
+}: {
+  guardadoEnCurso: boolean;
+  hayBorrador: boolean;
+  ocupadoChat: boolean;
+}) {
+  if (guardadoEnCurso || ocupadoChat) {
+    return "Hay un envío o guardado en curso. Si sales ahora, puede no haberse conservado.";
+  }
+
+  if (hayBorrador) {
+    return "Tienes texto sin enviar. Las respuestas ya enviadas siguen; el borrador no se guarda.";
+  }
+
+  return null;
+}
+
+export type DecisionReintentoCorreo =
+  | "no_enviada"
+  | "ya_enviado"
+  | "sin_email"
+  | "reintentar";
+
+export function decisionReintentoCorreo({
+  correoAgradecimientoEn,
+  email,
+  estado,
+}: {
+  correoAgradecimientoEn: string | null | undefined;
+  email: string | null | undefined;
+  estado: string;
+}): DecisionReintentoCorreo {
+  if (estado !== "completada") {
+    return "no_enviada";
+  }
+
+  if (correoAgradecimientoEn) {
+    return "ya_enviado";
+  }
+
+  if (!email) {
+    return "sin_email";
+  }
+
+  return "reintentar";
+}
+
+export type EstadoEntregaEntrevista =
+  | "revision"
+  | "enviando"
+  | "enviada"
+  | "entrega_fallida"
+  | "enviada_correo_pendiente";
+
+export function estadoEntregaEntrevista({
+  completada,
+  correoPendiente,
+  enviando,
+  errorEntrega,
+}: {
+  completada: boolean;
+  correoPendiente: boolean;
+  enviando: boolean;
+  errorEntrega: boolean;
+}): EstadoEntregaEntrevista {
+  if (enviando) {
+    return "enviando";
+  }
+
+  if (errorEntrega && !completada) {
+    return "entrega_fallida";
+  }
+
+  if (completada && correoPendiente) {
+    return "enviada_correo_pendiente";
+  }
+
+  if (completada) {
+    return "enviada";
+  }
+
+  return "revision";
+}
