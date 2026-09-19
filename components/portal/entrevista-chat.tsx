@@ -1,6 +1,5 @@
 "use client";
 
-import { Toaster } from "sonner";
 import { DataStreamProvider } from "@/components/chat/data-stream-provider";
 import { ChatShell } from "@/components/chat/shell";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
@@ -68,7 +67,6 @@ export function EntrevistaChat({
             entrevistaId={entrevistaId}
             habilitado={indice === 0}
           />
-          <Toaster position="top-center" />
         </ActiveChatProvider>
       </SidebarProvider>
     </DataStreamProvider>

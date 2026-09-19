@@ -23,8 +23,8 @@ export async function bloquearEnvioEntrevista(page: Page) {
   });
 }
 
-export async function abrirEntrevista(page: Page) {
-  await page.goto(process.env.STAGING_INTERVIEW_PATH ?? "");
+export async function abrirEntrevista(page: Page, path?: string) {
+  await page.goto(path ?? process.env.STAGING_INTERVIEW_PATH ?? "");
 }
 
 export async function descartarTour(page: Page) {

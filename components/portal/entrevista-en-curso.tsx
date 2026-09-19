@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import { EntrevistaBienvenida } from "@/components/portal/entrevista-bienvenida";
 import { EntrevistaChat } from "@/components/portal/entrevista-chat";
 import { EntrevistaCompletada } from "@/components/portal/entrevista-completada";
@@ -234,7 +234,6 @@ export function EntrevistaEnCurso({
           onContinuar={continuarBienvenida}
           pending={pending}
         />
-        <Toaster position="top-center" />
       </EntrevistaShell>
     );
   }
@@ -248,7 +247,6 @@ export function EntrevistaEnCurso({
           onEnviar={enviar}
           pending={pending}
         />
-        <Toaster position="top-center" />
       </EntrevistaShell>
     );
   }
@@ -276,7 +274,6 @@ export function EntrevistaEnCurso({
           pending={pending}
           seccion={seccion}
         />
-        <Toaster position="top-center" />
       </EntrevistaShell>
     );
   }

@@ -25,7 +25,7 @@ import type { VisibilityType } from "@/components/chat/visibility-selector";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import {
-  crearAvisadorError,
+  avisarErrorUnaVez,
   payloadReintento,
   ultimoMensajeUsuario,
 } from "@/lib/consultoria/reintento-mensaje";
@@ -121,7 +121,6 @@ export function ActiveChatProvider({
   const [mensajeFallido, setMensajeFallido] = useState<ChatMessage | null>(
     null
   );
-  const avisarError = useRef(crearAvisadorError());
   const messagesErrorRef = useRef<ChatMessage[]>([]);
   const esEntrevistaRef = useRef(esEntrevista);
   esEntrevistaRef.current = esEntrevista;
@@ -164,7 +163,11 @@ export function ActiveChatProvider({
       setDataStream((ds) => (ds ? [...ds, dataPart] : []));
     },
     onError: (error) => {
-      setMensajeFallido(ultimoMensajeUsuario(messagesErrorRef.current));
+      const capturarFallido = () => {
+        setMensajeFallido(ultimoMensajeUsuario(messagesErrorRef.current));
+      };
+      capturarFallido();
+      queueMicrotask(capturarFallido);
       if (error.message?.includes("AI Gateway requires a valid credit card")) {
         setShowCreditCardAlert(true);
         return;
@@ -176,7 +179,7 @@ export function ActiveChatProvider({
         error instanceof ChatbotError
           ? error.message
           : error.message || fallback;
-      avisarError.current(mensaje, (texto) => {
+      avisarErrorUnaVez(mensaje, (texto) => {
         toast({ description: texto, type: "error" });
       });
     },

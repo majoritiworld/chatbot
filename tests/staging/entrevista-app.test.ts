@@ -88,10 +88,12 @@ test.describe("Staging interview application flow", () => {
   test("failed persist shows one error, retry keeps the original turn, reload matches the database", async ({
     page,
   }) => {
-    test.setTimeout(120_000);
-    const entrevistaId = entrevistaIdDesdeRuta(
-      process.env.STAGING_INTERVIEW_PATH ?? ""
-    );
+    test.setTimeout(180_000);
+    const chatPath =
+      process.env.STAGING_INTERVIEW_CHAT_PATH ??
+      process.env.STAGING_INTERVIEW_PATH ??
+      "";
+    const entrevistaId = entrevistaIdDesdeRuta(chatPath);
     const beforeDb = await snapshotEntrevista(entrevistaId);
     if (beforeDb.flujo_estado !== "chat") {
       throw new Error(
@@ -100,15 +102,14 @@ test.describe("Staging interview application flow", () => {
     }
 
     const marker = `QA-persist-${Date.now()}`;
-    let rejected = false;
+    let permitirPersistencia = false;
     await page.route("**/api/chat", async (route) => {
       if (route.request().method() !== "POST") {
         await route.continue();
         return;
       }
       const body = route.request().postData() ?? "";
-      if (!rejected && body.includes(marker)) {
-        rejected = true;
+      if (body.includes(marker) && !permitirPersistencia) {
         await route.fulfill({
           body: JSON.stringify({
             code: "save_failed:chat",
@@ -122,16 +123,20 @@ test.describe("Staging interview application flow", () => {
       await route.continue();
     });
 
-    await abrirEntrevista(page);
+    await abrirEntrevista(page, chatPath);
     await expect(page.getByTestId("multimodal-input")).toBeVisible();
     await descartarTour(page);
+    await expect(page.getByTestId("send-button")).toBeVisible({
+      timeout: 90_000,
+    });
 
     const input = page.getByTestId("multimodal-input");
     await input.fill(marker);
     await page.getByTestId("send-button").click();
 
     const avisos = page.getByTestId("toast").filter({ hasText: SAVE_FAILED });
-    await expect(avisos).toHaveCount(1, { timeout: 20_000 });
+    await expect(avisos.first()).toBeVisible({ timeout: 20_000 });
+    await expect(avisos).toHaveCount(1);
     await expect(page.getByTestId("retry-send-button")).toBeVisible();
 
     const failedTurn = page
@@ -141,6 +146,7 @@ test.describe("Staging interview application flow", () => {
     const originalId = await failedTurn.getAttribute("data-message-id");
     expect(originalId).toBeTruthy();
 
+    permitirPersistencia = true;
     await page.getByTestId("retry-send-button").click();
     await expect(page.getByTestId("send-button")).toBeVisible({
       timeout: 90_000,
@@ -154,6 +160,9 @@ test.describe("Staging interview application flow", () => {
     await page.reload();
     await expect(page.getByTestId("multimodal-input")).toBeVisible();
     await descartarTour(page);
+    await expect(page.getByTestId("send-button")).toBeVisible({
+      timeout: 90_000,
+    });
     const afterReload = page
       .getByTestId("message-user")
       .filter({ hasText: marker });
@@ -163,10 +172,40 @@ test.describe("Staging interview application flow", () => {
       originalId ?? ""
     );
 
+    const afterRetry = await snapshotEntrevista(entrevistaId);
+    const persistedOnce = turnosConTexto(afterRetry.transcripcion, marker);
+    expect(persistedOnce).toHaveLength(1);
+    expect(persistedOnce.at(0)?.id).toBe(originalId);
+
+    await input.fill(marker);
+    await page.getByTestId("send-button").click();
+    await expect(page.getByTestId("send-button")).toBeVisible({
+      timeout: 90_000,
+    });
+    await expect(afterReload).toHaveCount(2);
+    const ids = await afterReload.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute("data-message-id"))
+    );
+    expect(new Set(ids).size).toBe(2);
+    expect(ids).toContain(originalId);
+
+    await page.reload();
+    await expect(page.getByTestId("multimodal-input")).toBeVisible();
+    await descartarTour(page);
+    const afterSecond = page
+      .getByTestId("message-user")
+      .filter({ hasText: marker });
+    await expect(afterSecond).toHaveCount(2);
+    const idsReload = await afterSecond.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute("data-message-id"))
+    );
+    expect(new Set(idsReload).size).toBe(2);
+
     const afterDb = await snapshotEntrevista(entrevistaId);
     const persisted = turnosConTexto(afterDb.transcripcion, marker);
-    expect(persisted).toHaveLength(1);
-    expect(persisted.at(0)?.id).toBe(originalId);
+    expect(persisted).toHaveLength(2);
+    expect(new Set(persisted.map((turno) => turno.id)).size).toBe(2);
+    expect(persisted.map((turno) => turno.id)).toContain(originalId);
   });
 
   test("closing the last section keeps the final screen after reload without duplicating results", async ({

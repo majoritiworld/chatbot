@@ -32,3 +32,5 @@ export function crearAvisadorError(ventanaMs = 2000) {
     return true;
   };
 }
+
+export const avisarErrorUnaVez = crearAvisadorError();
