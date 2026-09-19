@@ -48,6 +48,8 @@ export function ChatShell({
     esEntrevista,
     messages,
     setMessages,
+    hayMensajeFallido,
+    reintentarMensajeFallido,
     sendMessage,
     status,
     stop,
@@ -208,11 +210,13 @@ export function ChatShell({
                   composerAction={composerAction}
                   editingMessage={editingMessage}
                   esEntrevista={esEntrevista}
+                  hayMensajeFallido={hayMensajeFallido}
                   input={input}
                   isLoading={isLoading}
                   messages={messages}
                   onCancelEdit={handleCancelEdit}
                   onModelChange={setCurrentModelId}
+                  reintentarMensajeFallido={reintentarMensajeFallido}
                   selectedModelId={currentModelId}
                   selectedVisibilityType={visibilityType}
                   sendMessage={

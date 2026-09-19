@@ -24,6 +24,11 @@ import { toast } from "@/components/chat/toast";
 import type { VisibilityType } from "@/components/chat/visibility-selector";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
+import {
+  crearAvisadorError,
+  payloadReintento,
+  ultimoMensajeUsuario,
+} from "@/lib/consultoria/reintento-mensaje";
 import type { Vote } from "@/lib/db/schema";
 import { ChatbotError } from "@/lib/errors";
 import type { ChatMessage, SectionCompletedData } from "@/lib/types";
@@ -37,6 +42,8 @@ type ActiveChatContextValue = {
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
   sendMessage: UseChatHelpers<ChatMessage>["sendMessage"];
   status: UseChatHelpers<ChatMessage>["status"];
+  hayMensajeFallido: boolean;
+  reintentarMensajeFallido: () => void;
   stop: UseChatHelpers<ChatMessage>["stop"];
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
@@ -111,6 +118,13 @@ export function ActiveChatProvider({
   const [input, setInput] = useState("");
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [claveGuardada, setClaveGuardada] = useState<string | null>(null);
+  const [mensajeFallido, setMensajeFallido] = useState<ChatMessage | null>(
+    null
+  );
+  const avisarError = useRef(crearAvisadorError());
+  const messagesErrorRef = useRef<ChatMessage[]>([]);
+  const esEntrevistaRef = useRef(esEntrevista);
+  esEntrevistaRef.current = esEntrevista;
 
   const { data: chatData, isLoading } = useSWR(
     isNewChat
@@ -137,6 +151,7 @@ export function ActiveChatProvider({
     regenerate,
     resumeStream,
     addToolApprovalResponse,
+    clearError,
   } = useChat<ChatMessage>({
     generateId: generateUUID,
     id: chatId,
@@ -149,21 +164,24 @@ export function ActiveChatProvider({
       setDataStream((ds) => (ds ? [...ds, dataPart] : []));
     },
     onError: (error) => {
+      setMensajeFallido(ultimoMensajeUsuario(messagesErrorRef.current));
       if (error.message?.includes("AI Gateway requires a valid credit card")) {
         setShowCreditCardAlert(true);
-      } else if (error instanceof ChatbotError) {
-        toast({ description: error.message, type: "error" });
-      } else {
-        const fallback = esEntrevista
-          ? "Ocurrió un error. Inténtalo de nuevo."
-          : "Oops, an error occurred!";
-        toast({
-          description: error.message || fallback,
-          type: "error",
-        });
+        return;
       }
+      const fallback = esEntrevistaRef.current
+        ? "Ocurrió un error. Inténtalo de nuevo."
+        : "Oops, an error occurred!";
+      const mensaje =
+        error instanceof ChatbotError
+          ? error.message
+          : error.message || fallback;
+      avisarError.current(mensaje, (texto) => {
+        toast({ description: texto, type: "error" });
+      });
     },
     onFinish: () => {
+      setMensajeFallido(null);
       mutate(unstable_serialize(getChatHistoryPaginationKey));
     },
     sendAutomaticallyWhen: ({ messages: currentMessages }) => {
@@ -199,6 +217,8 @@ export function ActiveChatProvider({
       },
     }),
   });
+
+  messagesErrorRef.current = messages;
 
   useEffect(() => {
     if (status === "submitted" || status === "ready" || status === "error") {
@@ -307,6 +327,16 @@ export function ActiveChatProvider({
     setClaveGuardada(messages.map((mensaje) => mensaje.id).join(","));
   }, [messages]);
 
+  const reintentarMensajeFallido = useCallback(() => {
+    if (!mensajeFallido) {
+      return;
+    }
+    clearError();
+    sendMessage(payloadReintento(mensajeFallido));
+  }, [clearError, mensajeFallido, sendMessage]);
+
+  const hayMensajeFallido = status === "error" && Boolean(mensajeFallido);
+
   const value = useMemo<ActiveChatContextValue>(
     () => ({
       addToolApprovalResponse,
@@ -314,6 +344,7 @@ export function ActiveChatProvider({
       currentModelId,
       entrevistaId,
       esEntrevista,
+      hayMensajeFallido,
       input,
       isLoading: !isNewChat && isLoading,
       isReadonly,
@@ -322,6 +353,7 @@ export function ActiveChatProvider({
       onSeccionCompletada,
       progresoGuardado,
       regenerate,
+      reintentarMensajeFallido,
       seccionId,
       sendMessage,
       setCurrentModelId,
@@ -340,6 +372,7 @@ export function ActiveChatProvider({
       currentModelId,
       entrevistaId,
       esEntrevista,
+      hayMensajeFallido,
       input,
       isLoading,
       isNewChat,
@@ -349,6 +382,7 @@ export function ActiveChatProvider({
       onSeccionCompletada,
       progresoGuardado,
       regenerate,
+      reintentarMensajeFallido,
       seccionId,
       sendMessage,
       setMessages,

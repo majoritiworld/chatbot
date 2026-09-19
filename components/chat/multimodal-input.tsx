@@ -183,6 +183,8 @@ function PureMultimodalInput({
   messages,
   setMessages,
   sendMessage,
+  hayMensajeFallido = false,
+  reintentarMensajeFallido,
   className,
   selectedVisibilityType,
   selectedModelId,
@@ -205,6 +207,8 @@ function PureMultimodalInput({
   sendMessage:
     | UseChatHelpers<ChatMessage>["sendMessage"]
     | (() => Promise<void>);
+  hayMensajeFallido?: boolean;
+  reintentarMensajeFallido?: () => void;
   className?: string;
   selectedVisibilityType: VisibilityType;
   selectedModelId: string;
@@ -942,6 +946,17 @@ function PureMultimodalInput({
             >
               {composerAction}
             </fieldset>
+            {hayMensajeFallido ? (
+              <Button
+                className="h-7 rounded-xl px-2.5 text-xs font-medium"
+                data-testid="retry-send-button"
+                onClick={reintentarMensajeFallido}
+                type="button"
+                variant="outline"
+              >
+                Reintentar envío
+              </Button>
+            ) : null}
             {status === "submitted" ? (
               <StopButton setMessages={setMessages} stop={stop} />
             ) : (
@@ -995,6 +1010,9 @@ export const MultimodalInput = memo(
       return false;
     }
     if (prevProps.messages.length !== nextProps.messages.length) {
+      return false;
+    }
+    if (prevProps.hayMensajeFallido !== nextProps.hayMensajeFallido) {
       return false;
     }
 

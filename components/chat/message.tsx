@@ -436,6 +436,7 @@ const PurePreviewMessage = ({
         "group/message w-full",
         !isAssistant && "animate-[fade-up_0.25s_cubic-bezier(0.22,1,0.36,1)]"
       )}
+      data-message-id={message.id}
       data-role={message.role}
       data-testid={`message-${message.role}`}
     >
