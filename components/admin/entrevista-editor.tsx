@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  useActionState,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import {
   type ActionState,
   guardarContenidoEntrevista,
@@ -32,11 +38,28 @@ export function EntrevistaEditor({
     JSON.stringify(transcripcionInicial, null, 2)
   );
   const [resumenJson, setResumenJson] = useState(
-    JSON.stringify(resumenInicial ?? { sintesis: "", hallazgos: [], respuestas: [] }, null, 2)
+    JSON.stringify(
+      resumenInicial ?? { hallazgos: [], respuestas: [], sintesis: "" },
+      null,
+      2
+    )
   );
   const [state, formAction, pending] = useActionState(
     guardarContenidoEntrevista,
     initialState
+  );
+
+  const onTranscripcionChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
+      setTranscripcionJson(event.target.value);
+    },
+    []
+  );
+  const onResumenChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
+      setResumenJson(event.target.value);
+    },
+    []
   );
 
   const turnosVista = useMemo(() => {
@@ -59,8 +82,8 @@ export function EntrevistaEditor({
           </p>
         ) : (
           <ol className="flex flex-col gap-3 rounded-xl border border-border p-4">
-            {turnosVista.map((turno, index) => (
-              <li className="flex flex-col gap-1" key={`${turno.at}-${index}`}>
+            {turnosVista.map((turno) => (
+              <li className="flex flex-col gap-1" key={turno.id}>
                 <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
                   {turno.rol === "entrevistador"
                     ? "Entrevistador"
@@ -86,7 +109,7 @@ export function EntrevistaEditor({
             className="min-h-48 font-mono text-xs"
             id="transcripcion"
             name="transcripcion"
-            onChange={(event) => setTranscripcionJson(event.target.value)}
+            onChange={onTranscripcionChange}
             value={transcripcionJson}
           />
         </div>
@@ -99,7 +122,7 @@ export function EntrevistaEditor({
             className="min-h-48 font-mono text-xs"
             id="resumen"
             name="resumen"
-            onChange={(event) => setResumenJson(event.target.value)}
+            onChange={onResumenChange}
             value={resumenJson}
           />
         </div>

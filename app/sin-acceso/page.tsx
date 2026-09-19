@@ -8,8 +8,8 @@ export default function SinAccesoPage() {
           No tienes acceso al portal
         </h1>
         <p className="max-w-md text-muted-foreground text-sm">
-          Tu cuenta no está asignada a un proyecto de cliente. Si crees que es un
-          error, contacta a Majoriti.
+          Tu cuenta no está asignada a un proyecto de cliente. Si crees que es
+          un error, contacta a Majoriti.
         </p>
       </div>
       <CerrarSesionButton variant="outline" />
