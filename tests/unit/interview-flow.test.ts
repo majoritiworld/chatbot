@@ -37,6 +37,7 @@ import {
   turnosAMensajes,
 } from "@/lib/consultoria/mensajes-a-turnos";
 import {
+  elegirEntrevistaLanding,
   mismoEmail,
   resolveAuthLanding,
   stakeholderPathNeedsLandingInterview,
@@ -619,6 +620,50 @@ test.describe("Auth landing", () => {
     expect(stakeholderPathNeedsLandingInterview("/api/entrevista/flujo")).toBe(
       false
     );
+  });
+
+  test("home interview prefers in-progress chat over an earlier UUID still in review", () => {
+    expect(
+      elegirEntrevistaLanding([
+        {
+          estado: "abierta",
+          flujo_estado: "revision",
+          id: "228285c0-5153-469f-b0f1-b13c82b355c0",
+          ultima_actividad: "2026-09-20T08:54:35.613386+00",
+        },
+        {
+          estado: "completada",
+          flujo_estado: "revision",
+          id: "484c3223-aadd-4b22-b78a-2e6089736e34",
+          ultima_actividad: "2026-09-20T12:27:18.700761+00",
+        },
+        {
+          estado: "abierta",
+          flujo_estado: "chat",
+          id: "a83b3fd0-773e-4778-b9f5-dd6819fb3a66",
+          ultima_actividad: "2026-09-19T12:18:15.166989+00",
+        },
+      ])
+    ).toBe("a83b3fd0-773e-4778-b9f5-dd6819fb3a66");
+  });
+
+  test("home interview among review leftovers uses the latest activity, not UUID order", () => {
+    expect(
+      elegirEntrevistaLanding([
+        {
+          estado: "abierta",
+          flujo_estado: "revision",
+          id: "228285c0-5153-469f-b0f1-b13c82b355c0",
+          ultima_actividad: "2026-09-20T08:54:35.613386+00",
+        },
+        {
+          estado: "abierta",
+          flujo_estado: "revision",
+          id: "67eac348-2a2f-4a9e-be19-62dcbc98937c",
+          ultima_actividad: "2026-09-20T12:03:52.366159+00",
+        },
+      ])
+    ).toBe("67eac348-2a2f-4a9e-be19-62dcbc98937c");
   });
 
   test("ownership compares emails without depending on a second id lookup", () => {

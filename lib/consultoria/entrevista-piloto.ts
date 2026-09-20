@@ -82,6 +82,84 @@ export function muestraPantallaRevision({
   return flujoEstado === "revision" && (llegoEnRevision || errorEntrega);
 }
 
+export type PantallaParticipanteEntrevista =
+  | "completada"
+  | "onboarding"
+  | "finalizando"
+  | "entrega_pendiente"
+  | "avance"
+  | "chat";
+
+export function pantallaParticipanteEntrevista({
+  completada,
+  errorEntrega,
+  flujoEstado,
+  llegoEnRevision,
+  onboardingListo,
+  seccionActual,
+}: {
+  completada: boolean;
+  errorEntrega: boolean;
+  flujoEstado: FlujoEntrevista;
+  llegoEnRevision: boolean;
+  onboardingListo: boolean;
+  seccionActual: number;
+}): PantallaParticipanteEntrevista {
+  if (completada) {
+    return "completada";
+  }
+
+  if (!onboardingListo) {
+    return "onboarding";
+  }
+
+  if (flujoEstado === "revision") {
+    if (
+      muestraPantallaRevision({
+        errorEntrega,
+        flujoEstado,
+        llegoEnRevision,
+      })
+    ) {
+      return "entrega_pendiente";
+    }
+
+    return "finalizando";
+  }
+
+  if (siguienteTransicionInicial(flujoEstado, seccionActual) !== null) {
+    return "avance";
+  }
+
+  return "chat";
+}
+
+export function textoFinalizandoEntrevista() {
+  return "Finalizando entrevista…";
+}
+
+export function explicacionEntregaPendiente() {
+  return "Los temas ya están cerrados. Todavía falta entregar tus respuestas; la entrevista no está enviada.";
+}
+
+export function etiquetaEntregaPendiente({
+  errorEntrega,
+  pending,
+}: {
+  errorEntrega: boolean;
+  pending: boolean;
+}) {
+  if (pending) {
+    return textoFinalizandoEntrevista();
+  }
+
+  if (errorEntrega) {
+    return "Reintentar finalización";
+  }
+
+  return "Finalizar entrevista";
+}
+
 export function textoTemasTerminados(numeroSecciones: number) {
   if (numeroSecciones === 1) {
     return "Terminaste el tema.";

@@ -11,14 +11,18 @@ import {
   escribirBorradorEntrevista,
   estadoEntregaEntrevista,
   etiquetaCierreTema,
+  etiquetaEntregaPendiente,
   etiquetaProgresoTema,
+  explicacionEntregaPendiente,
   leerBorradorEntrevista,
   mensajeSalidaInsegura,
   muestraPantallaRevision,
+  pantallaParticipanteEntrevista,
   puntosAyudaEntrevista,
   reiniciarBorradoresEntrevistaParaPruebas,
   salidaEntrevistaInsegura,
   siguienteTransicionInicial,
+  textoFinalizandoEntrevista,
   textoTemasTerminados,
 } from "@/lib/consultoria/entrevista-piloto";
 import {
@@ -136,6 +140,57 @@ test.describe("Pilot interview helpers", () => {
         llegoEnRevision: false,
       })
     ).toBe(true);
+    expect(textoFinalizandoEntrevista()).toBe("Finalizando entrevista…");
+    expect(explicacionEntregaPendiente()).not.toContain("Listo para enviar");
+    expect(
+      etiquetaEntregaPendiente({ errorEntrega: false, pending: false })
+    ).toBe("Finalizar entrevista");
+    expect(
+      etiquetaEntregaPendiente({ errorEntrega: true, pending: false })
+    ).toBe("Reintentar finalización");
+    expect(
+      etiquetaEntregaPendiente({ errorEntrega: true, pending: true })
+    ).toBe("Finalizando entrevista…");
+    expect(
+      pantallaParticipanteEntrevista({
+        completada: false,
+        errorEntrega: false,
+        flujoEstado: "revision",
+        llegoEnRevision: false,
+        onboardingListo: true,
+        seccionActual: 1,
+      })
+    ).toBe("finalizando");
+    expect(
+      pantallaParticipanteEntrevista({
+        completada: false,
+        errorEntrega: false,
+        flujoEstado: "revision",
+        llegoEnRevision: true,
+        onboardingListo: true,
+        seccionActual: 1,
+      })
+    ).toBe("entrega_pendiente");
+    expect(
+      pantallaParticipanteEntrevista({
+        completada: false,
+        errorEntrega: true,
+        flujoEstado: "revision",
+        llegoEnRevision: false,
+        onboardingListo: true,
+        seccionActual: 1,
+      })
+    ).toBe("entrega_pendiente");
+    expect(
+      pantallaParticipanteEntrevista({
+        completada: true,
+        errorEntrega: false,
+        flujoEstado: "revision",
+        llegoEnRevision: true,
+        onboardingListo: true,
+        seccionActual: 1,
+      })
+    ).toBe("completada");
     expect(textoTemasTerminados(1)).toBe("Terminaste el tema.");
     expect(textoTemasTerminados(3)).toBe("Terminaste los 3 temas.");
   });

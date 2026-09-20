@@ -72,7 +72,9 @@ test.describe("Staging interview application flow", () => {
     page,
   }) => {
     await abrirEntrevista(page);
-    const completa = page.getByText("Listo para enviar");
+    const completa = page.getByRole("heading", {
+      name: "Finalizar entrevista",
+    });
     if (await completa.isVisible().catch(() => false)) {
       await expect(completa).toBeVisible();
       return;
@@ -217,23 +219,31 @@ test.describe("Staging interview application flow", () => {
       process.env.STAGING_INTERVIEW_PATH ?? ""
     );
     await abrirEntrevista(page);
-    await expect(page.getByText("Listo para enviar")).toBeVisible({
+    await expect(
+      page.getByRole("heading", { name: "Finalizar entrevista" })
+    ).toBeVisible({
       timeout: 20_000,
     });
     await expect(
-      page.getByRole("button", { name: "Enviar entrevista" })
+      page.getByRole("button", { name: "Finalizar entrevista" })
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Enviar$/ })).toHaveCount(0);
+    await expect(page.getByText("Listo para enviar")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Enviar entrevista" })
+    ).toHaveCount(0);
 
     const before = await snapshotEntrevista(entrevistaId);
     expect(before.flujo_estado).toBe("revision");
     const completed = before.secciones_completadas.length;
 
     await page.reload();
-    await expect(page.getByText("Listo para enviar")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Enviar entrevista" })
+      page.getByRole("heading", { name: "Finalizar entrevista" })
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Finalizar entrevista" })
+    ).toBeVisible();
+    await expect(page.getByText("Listo para enviar")).toHaveCount(0);
 
     const after = await snapshotEntrevista(entrevistaId);
     expect(after.flujo_estado).toBe("revision");

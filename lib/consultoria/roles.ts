@@ -107,6 +107,57 @@ export function resolveAuthLanding(
   return next;
 }
 
+export type EntrevistaLandingFila = {
+  estado: string;
+  flujo_estado?: string | null;
+  id: string;
+  ultima_actividad?: string | null;
+};
+
+function actividadLanding(valor: string | null | undefined) {
+  return valor ?? "";
+}
+
+/** Conversational states beat leftover review rows when choosing home. */
+export function entrevistaAbiertaEnCurso(
+  flujoEstado: string | null | undefined
+) {
+  return flujoEstado !== "revision";
+}
+
+/**
+ * Home interview for a stakeholder with several rows: in-progress chat first,
+ * then an undelivered review, then a completed one. Recency beats UUID order.
+ */
+export function elegirEntrevistaLanding(entrevistas: EntrevistaLandingFila[]) {
+  if (entrevistas.length === 0) {
+    return null;
+  }
+
+  const abiertas = entrevistas.filter((item) => item.estado !== "completada");
+  const enCurso = abiertas.filter((item) =>
+    entrevistaAbiertaEnCurso(item.flujo_estado)
+  );
+  let candidatas = entrevistas;
+  if (enCurso.length > 0) {
+    candidatas = enCurso;
+  } else if (abiertas.length > 0) {
+    candidatas = abiertas;
+  }
+
+  const ordenadas = [...candidatas].sort((izquierda, derecha) => {
+    const porActividad = actividadLanding(
+      derecha.ultima_actividad
+    ).localeCompare(actividadLanding(izquierda.ultima_actividad));
+    if (porActividad !== 0) {
+      return porActividad;
+    }
+    return izquierda.id.localeCompare(derecha.id);
+  });
+
+  return ordenadas.at(0)?.id ?? null;
+}
+
 /** Own interview id for the signed-in email. Prefers one still in progress. */
 export async function getEntrevistaIdByEmail(
   supabase: SupabaseClient,
@@ -128,14 +179,8 @@ export async function getEntrevistaIdByEmail(
 
   const { data: entrevistas } = await supabase
     .from("entrevista")
-    .select("id, estado")
-    .eq("stakeholder_id", stakeholder.id)
-    .order("id");
+    .select("id, estado, flujo_estado, ultima_actividad")
+    .eq("stakeholder_id", stakeholder.id);
 
-  if (!entrevistas || entrevistas.length === 0) {
-    return null;
-  }
-
-  const abierta = entrevistas.find((item) => item.estado !== "completada");
-  return (abierta ?? entrevistas.at(0))?.id ?? null;
+  return elegirEntrevistaLanding(entrevistas ?? []);
 }

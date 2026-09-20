@@ -18,8 +18,9 @@ import type {
 import {
   consentimientoEntrevistaListo,
   encadenarAvanceInicial,
-  muestraPantallaRevision,
+  pantallaParticipanteEntrevista,
   siguienteTransicionInicial,
+  textoFinalizandoEntrevista,
 } from "@/lib/consultoria/entrevista-piloto";
 import { createClient } from "@/lib/supabase/client";
 import type { ChatMessage } from "@/lib/types";
@@ -37,7 +38,6 @@ export function EntrevistaEnCurso({
   mostrarPortal = false,
   seccionActualInicial,
   secciones,
-  stakeholderNombre,
   titulo,
 }: {
   consentimientoEn?: string | null;
@@ -297,7 +297,16 @@ export function EntrevistaEnCurso({
     });
   }, [entrevistaId]);
 
-  if (completada) {
+  const pantalla = pantallaParticipanteEntrevista({
+    completada,
+    errorEntrega,
+    flujoEstado,
+    llegoEnRevision,
+    onboardingListo,
+    seccionActual,
+  });
+
+  if (pantalla === "completada") {
     return (
       <EntrevistaShell
         compactoMovil
@@ -315,7 +324,7 @@ export function EntrevistaEnCurso({
     );
   }
 
-  if (!onboardingListo) {
+  if (pantalla === "onboarding") {
     return (
       <EntrevistaOnboarding
         correoUsuario={correoUsuario}
@@ -327,30 +336,24 @@ export function EntrevistaEnCurso({
     );
   }
 
-  if (flujoEstado === "revision") {
-    if (
-      !muestraPantallaRevision({
-        errorEntrega,
-        flujoEstado,
-        llegoEnRevision,
-      })
-    ) {
-      return (
-        <EntrevistaShell
-          compactoMovil
-          correoUsuario={correoUsuario}
-          mostrarPortal={mostrarPortal}
-          titulo={titulo}
-        >
-          <EntrevistaPantallaTransicion>
-            <p className="text-muted-foreground text-sm">
-              {pending ? "Enviando respuestas…" : "Preparando el envío…"}
-            </p>
-          </EntrevistaPantallaTransicion>
-        </EntrevistaShell>
-      );
-    }
+  if (pantalla === "finalizando") {
+    return (
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
+        <EntrevistaPantallaTransicion>
+          <p className="text-muted-foreground text-sm">
+            {textoFinalizandoEntrevista()}
+          </p>
+        </EntrevistaPantallaTransicion>
+      </EntrevistaShell>
+    );
+  }
 
+  if (pantalla === "entrega_pendiente") {
     return (
       <EntrevistaShell
         compactoMovil
@@ -360,7 +363,6 @@ export function EntrevistaEnCurso({
       >
         <EntrevistaRevision
           errorEntrega={errorEntrega}
-          nombre={stakeholderNombre}
           numeroSecciones={secciones.length}
           onEnviar={enviar}
           pending={pending}
@@ -369,10 +371,7 @@ export function EntrevistaEnCurso({
     );
   }
 
-  const esperandoChat =
-    siguienteTransicionInicial(flujoEstado, seccionActual) !== null;
-
-  if (esperandoChat) {
+  if (pantalla === "avance") {
     return (
       <EntrevistaShell
         compactoMovil
