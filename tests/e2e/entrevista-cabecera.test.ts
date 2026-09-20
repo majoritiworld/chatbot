@@ -57,6 +57,12 @@ test.describe("Interview mobile header", () => {
     await expect(
       page.getByRole("link", { name: "Escríbenos por WhatsApp" })
     ).toHaveAttribute("href", "https://wa.me/972587623357");
+    await expect(
+      page.getByText("Finalizar entrevista guarda y entrega tus respuestas")
+    ).toBeVisible();
+    await expect(
+      page.getByText("El texto que todavía no enviaste no se guarda")
+    ).toBeVisible();
   });
 
   test("does not offer the portal to a stakeholder", async ({ page }) => {

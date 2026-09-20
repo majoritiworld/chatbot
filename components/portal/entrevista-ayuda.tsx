@@ -9,12 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-const PUNTOS = [
-  "Las preguntas aparecen en el chat. Responde una a una, por escrito o con Hablar.",
-  "Guardar conserva las respuestas ya enviadas de este tema. El texto que todavía no enviaste no se guarda.",
-  "Cuando el tema esté cubierto, cierra ese tema para pasar al siguiente. Enviar la entrevista es un paso aparte, al final.",
-] as const;
+import { puntosAyudaEntrevista } from "@/lib/consultoria/entrevista-piloto";
 
 export function EntrevistaAyuda({
   abierta,
@@ -55,7 +50,7 @@ export function EntrevistaAyuda({
             </DialogDescription>
           </DialogHeader>
           <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed">
-            {PUNTOS.map((punto) => (
+            {puntosAyudaEntrevista().map((punto) => (
               <li key={punto}>{punto}</li>
             ))}
           </ul>

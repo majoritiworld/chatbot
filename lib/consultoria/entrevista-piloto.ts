@@ -58,6 +58,14 @@ export function etiquetaCierreTema(esUltimo: boolean) {
   return esUltimo ? "Finalizar entrevista" : "Cerrar y continuar";
 }
 
+export function puntosAyudaEntrevista() {
+  return [
+    "Las preguntas aparecen en el chat. Responde una a una, por escrito o con Hablar.",
+    "Guardar conserva las respuestas ya enviadas de este tema. El texto que todavía no enviaste no se guarda.",
+    "Cuando un tema está cubierto, ciérralo para pasar al siguiente. En el último, Finalizar entrevista guarda y entrega tus respuestas; después aparece la pantalla de gracias.",
+  ] as const;
+}
+
 export function avisoEntregaAlFinalizar() {
   return "Al finalizar se enviarán tus respuestas y la entrevista quedará cerrada. Ya no podrás agregar más.";
 }

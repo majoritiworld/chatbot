@@ -15,6 +15,7 @@ import {
   leerBorradorEntrevista,
   mensajeSalidaInsegura,
   muestraPantallaRevision,
+  puntosAyudaEntrevista,
   reiniciarBorradoresEntrevistaParaPruebas,
   salidaEntrevistaInsegura,
   siguienteTransicionInicial,
@@ -105,6 +106,15 @@ test.describe("Pilot interview helpers", () => {
     expect(etiquetaCierreTema(false)).toBe("Cerrar y continuar");
     expect(etiquetaCierreTema(true)).toBe("Finalizar entrevista");
     expect(avisoEntregaAlFinalizar()).toContain("se enviarán tus respuestas");
+    expect(puntosAyudaEntrevista().at(1)).toContain(
+      "El texto que todavía no enviaste no se guarda"
+    );
+    expect(puntosAyudaEntrevista().at(2)).toContain(
+      "Finalizar entrevista guarda y entrega"
+    );
+    expect(puntosAyudaEntrevista().join(" ")).not.toContain(
+      "Enviar la entrevista es un paso aparte"
+    );
     expect(
       muestraPantallaRevision({
         errorEntrega: false,
