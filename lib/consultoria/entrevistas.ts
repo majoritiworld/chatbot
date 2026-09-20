@@ -656,7 +656,7 @@ export async function entrevistaParaReintentoCorreo(entrevistaId: string) {
     };
   }
 
-  if (decision === "sin_email") {
+  if (decision === "sin_email" || !entrevista.stakeholder_email) {
     throw new Error("No hay email para el correo de confirmación");
   }
 
