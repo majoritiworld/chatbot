@@ -49,7 +49,10 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
   // this component streams, so a redirect here would become a meta refresh.
   if (vista.tipo === "ausente") {
     return (
-      <FaseLayout mostrarPortal={mostrarPortal}>
+      <FaseLayout
+        correoUsuario={portalUser.email}
+        mostrarPortal={mostrarPortal}
+      >
         <FaseAviso
           mensaje="Esta fase no existe o no pertenece a tu proyecto."
           mostrarPortal={mostrarPortal}
@@ -60,7 +63,11 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
 
   if (vista.tipo === "aviso") {
     return (
-      <FaseLayout mostrarPortal={mostrarPortal} nombre={vista.nombre}>
+      <FaseLayout
+        correoUsuario={portalUser.email}
+        mostrarPortal={mostrarPortal}
+        nombre={vista.nombre}
+      >
         <FaseAviso
           mensaje={AVISO_FASE[vista.clave]}
           mostrarPortal={mostrarPortal}
@@ -79,6 +86,7 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
     <EntrevistaEnCurso
       consentimientoEn={entrevista.consentimiento_en}
       correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
+      correoUsuario={portalUser.email}
       entrevistaId={entrevista.id}
       estadoInicial={entrevista.estado}
       flujoEstadoInicial={entrevista.flujo_estado}
@@ -94,15 +102,19 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
 
 function FaseLayout({
   children,
+  correoUsuario,
   mostrarPortal = true,
   nombre,
 }: {
   children?: React.ReactNode;
+  correoUsuario?: string | null;
   mostrarPortal?: boolean;
   nombre?: string;
 }) {
   return (
     <EntrevistaShell
+      compactoMovil
+      correoUsuario={correoUsuario}
       mostrarPortal={mostrarPortal}
       titulo={nombre ?? <Skeleton className="h-3 w-40" />}
     >
