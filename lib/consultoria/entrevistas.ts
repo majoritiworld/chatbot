@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { autorizarCierreDirecto } from "@/lib/consultoria/cierre-seccion";
 import {
   consolidarRespuestasEntrevista,
   type FlujoEntrevista,
@@ -13,7 +14,9 @@ import {
   type RespuestaResumen,
   type ResumenEntrevista,
   type SeccionCompletada,
+  serializarTurnosParaRpc,
   type TurnoEntrevista,
+  turnosDeSeccion,
 } from "@/lib/consultoria/entrevista-contenido";
 import { decisionReintentoCorreo } from "@/lib/consultoria/entrevista-piloto";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
@@ -23,6 +26,7 @@ import {
   type EntrevistaPortalCarga,
 } from "@/lib/consultoria/portal-carga-acceso";
 import { mismoEmail } from "@/lib/consultoria/roles";
+import { generarResumenCierreSeccion } from "@/lib/consultoria/sintesis-cierre";
 import { createClient } from "@/lib/supabase/server";
 import type { Entrevista, UserRole } from "@/lib/supabase/types";
 
@@ -455,7 +459,7 @@ export async function completarSeccionEntrevista({
     p_completion: completada,
     p_entrevista_id: entrevista.id,
     p_seccion_id: seccion.id,
-    p_transcripcion: turnos,
+    p_transcripcion: serializarTurnosParaRpc(turnos),
   });
 
   if (error) {
@@ -484,6 +488,65 @@ export async function completarSeccionEntrevista({
   };
 }
 
+export async function cerrarSeccionDirecta({
+  entrevistaId,
+  forzar,
+  seccionId,
+}: {
+  entrevistaId: string;
+  forzar: boolean;
+  seccionId: string;
+}) {
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
+  if (!entrevista) {
+    throw new Error("No puedes completar esta sección");
+  }
+
+  const previa = entrevista.secciones_completadas.find(
+    (item) => item.seccionId === seccionId
+  );
+  if (previa) {
+    return completarSeccionEntrevista({
+      entrevistaId,
+      hallazgos: previa.hallazgos,
+      modo: previa.modo,
+      respuestas: previa.respuestas,
+      seccionId,
+      sintesis: previa.sintesis,
+    });
+  }
+
+  const seccion = entrevista.secciones.at(entrevista.seccion_actual);
+  const turnosPersistidos = await getTranscripcionEntrevista(entrevista.id);
+  const denegado = autorizarCierreDirecto({
+    forzar,
+    seccionActivaId: seccion?.id,
+    seccionSolicitadaId: seccionId,
+    turnosPersistidos,
+  });
+  if (denegado) {
+    throw new Error(denegado);
+  }
+  if (!seccion) {
+    throw new Error("Esta sección ya no está activa");
+  }
+
+  const resumen = await generarResumenCierreSeccion({
+    forzar,
+    preguntas: seccion.preguntas,
+    tituloSeccion: seccion.titulo,
+    turnos: turnosDeSeccion(turnosPersistidos, seccion.id, true),
+  });
+
+  return completarSeccionEntrevista({
+    entrevistaId,
+    modo: "agente",
+    seccionId,
+    turnos: turnosDeSeccion(turnosPersistidos, seccion.id, true),
+    ...resumen,
+  });
+}
+
 /**
  * Appends the turns of one exchange and stamps the activity clock. The admin
  * table reads `ultima_actividad` to flag stakeholders who went quiet.
@@ -500,7 +563,7 @@ export async function registrarTurnosEntrevista({
   const supabase = await createClient();
   const { error } = await supabase.rpc("append_interview_turns", {
     p_entrevista_id: entrevistaId,
-    p_turnos: turnos,
+    p_turnos: serializarTurnosParaRpc(turnos),
   });
 
   if (error) {
@@ -509,49 +572,6 @@ export async function registrarTurnosEntrevista({
     }
     // Losing a transcript write must not break the interview in progress.
     console.error("No se pudo guardar la transcripción", error);
-  }
-}
-
-function rpcOfertaCierreAusente(error: { code?: string; message?: string }) {
-  return (
-    error.code === "PGRST202" ||
-    error.code === "42883" ||
-    (error.message ?? "").includes("offer_interview_section_close")
-  );
-}
-
-/** Records which section currently has a close offer. No-op until the
- * matching migration is applied; the transcript `ofertaCierre` flag still
- * reconstructs the button. */
-export async function registrarOfertaCierreSeccion({
-  entrevistaId,
-  seccionId,
-}: {
-  entrevistaId: string;
-  seccionId: string;
-}) {
-  const entrevista = await getEntrevistaEscribible(entrevistaId);
-  if (!entrevista) {
-    throw new Error("No puedes cerrar esta sección");
-  }
-
-  const seccion = entrevista.secciones.at(entrevista.seccion_actual);
-  if (
-    entrevista.estado !== "abierta" ||
-    entrevista.flujo_estado !== "chat" ||
-    seccion?.id !== seccionId
-  ) {
-    throw new Error("Esta sección ya no está activa");
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("offer_interview_section_close", {
-    p_entrevista_id: entrevista.id,
-    p_seccion_id: seccionId,
-  });
-
-  if (error && !rpcOfertaCierreAusente(error)) {
-    throw error;
   }
 }
 

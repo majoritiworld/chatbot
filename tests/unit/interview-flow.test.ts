@@ -327,6 +327,10 @@ test.describe("Interview prompt context", () => {
     expect(prompt).toContain("puede contestarla ahora o volver más tarde");
     expect(prompt).toContain("no hagas otra pregunta");
     expect(prompt).toContain("listo=true");
+    expect(prompt).toContain("herramienta estructurada");
+    expect(prompt).toContain(
+      "No llames ofrecerCierreSeccion en los demás turnos"
+    );
     expect(prompt).toContain(MENSAJE_FORZAR_CIERRE_SECCION);
   });
 
@@ -351,7 +355,7 @@ test.describe("Interview prompt context", () => {
 
     expect(ultimo).toContain("Terminar tema y revisar");
     expect(ultimo).not.toContain("Siguiente tema (cierra este)");
-    expect(ultimo).toContain("no inventes otros nombres de botón");
+    expect(ultimo).toContain("No inventes otros nombres de botón");
   });
 });
 
@@ -471,7 +475,9 @@ test.describe("Interview section close offer", () => {
         role: "assistant",
       },
     ];
-    const turnos = mensajesATurnos(listo, seccionId);
+    const turnos = mensajesATurnos(listo, seccionId, {
+      persistirOfertaEjecutada: true,
+    });
     expect(turnos.at(0)?.ofertaCierre).toBe(true);
     expect(turnos.at(0)?.seccionId).toBe(seccionId);
 

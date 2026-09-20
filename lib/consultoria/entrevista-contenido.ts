@@ -15,6 +15,38 @@ export type TurnoEntrevista = {
   ofertaCierre?: boolean;
 };
 
+/** RPC append/complete reject empty texto. Silent close-offer turns use this
+ * marker in JSON so they survive persistence without a spoken bubble. */
+export const TEXTO_TURNO_SILENTE = "\u200b";
+
+export function textoHabladoTurno(texto: string) {
+  return texto.replaceAll(TEXTO_TURNO_SILENTE, "").trim();
+}
+
+export function serializarTurnosParaRpc(turnos: TurnoEntrevista[]) {
+  return turnos.flatMap((turno) => {
+    const hablado = textoHabladoTurno(turno.texto);
+    if (hablado.length > 0) {
+      return [
+        {
+          ...turno,
+          texto: hablado,
+        },
+      ];
+    }
+    if (turno.ofertaCierre !== true) {
+      return [];
+    }
+    return [
+      {
+        ...turno,
+        ofertaCierre: true as const,
+        texto: TEXTO_TURNO_SILENTE,
+      },
+    ];
+  });
+}
+
 export type RespuestaResumen = {
   pregunta: string;
   respuesta_texto: string;
@@ -270,7 +302,13 @@ export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
       unknown
     >;
 
-    if (!(esRolTurno(rol) && typeof texto === "string") || texto.length === 0) {
+    if (!(esRolTurno(rol) && typeof texto === "string")) {
+      return [];
+    }
+
+    const hablado = textoHabladoTurno(texto);
+    const oferta = ofertaCierre === true;
+    if (hablado.length === 0 && !oferta) {
       return [];
     }
 
@@ -281,10 +319,10 @@ export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
           typeof id === "string" && id.length > 0
             ? id
             : `legacy-${index}-${typeof at === "string" ? at : "unknown"}`,
-        ...(ofertaCierre === true ? { ofertaCierre: true } : {}),
+        ...(oferta ? { ofertaCierre: true } : {}),
         rol,
         seccionId: typeof seccionId === "string" ? seccionId : null,
-        texto,
+        texto: hablado,
       },
     ];
   });
@@ -413,12 +451,16 @@ export function construirArchivoTranscripcion({
     proyecto ? `- **Proyecto:** ${proyecto}` : null,
   ].filter(Boolean);
 
+  const hablados = turnos.filter(
+    (turno) => textoHabladoTurno(turno.texto).length > 0
+  );
   const cuerpo =
-    turnos.length === 0
+    hablados.length === 0
       ? "_La entrevista no dejó turnos registrados._"
-      : turnos
+      : hablados
           .map(
-            (turno) => `**${ETIQUETA_ROL[turno.rol]}**\n\n${turno.texto.trim()}`
+            (turno) =>
+              `**${ETIQUETA_ROL[turno.rol]}**\n\n${textoHabladoTurno(turno.texto)}`
           )
           .join("\n\n");
 

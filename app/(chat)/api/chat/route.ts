@@ -29,7 +29,6 @@ import {
 import {
   completarSeccionEntrevista,
   getEntrevistaEscribible,
-  registrarOfertaCierreSeccion,
   registrarTurnosEntrevista,
 } from "@/lib/consultoria/entrevistas";
 import { textoKickoffEntrevista } from "@/lib/consultoria/kickoff-entrevista";
@@ -219,16 +218,8 @@ export async function POST(request: Request) {
               inputSchema: cierreSeccionInputSchema,
             }),
             ofrecerCierreSeccion: tool({
-              description: `Muestra el botón "${etiquetaCierre}" cuando los temas guía ya están cubiertos. No cierra la sección; espera a que el entrevistado pulse ese botón. No menciones otros botones. Siempre escribe antes un mensaje de texto para la persona.`,
-              execute: async ({ listo }) => {
-                if (listo) {
-                  await registrarOfertaCierreSeccion({
-                    entrevistaId: entrevista.id,
-                    seccionId: seccion.id,
-                  });
-                }
-                return { ok: true as const };
-              },
+              description: `Llama a esta herramienta estructurada para mostrar el botón "${etiquetaCierre}" cuando los temas guía ya están cubiertos. No cierra la sección. El botón aparece por esta llamada, no por mencionar la herramienta o su nombre en el texto. No menciones otros botones.`,
+              execute: () => ({ ok: true as const }),
               inputSchema: ofertaCierreInputSchema,
             }),
             ofrecerContinuarOGuardar: tool({
@@ -254,7 +245,9 @@ export async function POST(request: Request) {
               registrarTurnosEntrevista({
                 entrevistaId: entrevista.id,
                 estricto: true,
-                turnos: mensajesATurnos([responseMessage], seccion.id),
+                turnos: mensajesATurnos([responseMessage], seccion.id, {
+                  persistirOfertaEjecutada: true,
+                }),
               }),
             sendReasoning: isReasoningModel,
             stream: result.stream,

@@ -1,15 +1,38 @@
 "use client";
 
-import { useCallback, useTransition } from "react";
+import { useCallback, useRef, useTransition } from "react";
 import { toast } from "sonner";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { ofertaCierreVigenteEnChat } from "@/lib/consultoria/cierre-seccion";
 import { avisoGuardadoRespuestas } from "@/lib/consultoria/entrevista-piloto";
-import {
-  MENSAJE_CONTINUAR_SECCION,
-  MENSAJE_FINALIZAR_SECCION,
-  MENSAJE_FORZAR_CIERRE_SECCION,
-} from "@/lib/consultoria/finalizar-seccion";
+import { MENSAJE_CONTINUAR_SECCION } from "@/lib/consultoria/finalizar-seccion";
+import type { SectionCompletedData } from "@/lib/types";
+
+function avanceDeCierre(data: unknown): SectionCompletedData | null {
+  if (typeof data !== "object" || data === null) {
+    return null;
+  }
+  const avance = data as {
+    flujoEstado?: unknown;
+    seccionActual?: unknown;
+    seccionId?: unknown;
+  };
+  if (
+    (avance.flujoEstado !== "bienvenida" &&
+      avance.flujoEstado !== "presentacion" &&
+      avance.flujoEstado !== "chat" &&
+      avance.flujoEstado !== "revision") ||
+    typeof avance.seccionActual !== "number" ||
+    typeof avance.seccionId !== "string"
+  ) {
+    return null;
+  }
+  return {
+    flujoEstado: avance.flujoEstado,
+    seccionActual: avance.seccionActual,
+    seccionId: avance.seccionId,
+  };
+}
 
 export function useCerrarSeccionEntrevista() {
   const {
@@ -17,6 +40,7 @@ export function useCerrarSeccionEntrevista() {
     input,
     marcarProgresoGuardado,
     messages,
+    onSeccionCompletada,
     seccionId,
     sendMessage,
     setGuardadoEnCurso,
@@ -24,6 +48,7 @@ export function useCerrarSeccionEntrevista() {
     stop,
   } = useActiveChat();
   const [pending, startTransition] = useTransition();
+  const cerrandoRef = useRef(false);
   const busy = pending || status === "submitted" || status === "streaming";
   const hayBorrador = input.trim().length > 0;
 
@@ -37,13 +62,56 @@ export function useCerrarSeccionEntrevista() {
     [sendMessage]
   );
 
+  const cerrarDirecto = useCallback(
+    (forzar: boolean) => {
+      if (!(entrevistaId && seccionId) || cerrandoRef.current) {
+        if (!(entrevistaId && seccionId)) {
+          toast.error("No se pudo cerrar la sección");
+        }
+        return;
+      }
+
+      cerrandoRef.current = true;
+      startTransition(async () => {
+        stop();
+
+        try {
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/entrevista/finalizar`,
+            {
+              body: JSON.stringify({ entrevistaId, forzar, seccionId }),
+              headers: { "Content-Type": "application/json" },
+              method: "POST",
+            }
+          );
+          const data = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          const avance = avanceDeCierre(data);
+
+          if (!(response.ok && avance)) {
+            toast.error(data?.error ?? "No se pudo cerrar la sección");
+            return;
+          }
+
+          onSeccionCompletada?.(avance);
+        } catch {
+          toast.error("No se pudo cerrar la sección");
+        } finally {
+          cerrandoRef.current = false;
+        }
+      });
+    },
+    [entrevistaId, onSeccionCompletada, seccionId, stop]
+  );
+
   const pedirCierre = useCallback(() => {
-    enviar(MENSAJE_FINALIZAR_SECCION);
-  }, [enviar]);
+    cerrarDirecto(false);
+  }, [cerrarDirecto]);
 
   const forzarCierre = useCallback(() => {
-    enviar(MENSAJE_FORZAR_CIERRE_SECCION);
-  }, [enviar]);
+    cerrarDirecto(true);
+  }, [cerrarDirecto]);
 
   const continuar = useCallback(() => {
     enviar(MENSAJE_CONTINUAR_SECCION);

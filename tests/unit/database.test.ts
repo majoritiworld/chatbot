@@ -157,6 +157,34 @@ test("replayed transcript messages are stored once", async () => {
   expect(result.rows[0].transcripcion).toEqual([turn]);
 });
 
+test("silent close-offer turns persist by ID and survive a retry", async () => {
+  await advance();
+  const offer = {
+    at: "2026-09-20T00:00:00Z",
+    id: "60000000-0000-4000-8000-000000000099",
+    ofertaCierre: true,
+    rol: "entrevistador",
+    seccionId: SECTION,
+    texto: "\u200b",
+  };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    // biome-ignore lint/performance/noAwaitInLoops: retry must wait for the previous append
+    await db.query("SELECT public.append_interview_turns($1, $2::jsonb)", [
+      INTERVIEW,
+      JSON.stringify([offer]),
+    ]);
+  }
+  const result = await db.query<{
+    transcripcion: Array<{ id: string; ofertaCierre?: boolean; texto: string }>;
+  }>("SELECT transcripcion FROM public.entrevista WHERE id = $1", [INTERVIEW]);
+  expect(result.rows[0].transcripcion).toHaveLength(1);
+  expect(result.rows[0].transcripcion[0]).toMatchObject({
+    id: offer.id,
+    ofertaCierre: true,
+    texto: "\u200b",
+  });
+});
+
 test("two answers with the same text remain two turns when IDs differ", async () => {
   await advance();
   const first = turn;

@@ -1,6 +1,9 @@
 import { isTextUIPart } from "ai";
 import { mensajeOfreceCierreListo } from "@/lib/consultoria/cierre-seccion";
-import type { TurnoEntrevista } from "@/lib/consultoria/entrevista-contenido";
+import {
+  type TurnoEntrevista,
+  textoHabladoTurno,
+} from "@/lib/consultoria/entrevista-contenido";
 import type { ChatMessage } from "@/lib/types";
 
 function parteOfertaCierreReconstruida(
@@ -16,24 +19,28 @@ function parteOfertaCierreReconstruida(
 }
 
 /** UI messages carry structured parts; the transcript keeps spoken text and
- * a structured close-offer flag for the active section. */
+ * a close-offer flag only when the server persisted an executed tool. */
 export function mensajesATurnos(
   mensajes: ChatMessage[],
-  seccionId?: string
+  seccionId?: string,
+  opciones?: { persistirOfertaEjecutada?: boolean }
 ): TurnoEntrevista[] {
   return mensajes.flatMap((mensaje) => {
     if (mensaje.role !== "user" && mensaje.role !== "assistant") {
       return [];
     }
 
-    const texto = (mensaje.parts ?? [])
-      .filter(isTextUIPart)
-      .map((part) => part.text.trim())
-      .filter(Boolean)
-      .join("\n\n");
-    const ofertaCierre = mensajeOfreceCierreListo(mensaje);
+    const texto = textoHabladoTurno(
+      (mensaje.parts ?? [])
+        .filter(isTextUIPart)
+        .map((part) => part.text)
+        .join("\n\n")
+    );
+    const ofertaCierre = Boolean(
+      opciones?.persistirOfertaEjecutada && mensajeOfreceCierreListo(mensaje)
+    );
 
-    if (!texto) {
+    if (!(texto || ofertaCierre)) {
       return [];
     }
 
@@ -53,20 +60,23 @@ export function mensajesATurnos(
 /**
  * Replays a stored transcript as chat messages so reloading the interview
  * shows the conversation so far instead of restarting the greeting.
+ * Only the persisted close-offer flag is restored as a tool part.
  */
 export function turnosAMensajes(turnos: TurnoEntrevista[]): ChatMessage[] {
   return turnos.map((turno) => {
-    const role = turno.rol === "entrevistado" ? "user" : "assistant";
+    const hablado = textoHabladoTurno(turno.texto);
+    const parts: NonNullable<ChatMessage["parts"]> = [];
+    if (hablado.length > 0) {
+      parts.push({ text: hablado, type: "text" });
+    }
+    if (turno.ofertaCierre) {
+      parts.push(parteOfertaCierreReconstruida(turno.id));
+    }
     return {
       id: turno.id,
       metadata: { createdAt: turno.at },
-      parts: [
-        { text: turno.texto, type: "text" as const },
-        ...(turno.ofertaCierre
-          ? [parteOfertaCierreReconstruida(turno.id)]
-          : []),
-      ],
-      role,
+      parts,
+      role: turno.rol === "entrevistado" ? "user" : "assistant",
     };
   });
 }
