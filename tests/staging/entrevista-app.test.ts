@@ -239,4 +239,57 @@ test.describe("Staging interview application flow", () => {
     expect(after.flujo_estado).toBe("revision");
     expect(after.secciones_completadas).toHaveLength(completed);
   });
+
+  test("close offer survives reload and then reaches review", async ({
+    page,
+  }) => {
+    test.skip(
+      process.env.STAGING_LIVE_CHAT !== "1",
+      "Activa STAGING_LIVE_CHAT=1 para ofertar cierre con el modelo."
+    );
+    const closePath = process.env.STAGING_INTERVIEW_CLOSE_PATH ?? "";
+    const entrevistaId = entrevistaIdDesdeRuta(closePath);
+    test.skip(
+      !entrevistaId,
+      "Define STAGING_INTERVIEW_CLOSE_PATH con una entrevista QA nueva."
+    );
+    const completedPath = process.env.STAGING_INTERVIEW_PATH ?? "";
+    expect(entrevistaId).not.toBe(entrevistaIdDesdeRuta(completedPath));
+
+    test.setTimeout(180_000);
+    await abrirEntrevista(page, closePath);
+    const aceptar = page.getByRole("button", { name: /acepto|continuar/i });
+    if (await aceptar.isVisible().catch(() => false)) {
+      await aceptar.click();
+    }
+    await expect(page.getByTestId("multimodal-input")).toBeVisible({
+      timeout: 90_000,
+    });
+    await descartarTour(page);
+
+    const closeButton = page.getByTestId("entrevista-cerrar-tema");
+    if (!(await closeButton.isVisible().catch(() => false))) {
+      const input = page.getByTestId("multimodal-input");
+      await input.fill(
+        "Para esta prueba de QA cubrí el tema: espero comprobar que el cierre sobrevive a una recarga."
+      );
+      await page.getByTestId("send-button").click();
+      await expect(closeButton).toBeVisible({ timeout: 90_000 });
+    }
+
+    await page.reload();
+    await expect(page.getByTestId("multimodal-input")).toBeVisible();
+    await descartarTour(page);
+    await expect(closeButton).toBeVisible();
+    await closeButton.click();
+
+    await expect(page.getByText("Listo para enviar")).toBeVisible({
+      timeout: 90_000,
+    });
+    await expect(page.getByText("Terminaste el tema.")).toBeVisible();
+
+    const after = await snapshotEntrevista(entrevistaId);
+    expect(after.flujo_estado).toBe("revision");
+    expect(after.secciones_completadas).toHaveLength(1);
+  });
 });

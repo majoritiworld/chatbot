@@ -19,7 +19,13 @@ import {
   etiquetaCierreTema,
 } from "@/lib/consultoria/entrevista-piloto";
 
-export function CerrarSeccionEnChat({ visible }: { visible: boolean }) {
+export function CerrarSeccionEnChat({
+  placement = "inline",
+  visible = true,
+}: {
+  placement?: "inline" | "sticky";
+  visible?: boolean;
+}) {
   const {
     indiceSeccion,
     input,
@@ -28,7 +34,8 @@ export function CerrarSeccionEnChat({ visible }: { visible: boolean }) {
     sendMessage,
     setInput,
   } = useActiveChat();
-  const { busy, pedirCierre } = useCerrarSeccionEntrevista();
+  const { busy, pedirCierre, seccionListaParaCerrar } =
+    useCerrarSeccionEntrevista();
   const [confirmarBorrador, setConfirmarBorrador] = useState(false);
   const esUltimo =
     typeof indiceSeccion === "number" &&
@@ -66,13 +73,20 @@ export function CerrarSeccionEnChat({ visible }: { visible: boolean }) {
     pedirCierre();
   }, [pedirCierre, setInput]);
 
-  if (!(visible && agenteOfrecioCierreListo(messages))) {
+  const lastOfreció = agenteOfrecioCierreListo(messages);
+  const mostrar =
+    visible &&
+    seccionListaParaCerrar &&
+    (placement === "inline" ? lastOfreció : !lastOfreció);
+
+  if (!mostrar) {
     return null;
   }
 
   return (
     <div className="pt-3">
       <Button
+        data-testid="entrevista-cerrar-tema"
         disabled={busy}
         onClick={handleClick}
         size="sm"

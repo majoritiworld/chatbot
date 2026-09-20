@@ -22,10 +22,14 @@ import {
   ofertaCierreInputSchema,
   pausaSeccionInputSchema,
 } from "@/lib/consultoria/cierre-seccion";
-import { entrevistaAceptaChat } from "@/lib/consultoria/entrevista-piloto";
+import {
+  entrevistaAceptaChat,
+  etiquetaCierreTema,
+} from "@/lib/consultoria/entrevista-piloto";
 import {
   completarSeccionEntrevista,
   getEntrevistaEscribible,
+  registrarOfertaCierreSeccion,
   registrarTurnosEntrevista,
 } from "@/lib/consultoria/entrevistas";
 import { textoKickoffEntrevista } from "@/lib/consultoria/kickoff-entrevista";
@@ -158,6 +162,10 @@ export async function POST(request: Request) {
             },
           ];
 
+    const esUltimoTema =
+      entrevista.seccion_actual >= entrevista.secciones.length - 1;
+    const etiquetaCierre = etiquetaCierreTema(esUltimoTema);
+
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
         let avancePendiente: SectionCompletedData | undefined;
@@ -165,6 +173,7 @@ export async function POST(request: Request) {
           activeTools: [...herramientasCierreActivas(uiMessages)],
           instructions: interviewSystemPrompt({
             descripcionSeccion: seccion.descripcion,
+            esUltimoTema,
             firmaEntrevistado: entrevista.stakeholder_firma,
             nombreEntrevistado: entrevista.stakeholder_nombre,
             preguntas: seccion.preguntas,
@@ -210,9 +219,16 @@ export async function POST(request: Request) {
               inputSchema: cierreSeccionInputSchema,
             }),
             ofrecerCierreSeccion: tool({
-              description:
-                "Muestra el botón para cerrar el tema actual cuando los temas guía ya están cubiertos. No cierra la sección; espera a que el entrevistado pulse el botón. Siempre escribe antes un mensaje de texto para la persona.",
-              execute: () => ({ ok: true as const }),
+              description: `Muestra el botón "${etiquetaCierre}" cuando los temas guía ya están cubiertos. No cierra la sección; espera a que el entrevistado pulse ese botón. No menciones otros botones. Siempre escribe antes un mensaje de texto para la persona.`,
+              execute: async ({ listo }) => {
+                if (listo) {
+                  await registrarOfertaCierreSeccion({
+                    entrevistaId: entrevista.id,
+                    seccionId: seccion.id,
+                  });
+                }
+                return { ok: true as const };
+              },
               inputSchema: ofertaCierreInputSchema,
             }),
             ofrecerContinuarOGuardar: tool({

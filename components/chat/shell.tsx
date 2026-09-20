@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { CerrarSeccionEnChat } from "@/components/portal/cerrar-seccion-en-chat";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -199,6 +200,12 @@ export function ChatShell({
               status={status}
               votes={votes}
             />
+
+            {esEntrevista && !isReadonly ? (
+              <div className="mx-auto w-full max-w-[760px] px-3 md:px-4">
+                <CerrarSeccionEnChat placement="sticky" />
+              </div>
+            ) : null}
 
             <div
               className={cn(

@@ -58,6 +58,14 @@ export function etiquetaCierreTema(esUltimo: boolean) {
   return esUltimo ? "Terminar tema y revisar" : "Siguiente tema (cierra este)";
 }
 
+export function textoTemasTerminados(numeroSecciones: number) {
+  if (numeroSecciones === 1) {
+    return "Terminaste el tema.";
+  }
+
+  return `Terminaste los ${numeroSecciones} temas.`;
+}
+
 export function entrevistaAceptaChat(
   consentimientoEn: string | null | undefined
 ) {

@@ -12,6 +12,7 @@ export type TurnoEntrevista = {
   texto: string;
   at: string;
   seccionId?: string | null;
+  ofertaCierre?: boolean;
 };
 
 export type RespuestaResumen = {
@@ -264,7 +265,10 @@ export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
       return [];
     }
 
-    const { at, id, rol, seccionId, texto } = item as Record<string, unknown>;
+    const { at, id, ofertaCierre, rol, seccionId, texto } = item as Record<
+      string,
+      unknown
+    >;
 
     if (!(esRolTurno(rol) && typeof texto === "string") || texto.length === 0) {
       return [];
@@ -277,6 +281,7 @@ export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
           typeof id === "string" && id.length > 0
             ? id
             : `legacy-${index}-${typeof at === "string" ? at : "unknown"}`,
+        ...(ofertaCierre === true ? { ofertaCierre: true } : {}),
         rol,
         seccionId: typeof seccionId === "string" ? seccionId : null,
         texto,
@@ -293,6 +298,19 @@ export function turnosDeSeccion(
   return turnos.filter(
     (turno) =>
       turno.seccionId === seccionId || (incluirLegacy && !turno.seccionId)
+  );
+}
+
+export function ofertaCierreVigenteEnTurnos(
+  turnos: TurnoEntrevista[],
+  seccionId: string | null | undefined
+) {
+  if (!seccionId) {
+    return false;
+  }
+
+  return turnos.some(
+    (turno) => turno.ofertaCierre === true && turno.seccionId === seccionId
   );
 }
 

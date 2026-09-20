@@ -2,6 +2,7 @@
 
 import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { Button } from "@/components/ui/button";
+import { textoTemasTerminados } from "@/lib/consultoria/entrevista-piloto";
 
 export function EntrevistaRevision({
   errorEntrega = false,
@@ -24,8 +25,7 @@ export function EntrevistaRevision({
           Gracias{nombre?.trim() ? `, ${nombre.trim()}` : ""}
         </h1>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Terminaste los {numeroSecciones}{" "}
-          {numeroSecciones === 1 ? "tema" : "temas"}. Tus respuestas quedaron
+          {textoTemasTerminados(numeroSecciones)} Tus respuestas quedaron
           guardadas. Todavía no se han enviado.
         </p>
         <p className="text-muted-foreground text-sm leading-relaxed">

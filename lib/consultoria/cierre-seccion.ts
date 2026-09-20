@@ -85,12 +85,11 @@ export function cierrePendienteEnChat(
   return cierreDeMensaje(last);
 }
 
-export function agenteOfrecioCierreListo(messages: ChatMessage[]) {
-  const last = messages.at(-1);
-  if (last?.role !== "assistant") {
+export function mensajeOfreceCierreListo(message: ChatMessage) {
+  if (message.role !== "assistant") {
     return false;
   }
-  for (const part of last.parts ?? []) {
+  for (const part of message.parts ?? []) {
     if (part.type !== "tool-ofrecerCierreSeccion" || !("input" in part)) {
       continue;
     }
@@ -100,6 +99,18 @@ export function agenteOfrecioCierreListo(messages: ChatMessage[]) {
     }
   }
   return false;
+}
+
+export function agenteOfrecioCierreListo(messages: ChatMessage[]) {
+  const last = messages.at(-1);
+  if (!last) {
+    return false;
+  }
+  return mensajeOfreceCierreListo(last);
+}
+
+export function ofertaCierreVigenteEnChat(messages: ChatMessage[]) {
+  return messages.some((message) => mensajeOfreceCierreListo(message));
 }
 
 export function ultimoUsuarioPideFinalizar(messages: ChatMessage[]) {

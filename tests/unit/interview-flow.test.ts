@@ -6,6 +6,7 @@ import {
   cierrePendienteEnChat,
   herramientasCierreActivas,
   mensajesTextoParaModelo,
+  ofertaCierreVigenteEnChat,
   ultimoUsuarioEligePausa,
   ultimoUsuarioPideFinalizar,
 } from "@/lib/consultoria/cierre-seccion";
@@ -14,6 +15,7 @@ import {
   consolidarRespuestasEntrevista,
   fusionarTurnos,
   haySeccionesPendientes,
+  ofertaCierreVigenteEnTurnos,
   parseSecciones,
   parseSeccionesCompletadas,
   resolverAvanceSeccion,
@@ -30,7 +32,10 @@ import {
   esProyectoComplianceLatam,
   GUION_CL_FASE_1,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
-import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
+import {
+  mensajesATurnos,
+  turnosAMensajes,
+} from "@/lib/consultoria/mensajes-a-turnos";
 import {
   mismoEmail,
   resolveAuthLanding,
@@ -318,7 +323,7 @@ test.describe("Interview prompt context", () => {
     expect(prompt).toContain("ofrecerContinuarOGuardar");
     expect(prompt).toContain("ofrecerCierreSeccion");
     expect(prompt).toContain("Siguiente tema (cierra este)");
-    expect(prompt).toContain("Terminar tema y revisar");
+    expect(prompt).not.toContain("Terminar tema y revisar");
     expect(prompt).toContain("puede contestarla ahora o volver más tarde");
     expect(prompt).toContain("no hagas otra pregunta");
     expect(prompt).toContain("listo=true");
@@ -335,6 +340,18 @@ test.describe("Interview prompt context", () => {
     expect(prompt).toContain("saluda a la persona por su nombre");
     expect(prompt).toContain("haz de inmediato la primera pregunta");
     expect(prompt).not.toContain("salúdala");
+  });
+
+  test("names only the close button that is visible in that section", () => {
+    const ultimo = interviewSystemPrompt({
+      esUltimoTema: true,
+      preguntas: ["Qué cambió esta semana."],
+      tituloSeccion: "General",
+    });
+
+    expect(ultimo).toContain("Terminar tema y revisar");
+    expect(ultimo).not.toContain("Siguiente tema (cierra este)");
+    expect(ultimo).toContain("no inventes otros nombres de botón");
   });
 });
 
@@ -430,6 +447,54 @@ test.describe("Interview section close offer", () => {
     expect(agenteOfrecioCierreListo(listo)).toBe(true);
     expect(agenteOfrecioCierreListo(incompleto)).toBe(false);
     expect(agenteOfrecioCierreListo(usuarioSigue)).toBe(false);
+    expect(ofertaCierreVigenteEnChat(listo)).toBe(true);
+    expect(ofertaCierreVigenteEnChat(incompleto)).toBe(false);
+    expect(ofertaCierreVigenteEnChat(usuarioSigue)).toBe(true);
+  });
+
+  test("persists the close offer on the section turn and rebuilds it after reload", () => {
+    const seccionId = "11111111-1111-4111-8111-111111111111";
+    const otraSeccion = "22222222-2222-4222-8222-222222222222";
+    const listo: ChatMessage[] = [
+      {
+        id: "a1",
+        parts: [
+          { text: "Ya tengo lo necesario.", type: "text" },
+          {
+            input: { listo: true },
+            output: { ok: true },
+            state: "output-available",
+            toolCallId: "t1",
+            type: "tool-ofrecerCierreSeccion",
+          },
+        ],
+        role: "assistant",
+      },
+    ];
+    const turnos = mensajesATurnos(listo, seccionId);
+    expect(turnos.at(0)?.ofertaCierre).toBe(true);
+    expect(turnos.at(0)?.seccionId).toBe(seccionId);
+
+    const reconstruidos = turnosAMensajes(turnos);
+    expect(ofertaCierreVigenteEnChat(reconstruidos)).toBe(true);
+    expect(agenteOfrecioCierreListo(reconstruidos)).toBe(true);
+    expect(ofertaCierreVigenteEnTurnos(turnos, seccionId)).toBe(true);
+    expect(ofertaCierreVigenteEnTurnos(turnos, otraSeccion)).toBe(false);
+    expect(
+      ofertaCierreVigenteEnTurnos(
+        [
+          {
+            at: "2026-09-20T00:00:00.000Z",
+            id: "done",
+            ofertaCierre: true,
+            rol: "entrevistador",
+            seccionId,
+            texto: "Oferta de otra sección ya cerrada.",
+          },
+        ],
+        otraSeccion
+      )
+    ).toBe(false);
   });
 
   test("detects the explicit close request from the last user turn", () => {

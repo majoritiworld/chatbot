@@ -4,6 +4,7 @@ import {
   cuentasDesdeEntorno,
   exigirSesionAutorizada,
 } from "../support/staging-accounts";
+import { entrevistaIdDesdeRuta } from "../support/staging-entrevista-ui";
 
 function required(name: string) {
   const value = process.env[name];
@@ -197,5 +198,41 @@ test.describe("Staging interview protections", () => {
       setProyectoId,
       userId: cuentas.participant.id,
     });
+  });
+
+  test("another account cannot read or close a foreign interview", async () => {
+    const interviewId = entrevistaIdDesdeRuta(
+      process.env.STAGING_INTERVIEW_PATH ?? ""
+    );
+    test.skip(
+      !interviewId,
+      "Define STAGING_INTERVIEW_PATH con una entrevista QA."
+    );
+    const otherToken = required("STAGING_OTHER_ACCESS_TOKEN");
+    const own = await rest(
+      `/rest/v1/entrevista?id=eq.${interviewId}&select=id`,
+      { token: otherToken }
+    );
+    expect(own.ok).toBe(true);
+    expect(await own.json()).toEqual([]);
+
+    const close = await rest("/rest/v1/rpc/complete_interview_section", {
+      body: {
+        p_completion: {
+          completadaEn: new Date().toISOString(),
+          hallazgos: [],
+          modo: "manual",
+          respuestas: [],
+          seccionId: "00000000-0000-4000-8000-000000000000",
+          sintesis: "intento ajeno",
+        },
+        p_entrevista_id: interviewId,
+        p_seccion_id: "00000000-0000-4000-8000-000000000000",
+        p_transcripcion: [],
+      },
+      method: "POST",
+      token: otherToken,
+    });
+    expect(close.ok).toBe(false);
   });
 });

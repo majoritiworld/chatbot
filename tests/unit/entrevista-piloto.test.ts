@@ -16,6 +16,7 @@ import {
   reiniciarBorradoresEntrevistaParaPruebas,
   salidaEntrevistaInsegura,
   siguienteTransicionInicial,
+  textoTemasTerminados,
 } from "@/lib/consultoria/entrevista-piloto";
 import {
   claveKickoff,
@@ -101,6 +102,8 @@ test.describe("Pilot interview helpers", () => {
     expect(etiquetaProgresoTema(3, 4)).toBe("Tema 4 de 4");
     expect(etiquetaCierreTema(false)).toBe("Siguiente tema (cierra este)");
     expect(etiquetaCierreTema(true)).toBe("Terminar tema y revisar");
+    expect(textoTemasTerminados(1)).toBe("Terminaste el tema.");
+    expect(textoTemasTerminados(3)).toBe("Terminaste los 3 temas.");
   });
 
   test("does not promise a safe exit while a draft or save is pending", () => {

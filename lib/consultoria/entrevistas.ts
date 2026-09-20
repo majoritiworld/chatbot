@@ -512,6 +512,49 @@ export async function registrarTurnosEntrevista({
   }
 }
 
+function rpcOfertaCierreAusente(error: { code?: string; message?: string }) {
+  return (
+    error.code === "PGRST202" ||
+    error.code === "42883" ||
+    (error.message ?? "").includes("offer_interview_section_close")
+  );
+}
+
+/** Records which section currently has a close offer. No-op until the
+ * matching migration is applied; the transcript `ofertaCierre` flag still
+ * reconstructs the button. */
+export async function registrarOfertaCierreSeccion({
+  entrevistaId,
+  seccionId,
+}: {
+  entrevistaId: string;
+  seccionId: string;
+}) {
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
+  if (!entrevista) {
+    throw new Error("No puedes cerrar esta sección");
+  }
+
+  const seccion = entrevista.secciones.at(entrevista.seccion_actual);
+  if (
+    entrevista.estado !== "abierta" ||
+    entrevista.flujo_estado !== "chat" ||
+    seccion?.id !== seccionId
+  ) {
+    throw new Error("Esta sección ya no está activa");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("offer_interview_section_close", {
+    p_entrevista_id: entrevista.id,
+    p_seccion_id: seccionId,
+  });
+
+  if (error && !rpcOfertaCierreAusente(error)) {
+    throw error;
+  }
+}
+
 export async function guardarRespuestasEntrevista({
   entrevistaId,
   respuestas,

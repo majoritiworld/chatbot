@@ -3,7 +3,7 @@
 import { useCallback, useTransition } from "react";
 import { toast } from "sonner";
 import { useActiveChat } from "@/hooks/use-active-chat";
-import { agenteOfrecioCierreListo } from "@/lib/consultoria/cierre-seccion";
+import { ofertaCierreVigenteEnChat } from "@/lib/consultoria/cierre-seccion";
 import { avisoGuardadoRespuestas } from "@/lib/consultoria/entrevista-piloto";
 import {
   MENSAJE_CONTINUAR_SECCION,
@@ -108,6 +108,6 @@ export function useCerrarSeccionEntrevista() {
     forzarCierre,
     guardarProgreso,
     pedirCierre,
-    seccionListaParaCerrar: agenteOfrecioCierreListo(messages),
+    seccionListaParaCerrar: ofertaCierreVigenteEnChat(messages),
   };
 }
