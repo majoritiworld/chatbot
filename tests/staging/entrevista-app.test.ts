@@ -240,7 +240,7 @@ test.describe("Staging interview application flow", () => {
     expect(after.secciones_completadas).toHaveLength(completed);
   });
 
-  test("close offer survives reload and then reaches review", async ({
+  test("close offer survives reload and then submits without a review step", async ({
     page,
   }) => {
     test.skip(
@@ -282,14 +282,25 @@ test.describe("Staging interview application flow", () => {
     await descartarTour(page);
     await expect(closeButton).toBeVisible();
     await closeButton.click();
+    const confirmar = page.getByRole("alertdialog", {
+      name: "¿Finalizar entrevista?",
+    });
+    await expect(confirmar).toBeVisible();
+    await confirmar
+      .getByRole("button", { name: "Finalizar entrevista" })
+      .click();
 
-    await expect(page.getByText("Listo para enviar")).toBeVisible({
+    await expect(page.getByText("Entrevista enviada")).toBeVisible({
       timeout: 90_000,
     });
-    await expect(page.getByText("Terminaste el tema.")).toBeVisible();
+    await expect(page.getByText("Listo para enviar")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Enviar entrevista" })
+    ).toHaveCount(0);
 
     const after = await snapshotEntrevista(entrevistaId);
-    expect(after.flujo_estado).toBe("revision");
+    expect(after.estado).toBe("completada");
     expect(after.secciones_completadas).toHaveLength(1);
+    expect(after.correo_agradecimiento_en).toBeNull();
   });
 });

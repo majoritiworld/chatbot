@@ -13,7 +13,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { useCerrarSeccionEntrevista } from "@/hooks/use-cerrar-seccion-entrevista";
-import { debeConfirmarCierrePorBorrador } from "@/lib/consultoria/entrevista-piloto";
+import {
+  avisoEntregaAlFinalizar,
+  debeConfirmarCierrePorBorrador,
+  etiquetaCierreTema,
+} from "@/lib/consultoria/entrevista-piloto";
 
 export function FinalizarEntrevistaButton() {
   const { indiceSeccion, input, numeroSecciones, sendMessage, setInput } =
@@ -104,17 +108,17 @@ export function FinalizarEntrevistaButton() {
         type="button"
         variant={seccionListaParaCerrar ? "default" : "outline"}
       >
-        {busy ? "Cerrando tema…" : null}
-        {busy || esUltimo ? null : "Siguiente tema (cierra este)"}
-        {busy || !esUltimo ? null : "Terminar tema y revisar"}
+        {busy ? (esUltimo ? "Finalizando…" : "Cerrando tema…") : null}
+        {busy ? null : etiquetaCierreTema(esUltimo)}
       </Button>
       <AlertDialog onOpenChange={setConfirmar} open={confirmar}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Este tema aún no está completo</AlertDialogTitle>
             <AlertDialogDescription>
-              Puedes seguir ahora o guardar las respuestas ya enviadas y volver
-              luego. Cerrar este tema igual no envía la entrevista.
+              {esUltimo
+                ? avisoEntregaAlFinalizar()
+                : "Puedes seguir ahora o guardar las respuestas ya enviadas y volver luego. Cerrar este tema igual no envía la entrevista."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2 sm:flex-col sm:justify-stretch">

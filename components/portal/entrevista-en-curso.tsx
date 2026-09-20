@@ -18,6 +18,7 @@ import type {
 import {
   consentimientoEntrevistaListo,
   encadenarAvanceInicial,
+  muestraPantallaRevision,
   siguienteTransicionInicial,
 } from "@/lib/consultoria/entrevista-piloto";
 import { createClient } from "@/lib/supabase/client";
@@ -54,6 +55,7 @@ export function EntrevistaEnCurso({
 }) {
   const router = useRouter();
   const yaEstabaCompletada = estadoInicial === "completada";
+  const llegoEnRevision = flujoEstadoInicial === "revision";
   const [completada, setCompletada] = useState(yaEstabaCompletada);
   const [correoPendiente, setCorreoPendiente] = useState(
     yaEstabaCompletada && !correoAgradecimientoEn
@@ -185,42 +187,6 @@ export function EntrevistaEnCurso({
     };
   }, [completada, correoPendiente, mostrarPortal, router, yaEstabaCompletada]);
 
-  const marcarSeccionCompletada = useCallback(
-    ({
-      flujoEstado: siguienteEstado,
-      seccionActual: siguienteSeccion,
-    }: {
-      flujoEstado: FlujoEntrevista;
-      seccionActual: number;
-    }) => {
-      flujoRef.current = siguienteEstado;
-      setSeccionActual(siguienteSeccion);
-      setFlujoEstado(siguienteEstado);
-    },
-    []
-  );
-
-  const contestarSeccion = useCallback(() => {
-    if (avanceLockRef.current) {
-      return;
-    }
-    avanceLockRef.current = true;
-    startTransition(async () => {
-      try {
-        const siguiente = await postAvance("presentacion");
-        flujoRef.current = siguiente;
-        setFlujoEstado(siguiente);
-        setAvanceError(null);
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "No se pudo continuar"
-        );
-      } finally {
-        avanceLockRef.current = false;
-      }
-    });
-  }, [postAvance]);
-
   const enviar = useCallback(() => {
     submitEnCursoRef.current = true;
     setErrorEntrega(false);
@@ -261,6 +227,45 @@ export function EntrevistaEnCurso({
       }
     });
   }, [entrevistaId]);
+
+  const marcarSeccionCompletada = useCallback(
+    ({
+      flujoEstado: siguienteEstado,
+      seccionActual: siguienteSeccion,
+    }: {
+      flujoEstado: FlujoEntrevista;
+      seccionActual: number;
+    }) => {
+      flujoRef.current = siguienteEstado;
+      setSeccionActual(siguienteSeccion);
+      setFlujoEstado(siguienteEstado);
+      if (siguienteEstado === "revision") {
+        enviar();
+      }
+    },
+    [enviar]
+  );
+
+  const contestarSeccion = useCallback(() => {
+    if (avanceLockRef.current) {
+      return;
+    }
+    avanceLockRef.current = true;
+    startTransition(async () => {
+      try {
+        const siguiente = await postAvance("presentacion");
+        flujoRef.current = siguiente;
+        setFlujoEstado(siguiente);
+        setAvanceError(null);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "No se pudo continuar"
+        );
+      } finally {
+        avanceLockRef.current = false;
+      }
+    });
+  }, [postAvance]);
 
   const reintentarCorreo = useCallback(() => {
     startTransition(async () => {
@@ -323,6 +328,29 @@ export function EntrevistaEnCurso({
   }
 
   if (flujoEstado === "revision") {
+    if (
+      !muestraPantallaRevision({
+        errorEntrega,
+        flujoEstado,
+        llegoEnRevision,
+      })
+    ) {
+      return (
+        <EntrevistaShell
+          compactoMovil
+          correoUsuario={correoUsuario}
+          mostrarPortal={mostrarPortal}
+          titulo={titulo}
+        >
+          <EntrevistaPantallaTransicion>
+            <p className="text-muted-foreground text-sm">
+              {pending ? "Enviando respuestas…" : "Preparando el envío…"}
+            </p>
+          </EntrevistaPantallaTransicion>
+        </EntrevistaShell>
+      );
+    }
+
     return (
       <EntrevistaShell
         compactoMovil

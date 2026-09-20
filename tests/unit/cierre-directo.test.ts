@@ -39,7 +39,7 @@ const ofertaConTexto: ChatMessage = {
   id: "a-oferta-texto",
   parts: [
     {
-      text: "Ya tengo lo necesario. Pulsa Siguiente tema (cierra este).",
+      text: "Ya tengo lo necesario. Pulsa Cerrar y continuar.",
       type: "text",
     },
     {

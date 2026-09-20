@@ -15,6 +15,7 @@ import { useActiveChat } from "@/hooks/use-active-chat";
 import { useCerrarSeccionEntrevista } from "@/hooks/use-cerrar-seccion-entrevista";
 import { agenteOfrecioCierreListo } from "@/lib/consultoria/cierre-seccion";
 import {
+  avisoEntregaAlFinalizar,
   debeConfirmarCierrePorBorrador,
   etiquetaCierreTema,
 } from "@/lib/consultoria/entrevista-piloto";
@@ -37,18 +38,27 @@ export function CerrarSeccionEnChat({
   const { busy, pedirCierre, seccionListaParaCerrar } =
     useCerrarSeccionEntrevista();
   const [confirmarBorrador, setConfirmarBorrador] = useState(false);
+  const [confirmarEntrega, setConfirmarEntrega] = useState(false);
   const esUltimo =
     typeof indiceSeccion === "number" &&
     typeof numeroSecciones === "number" &&
     indiceSeccion >= numeroSecciones - 1;
+
+  const intentarCerrar = useCallback(() => {
+    if (esUltimo) {
+      setConfirmarEntrega(true);
+      return;
+    }
+    pedirCierre();
+  }, [esUltimo, pedirCierre]);
 
   const handleClick = useCallback(() => {
     if (debeConfirmarCierrePorBorrador(input)) {
       setConfirmarBorrador(true);
       return;
     }
-    pedirCierre();
-  }, [input, pedirCierre]);
+    intentarCerrar();
+  }, [input, intentarCerrar]);
 
   const seguirEditando = useCallback(() => {
     setConfirmarBorrador(false);
@@ -70,8 +80,13 @@ export function CerrarSeccionEnChat({
   const descartarYContinuar = useCallback(() => {
     setConfirmarBorrador(false);
     setInput("");
+    intentarCerrar();
+  }, [intentarCerrar, setInput]);
+
+  const confirmarYCerrar = useCallback(() => {
+    setConfirmarEntrega(false);
     pedirCierre();
-  }, [pedirCierre, setInput]);
+  }, [pedirCierre]);
 
   const lastOfreció = agenteOfrecioCierreListo(messages);
   const mostrar =
@@ -93,7 +108,8 @@ export function CerrarSeccionEnChat({
         type="button"
         variant="outline"
       >
-        {busy ? "Cerrando tema…" : etiquetaCierreTema(esUltimo)}
+        {busy ? (esUltimo ? "Finalizando…" : "Cerrando tema…") : null}
+        {busy ? null : etiquetaCierreTema(esUltimo)}
       </Button>
       <AlertDialog onOpenChange={setConfirmarBorrador} open={confirmarBorrador}>
         <AlertDialogContent>
@@ -117,6 +133,22 @@ export function CerrarSeccionEnChat({
               variant="outline"
             >
               Descartar y continuar
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog onOpenChange={setConfirmarEntrega} open={confirmarEntrega}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Finalizar entrevista?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {avisoEntregaAlFinalizar()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Seguir aquí</AlertDialogCancel>
+            <Button onClick={confirmarYCerrar} type="button">
+              Finalizar entrevista
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

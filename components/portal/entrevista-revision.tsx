@@ -4,6 +4,8 @@ import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pan
 import { Button } from "@/components/ui/button";
 import { textoTemasTerminados } from "@/lib/consultoria/entrevista-piloto";
 
+/** Interviews that already reached revision, or a failed submit after close. */
+
 export function EntrevistaRevision({
   errorEntrega = false,
   nombre,

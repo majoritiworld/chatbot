@@ -37,6 +37,8 @@ export async function descartarTour(page: Page) {
 }
 
 type SnapshotEntrevista = {
+  correo_agradecimiento_en: string | null;
+  estado: string;
   flujo_estado: string;
   secciones_completadas: unknown[];
   transcripcion: Array<{ id?: string; texto?: string }>;
@@ -54,7 +56,7 @@ export async function snapshotEntrevista(
   const url = process.env.STAGING_SUPABASE_URL ?? "";
   const anonKey = process.env.STAGING_SUPABASE_ANON_KEY ?? "";
   const response = await fetch(
-    `${url}/rest/v1/entrevista?id=eq.${entrevistaId}&select=flujo_estado,secciones_completadas,transcripcion`,
+    `${url}/rest/v1/entrevista?id=eq.${entrevistaId}&select=estado,flujo_estado,correo_agradecimiento_en,secciones_completadas,transcripcion`,
     {
       headers: {
         Authorization: `Bearer ${token}`,

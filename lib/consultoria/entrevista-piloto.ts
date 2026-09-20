@@ -55,7 +55,23 @@ export function etiquetaProgresoTema(indice: number, numeroSecciones: number) {
 }
 
 export function etiquetaCierreTema(esUltimo: boolean) {
-  return esUltimo ? "Terminar tema y revisar" : "Siguiente tema (cierra este)";
+  return esUltimo ? "Finalizar entrevista" : "Cerrar y continuar";
+}
+
+export function avisoEntregaAlFinalizar() {
+  return "Al finalizar se enviarán tus respuestas y la entrevista quedará cerrada. Ya no podrás agregar más.";
+}
+
+export function muestraPantallaRevision({
+  errorEntrega,
+  flujoEstado,
+  llegoEnRevision,
+}: {
+  errorEntrega: boolean;
+  flujoEstado: FlujoEntrevista;
+  llegoEnRevision: boolean;
+}) {
+  return flujoEstado === "revision" && (llegoEnRevision || errorEntrega);
 }
 
 export function textoTemasTerminados(numeroSecciones: number) {

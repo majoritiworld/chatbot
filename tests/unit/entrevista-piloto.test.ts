@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  avisoEntregaAlFinalizar,
   avisoGuardadoRespuestas,
   consentimientoEntrevistaListo,
   debeBloquearCorreoEntrevista,
@@ -13,6 +14,7 @@ import {
   etiquetaProgresoTema,
   leerBorradorEntrevista,
   mensajeSalidaInsegura,
+  muestraPantallaRevision,
   reiniciarBorradoresEntrevistaParaPruebas,
   salidaEntrevistaInsegura,
   siguienteTransicionInicial,
@@ -100,8 +102,30 @@ test.describe("Pilot interview helpers", () => {
   test("shows real section progress and close labels", () => {
     expect(etiquetaProgresoTema(0, 4)).toBe("Tema 1 de 4");
     expect(etiquetaProgresoTema(3, 4)).toBe("Tema 4 de 4");
-    expect(etiquetaCierreTema(false)).toBe("Siguiente tema (cierra este)");
-    expect(etiquetaCierreTema(true)).toBe("Terminar tema y revisar");
+    expect(etiquetaCierreTema(false)).toBe("Cerrar y continuar");
+    expect(etiquetaCierreTema(true)).toBe("Finalizar entrevista");
+    expect(avisoEntregaAlFinalizar()).toContain("se enviarán tus respuestas");
+    expect(
+      muestraPantallaRevision({
+        errorEntrega: false,
+        flujoEstado: "revision",
+        llegoEnRevision: false,
+      })
+    ).toBe(false);
+    expect(
+      muestraPantallaRevision({
+        errorEntrega: false,
+        flujoEstado: "revision",
+        llegoEnRevision: true,
+      })
+    ).toBe(true);
+    expect(
+      muestraPantallaRevision({
+        errorEntrega: true,
+        flujoEstado: "revision",
+        llegoEnRevision: false,
+      })
+    ).toBe(true);
     expect(textoTemasTerminados(1)).toBe("Terminaste el tema.");
     expect(textoTemasTerminados(3)).toBe("Terminaste los 3 temas.");
   });

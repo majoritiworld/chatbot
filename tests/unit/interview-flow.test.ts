@@ -322,8 +322,8 @@ test.describe("Interview prompt context", () => {
     expect(prompt).toContain(MENSAJE_FINALIZAR_SECCION);
     expect(prompt).toContain("ofrecerContinuarOGuardar");
     expect(prompt).toContain("ofrecerCierreSeccion");
-    expect(prompt).toContain("Siguiente tema (cierra este)");
-    expect(prompt).not.toContain("Terminar tema y revisar");
+    expect(prompt).toContain("Cerrar y continuar");
+    expect(prompt).not.toContain("Finalizar entrevista");
     expect(prompt).toContain("puede contestarla ahora o volver más tarde");
     expect(prompt).toContain("no hagas otra pregunta");
     expect(prompt).toContain("listo=true");
@@ -353,8 +353,8 @@ test.describe("Interview prompt context", () => {
       tituloSeccion: "General",
     });
 
-    expect(ultimo).toContain("Terminar tema y revisar");
-    expect(ultimo).not.toContain("Siguiente tema (cierra este)");
+    expect(ultimo).toContain("Finalizar entrevista");
+    expect(ultimo).not.toContain("Cerrar y continuar");
     expect(ultimo).toContain("No inventes otros nombres de botón");
   });
 });
