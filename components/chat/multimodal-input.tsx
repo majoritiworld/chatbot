@@ -46,7 +46,7 @@ import {
   DEFAULT_CHAT_MODEL,
   type ModelCapabilities,
 } from "@/lib/ai/models";
-import type { DemoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
+import type { ModoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
 import type { Attachment, ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -201,7 +201,7 @@ function PureMultimodalInput({
   chatId: string;
   composerAction?: ReactNode;
   demoAislada?: boolean;
-  demoVoz?: DemoVozEntrevista;
+  demoVoz?: ModoVozEntrevista;
   esEntrevista?: boolean;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
@@ -927,7 +927,13 @@ function PureMultimodalInput({
           value={input}
         />
         <PromptInputFooter className="px-3 pb-3">
-          <PromptInputTools>
+          <PromptInputTools
+            className={
+              esEntrevista && vozEntrevista.estado !== "idle"
+                ? "min-w-0 flex-1"
+                : undefined
+            }
+          >
             {esEntrevista ? null : (
               <AttachmentsButton
                 fileInputRef={fileInputRef}
@@ -937,13 +943,16 @@ function PureMultimodalInput({
             )}
             {esEntrevista ? (
               <EntrevistaVozCompositor
-                barras={vozEntrevista.barras}
+                avisoVoz={vozEntrevista.avisoVoz}
                 cancelarGrabacion={vozEntrevista.cancelarGrabacion}
+                canvasRef={vozEntrevista.canvasRef}
                 detenerGrabacion={vozEntrevista.detenerGrabacion}
-                duracion={vozEntrevista.duracion}
+                duracionNodoRef={vozEntrevista.duracionNodoRef}
                 empezarGrabacion={handleEmpezarVozEntrevista}
                 errorVoz={vozEntrevista.errorVoz}
                 estado={vozEntrevista.estado}
+                microfonoEncendido={vozEntrevista.microfonoEncendido}
+                soloCapturaLocal={vozEntrevista.soloCapturaLocal}
               />
             ) : (
               <Tooltip>
@@ -1024,7 +1033,9 @@ function PureMultimodalInput({
             ) : null}
             {status === "submitted" ? (
               <StopButton setMessages={setMessages} stop={stop} />
-            ) : (
+            ) : null}
+            {status !== "submitted" &&
+            !(esEntrevista && vozEntrevista.estado !== "idle") ? (
               <PromptInputSubmit
                 aria-label="Enviar respuesta"
                 className={cn(
@@ -1050,7 +1061,7 @@ function PureMultimodalInput({
               >
                 <ArrowUpIcon className="size-4" />
               </PromptInputSubmit>
-            )}
+            ) : null}
           </div>
         </PromptInputFooter>
       </PromptInput>

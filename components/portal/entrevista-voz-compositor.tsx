@@ -1,52 +1,34 @@
 "use client";
 
-import { MicIcon } from "lucide-react";
+import { MicIcon, XIcon } from "lucide-react";
+import type { Ref } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
-const IDS_ONDA = [
-  "o01",
-  "o02",
-  "o03",
-  "o04",
-  "o05",
-  "o06",
-  "o07",
-  "o08",
-  "o09",
-  "o10",
-  "o11",
-  "o12",
-  "o13",
-  "o14",
-  "o15",
-  "o16",
-  "o17",
-  "o18",
-  "o19",
-  "o20",
-  "o21",
-  "o22",
-  "o23",
-  "o24",
-] as const;
+const BOTON_GRABACION =
+  "flex size-11 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-900";
 
 export function EntrevistaVozCompositor({
-  barras,
+  avisoVoz,
   cancelarGrabacion,
+  canvasRef,
   detenerGrabacion,
-  duracion,
+  duracionNodoRef,
   empezarGrabacion,
   errorVoz,
   estado,
+  microfonoEncendido,
+  soloCapturaLocal,
 }: {
-  barras: number[];
+  avisoVoz: string | null;
   cancelarGrabacion: () => void;
+  canvasRef: Ref<HTMLCanvasElement>;
   detenerGrabacion: () => void;
-  duracion: string;
+  duracionNodoRef: Ref<HTMLSpanElement>;
   empezarGrabacion: () => void;
   errorVoz: string | null;
   estado: "idle" | "recording" | "transcribing";
+  microfonoEncendido: boolean;
+  soloCapturaLocal: boolean;
 }) {
   if (estado === "transcribing") {
     return (
@@ -58,43 +40,43 @@ export function EntrevistaVozCompositor({
 
   if (estado === "recording") {
     return (
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-        <p aria-live="polite" className="shrink-0 font-medium text-sm">
-          Grabando {duracion}
-        </p>
-        <div
-          aria-hidden="true"
-          className="flex h-6 min-w-24 flex-1 items-end gap-px"
-        >
-          {IDS_ONDA.map((id, indice) => (
-            <span
-              className={cn(
-                "inline-block w-full min-w-0.5 rounded-full bg-neutral-900"
-              )}
-              key={id}
-              style={{
-                height: `${Math.max(12, (barras.at(indice) ?? 0.2) * 100)}%`,
-              }}
-            />
-          ))}
-        </div>
-        <Button
+      <div className="flex w-full min-w-0 flex-nowrap items-center gap-2">
+        <button
           aria-label="Cancelar grabación"
+          className={BOTON_GRABACION}
           onClick={cancelarGrabacion}
-          size="xs"
           type="button"
-          variant="ghost"
         >
-          Cancelar
-        </Button>
-        <Button
-          aria-label="Detener grabación y transcribir"
+          <XIcon aria-hidden="true" className="size-4" />
+        </button>
+        <span
+          className="w-8 shrink-0 text-center text-[10px] tabular-nums text-neutral-400"
+          ref={duracionNodoRef}
+        >
+          0:00
+        </span>
+        <canvas
+          className="pointer-events-none h-7 min-w-0 flex-1"
+          ref={canvasRef}
+        />
+        <button
+          aria-label={
+            soloCapturaLocal
+              ? "Detener grabación y apagar el micrófono"
+              : "Detener grabación y transcribir"
+          }
+          className={BOTON_GRABACION}
           onClick={detenerGrabacion}
-          size="xs"
           type="button"
         >
-          Detener
-        </Button>
+          <span
+            aria-hidden="true"
+            className="block size-3 rounded-[2px] bg-neutral-900"
+          />
+        </button>
+        <span className="sr-only" role="status">
+          {microfonoEncendido ? "Grabando. Micrófono encendido." : "Grabando."}
+        </span>
       </div>
     );
   }
@@ -109,11 +91,16 @@ export function EntrevistaVozCompositor({
         type="button"
         variant="outline"
       >
-        <MicIcon className="size-3.5" />
+        <MicIcon aria-hidden="true" className="size-3.5" />
       </Button>
       {errorVoz ? (
         <p className="text-destructive text-sm" role="alert">
           {errorVoz}
+        </p>
+      ) : null}
+      {avisoVoz ? (
+        <p aria-live="polite" className="text-muted-foreground text-sm">
+          {avisoVoz}
         </p>
       ) : null}
     </div>

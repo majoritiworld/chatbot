@@ -24,7 +24,7 @@ import {
 } from "@/hooks/use-salida-entrevista";
 import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
 import { etiquetaProgresoTema } from "@/lib/consultoria/entrevista-piloto";
-import type { DemoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
+import type { ModoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
 import type { ChatMessage, SectionCompletedData } from "@/lib/types";
 
 function EntrevistaChatCuerpo({
@@ -125,7 +125,7 @@ export function EntrevistaChat({
   titulo,
 }: {
   demoAislada?: boolean;
-  demoVoz?: DemoVozEntrevista;
+  demoVoz?: ModoVozEntrevista;
   entrevistaId: string;
   indice: number;
   mensajesIniciales: ChatMessage[];

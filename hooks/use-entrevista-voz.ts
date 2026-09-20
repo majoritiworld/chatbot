@@ -10,12 +10,21 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
-  barrasDesdeOnda,
-  barrasSinteticas,
+  amplitudGuionSintetico,
+  amplitudRmsSinContinua,
+  avanzarHistorialOnda,
   clasificarErrorMicrofono,
-  type DemoVozEntrevista,
+  crearHistorialOnda,
+  debeEnviarTranscripcion,
+  esCapturaLocalSinEnvio,
+  escalarAmplitudVisual,
+  esGrabacionSimulada,
   formatearDuracionGrabacion,
+  INTERVALO_MUESTRA_ONDA_MS,
+  type ModoVozEntrevista,
   mensajeErrorMicrofono,
+  pintarOndaEnCanvas,
+  suavizarAmplitud,
   unirTextoTranscrito,
 } from "@/lib/consultoria/entrevista-voz";
 
@@ -60,13 +69,13 @@ export function useEntrevistaVoz({
   demoVoz,
   setInput,
 }: {
-  demoVoz?: DemoVozEntrevista;
+  demoVoz?: ModoVozEntrevista;
   setInput: Dispatch<SetStateAction<string>>;
 }) {
   const [estado, setEstado] = useState<EstadoVoz>("idle");
-  const [barras, setBarras] = useState<number[]>(() => barrasSinteticas(0));
-  const [duracionMs, setDuracionMs] = useState(0);
   const [errorVoz, setErrorVoz] = useState<string | null>(null);
+  const [avisoVoz, setAvisoVoz] = useState<string | null>(null);
+  const [microfonoEncendido, setMicrofonoEncendido] = useState(false);
   const estadoRef = useRef<EstadoVoz>("idle");
   const sessionRef = useRef(0);
   const mountedRef = useRef(true);
@@ -78,6 +87,11 @@ export function useEntrevistaVoz({
   const startedAtRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const descartarRef = useRef(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const duracionNodoRef = useRef<HTMLSpanElement>(null);
+  const historialRef = useRef(crearHistorialOnda());
+  const suavizadoRef = useRef(0);
+  const ultimoEmpujeRef = useRef(0);
 
   const setEstadoVoz = useCallback((siguiente: EstadoVoz) => {
     estadoRef.current = siguiente;
@@ -98,35 +112,63 @@ export function useEntrevistaVoz({
     streamRef.current = null;
     recorderRef.current = null;
     chunksRef.current = [];
+    suavizadoRef.current = 0;
+    historialRef.current = crearHistorialOnda();
+    ultimoEmpujeRef.current = 0;
+    setMicrofonoEncendido(false);
   }, []);
 
-  const animarSintetico = useCallback((inicio: number) => {
-    const tick = (ahora: number) => {
-      if (estadoRef.current !== "recording") {
-        return;
-      }
-      setBarras(barrasSinteticas(ahora - inicio));
-      setDuracionMs(ahora - inicio);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
+  const pintarFrame = useCallback((ahora: number, inicio: number) => {
+    if (duracionNodoRef.current) {
+      duracionNodoRef.current.textContent = formatearDuracionGrabacion(
+        ahora - inicio
+      );
+    }
+    pintarOndaEnCanvas(canvasRef.current, historialRef.current);
   }, []);
 
-  const animarAnalizador = useCallback(
-    (analizador: AnalyserNode, inicio: number) => {
-      const datos = new Uint8Array(new ArrayBuffer(analizador.fftSize));
+  const empujarAmplitud = useCallback((rms: number, ahora: number) => {
+    suavizadoRef.current = suavizarAmplitud(suavizadoRef.current, rms);
+    const visual = escalarAmplitudVisual(suavizadoRef.current);
+    if (
+      ultimoEmpujeRef.current === 0 ||
+      ahora - ultimoEmpujeRef.current >= INTERVALO_MUESTRA_ONDA_MS
+    ) {
+      avanzarHistorialOnda(historialRef.current, visual);
+      ultimoEmpujeRef.current = ahora;
+    }
+  }, []);
+
+  const animarSintetico = useCallback(
+    (inicio: number) => {
       const tick = (ahora: number) => {
         if (estadoRef.current !== "recording") {
           return;
         }
-        analizador.getByteTimeDomainData(datos);
-        setBarras(barrasDesdeOnda(datos));
-        setDuracionMs(ahora - inicio);
+        empujarAmplitud(amplitudGuionSintetico(ahora - inicio), ahora);
+        pintarFrame(ahora, inicio);
         rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);
     },
-    []
+    [empujarAmplitud, pintarFrame]
+  );
+
+  const animarAnalizador = useCallback(
+    (analizador: AnalyserNode, inicio: number) => {
+      const datos = new Float32Array(analizador.fftSize);
+      const tick = (ahora: number) => {
+        if (estadoRef.current !== "recording") {
+          return;
+        }
+        analizador.getFloatTimeDomainData(datos);
+        empujarAmplitud(amplitudRmsSinContinua(datos), ahora);
+        pintarFrame(ahora, inicio);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    },
+    [empujarAmplitud, pintarFrame]
   );
 
   const transcribir = useCallback(
@@ -145,7 +187,7 @@ export function useEntrevistaVoz({
           );
         }
 
-        if (demoVoz) {
+        if (esGrabacionSimulada(demoVoz)) {
           await new Promise((resolve, reject) => {
             const espera = window.setTimeout(resolve, 400);
             abort.signal.addEventListener("abort", () => {
@@ -172,10 +214,16 @@ export function useEntrevistaVoz({
           `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/transcribe`,
           { body: formData, method: "POST", signal: abort.signal }
         );
-        const json = (await response.json()) as {
-          error?: string;
-          text?: string;
-        };
+        const cuerpo = await response.text();
+        let json: { error?: string; text?: string } = {};
+        try {
+          json = JSON.parse(cuerpo) as { error?: string; text?: string };
+        } catch (error) {
+          throw new Error(
+            "No se pudo transcribir. Tu texto escrito se conserva.",
+            { cause: error }
+          );
+        }
         if (!response.ok) {
           throw new Error(
             json.error ??
@@ -223,16 +271,24 @@ export function useEntrevistaVoz({
       }
     }
     liberarCaptura();
-    setDuracionMs(0);
+    if (esCapturaLocalSinEnvio(demoVoz)) {
+      setAvisoVoz("Grabación descartada. Micrófono apagado.");
+    }
     setEstadoVoz("idle");
-  }, [liberarCaptura, setEstadoVoz]);
+  }, [demoVoz, liberarCaptura, setEstadoVoz]);
 
   const detenerGrabacion = useCallback(() => {
     if (estadoRef.current !== "recording") {
       return;
     }
     descartarRef.current = false;
-    if (demoVoz) {
+    if (esCapturaLocalSinEnvio(demoVoz)) {
+      liberarCaptura();
+      setAvisoVoz("Micrófono apagado. El audio no se envió.");
+      setEstadoVoz("idle");
+      return;
+    }
+    if (esGrabacionSimulada(demoVoz)) {
       const session = sessionRef.current;
       liberarCaptura();
       transcribir(new Blob(), "audio/webm", session).catch(() => undefined);
@@ -272,17 +328,22 @@ export function useEntrevistaVoz({
     sessionRef.current = session;
     descartarRef.current = false;
     startedAtRef.current = performance.now();
-    setDuracionMs(0);
+    historialRef.current = crearHistorialOnda();
+    suavizadoRef.current = 0;
+    ultimoEmpujeRef.current = 0;
+    if (duracionNodoRef.current) {
+      duracionNodoRef.current.textContent = "0:00";
+    }
     setErrorVoz(null);
+    setAvisoVoz(null);
     setEstadoVoz("recording");
 
-    if (demoVoz) {
+    if (esGrabacionSimulada(demoVoz)) {
       animarSintetico(startedAtRef.current);
       return;
     }
 
     if (
-      typeof MediaRecorder === "undefined" ||
       typeof navigator === "undefined" ||
       !navigator.mediaDevices?.getUserMedia
     ) {
@@ -300,6 +361,37 @@ export function useEntrevistaVoz({
         return;
       }
       streamRef.current = stream;
+      setMicrofonoEncendido(true);
+
+      const contexto = new AudioContext();
+      audioContextRef.current = contexto;
+      if (contexto.state === "suspended") {
+        await contexto.resume();
+      }
+      if (!mountedRef.current || sessionRef.current !== session) {
+        liberarCaptura();
+        return;
+      }
+      const fuente = contexto.createMediaStreamSource(stream);
+      const analizador = contexto.createAnalyser();
+      analizador.fftSize = 2048;
+      analizador.smoothingTimeConstant = 0;
+      fuente.connect(analizador);
+      animarAnalizador(analizador, startedAtRef.current);
+
+      if (esCapturaLocalSinEnvio(demoVoz)) {
+        return;
+      }
+
+      if (typeof MediaRecorder === "undefined") {
+        liberarCaptura();
+        const mensaje = mensajeErrorMicrofono("sin-mic");
+        setErrorVoz(mensaje);
+        toast.error(mensaje);
+        setEstadoVoz("idle");
+        return;
+      }
+
       const mimeType = mimeGrabacionVoz();
       const recorder = mimeType
         ? new MediaRecorder(stream, { mimeType })
@@ -326,19 +418,15 @@ export function useEntrevistaVoz({
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: tipoAudio });
         liberarCaptura();
-        if (descartarRef.current || sessionRef.current !== session) {
+        if (
+          descartarRef.current ||
+          sessionRef.current !== session ||
+          !debeEnviarTranscripcion(demoVoz)
+        ) {
           return;
         }
         transcribir(blob, tipoAudio, session).catch(() => undefined);
       };
-
-      const contexto = new AudioContext();
-      audioContextRef.current = contexto;
-      const fuente = contexto.createMediaStreamSource(stream);
-      const analizador = contexto.createAnalyser();
-      analizador.fftSize = 64;
-      fuente.connect(analizador);
-      animarAnalizador(analizador, startedAtRef.current);
 
       const timeslice = tipoAudio.includes("webm") ? 250 : undefined;
       if (timeslice) {
@@ -382,12 +470,15 @@ export function useEntrevistaVoz({
   }, [liberarCaptura]);
 
   return {
-    barras,
+    avisoVoz,
     cancelarGrabacion,
+    canvasRef,
     detenerGrabacion,
-    duracion: formatearDuracionGrabacion(duracionMs),
+    duracionNodoRef,
     empezarGrabacion,
     errorVoz,
     estado,
+    microfonoEncendido,
+    soloCapturaLocal: esCapturaLocalSinEnvio(demoVoz),
   };
 }

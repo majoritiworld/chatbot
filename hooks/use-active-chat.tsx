@@ -29,7 +29,7 @@ import {
   escribirBorradorEntrevista,
   leerBorradorEntrevista,
 } from "@/lib/consultoria/entrevista-piloto";
-import type { DemoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
+import type { ModoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
 import {
   claveKickoff,
   liberarKickoff,
@@ -79,7 +79,7 @@ type ActiveChatContextValue = {
   guardadoEnCurso: boolean;
   setGuardadoEnCurso: Dispatch<SetStateAction<boolean>>;
   demoAislada: boolean;
-  demoVoz?: DemoVozEntrevista;
+  demoVoz?: ModoVozEntrevista;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -102,7 +102,7 @@ export function ActiveChatProvider({
 }: {
   children: ReactNode;
   demoAislada?: boolean;
-  demoVoz?: DemoVozEntrevista;
+  demoVoz?: ModoVozEntrevista;
   entrevistaId?: string;
   indiceSeccion?: number;
   mensajesIniciales?: ChatMessage[];
