@@ -59,6 +59,18 @@ export function EntrevistaAyuda({
               <li key={punto}>{punto}</li>
             ))}
           </ul>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            ¿Necesitas ayuda?{" "}
+            <a
+              className="text-foreground underline underline-offset-2"
+              href="https://wa.me/972587623357"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Escríbenos por WhatsApp
+            </a>
+            .
+          </p>
         </DialogContent>
       </Dialog>
     </>

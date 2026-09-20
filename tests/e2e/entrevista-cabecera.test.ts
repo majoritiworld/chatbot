@@ -53,6 +53,10 @@ test.describe("Interview mobile header", () => {
     await expect(
       page.getByRole("menuitem", { name: "Volver al portal" })
     ).toBeVisible();
+    await page.getByRole("menuitem", { name: "Cómo funciona" }).click();
+    await expect(
+      page.getByRole("link", { name: "Escríbenos por WhatsApp" })
+    ).toHaveAttribute("href", "https://wa.me/972587623357");
   });
 
   test("does not offer the portal to a stakeholder", async ({ page }) => {
