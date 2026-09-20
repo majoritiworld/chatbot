@@ -28,6 +28,7 @@ const REDIRECT_POST_SUBMIT_MS = 2800;
 export function EntrevistaEnCurso({
   consentimientoEn,
   correoAgradecimientoEn,
+  correoUsuario,
   entrevistaId,
   estadoInicial,
   flujoEstadoInicial,
@@ -40,6 +41,7 @@ export function EntrevistaEnCurso({
 }: {
   consentimientoEn?: string | null;
   correoAgradecimientoEn?: string | null;
+  correoUsuario?: string | null;
   entrevistaId: string;
   estadoInicial: string;
   flujoEstadoInicial: FlujoEntrevista;
@@ -292,7 +294,12 @@ export function EntrevistaEnCurso({
 
   if (completada) {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaCompletada
           correoPendiente={correoPendiente}
           mostrarPortal={mostrarPortal}
@@ -306,6 +313,7 @@ export function EntrevistaEnCurso({
   if (!onboardingListo) {
     return (
       <EntrevistaOnboarding
+        correoUsuario={correoUsuario}
         entrevistaId={entrevistaId}
         mostrarPortal={mostrarPortal}
         onAceptado={marcarOnboardingListo}
@@ -316,7 +324,12 @@ export function EntrevistaEnCurso({
 
   if (flujoEstado === "revision") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaRevision
           errorEntrega={errorEntrega}
           nombre={stakeholderNombre}
@@ -333,7 +346,12 @@ export function EntrevistaEnCurso({
 
   if (esperandoChat) {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaPantallaTransicion>
           {avanceError ? (
             <>
@@ -362,7 +380,12 @@ export function EntrevistaEnCurso({
   const seccion = secciones.at(seccionActual);
   if (!seccion) {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaPantallaTransicion>
           <p className="text-destructive text-sm" role="alert">
             Esta entrevista no tiene una sección activa. Contacta a Majoriti.
@@ -374,7 +397,12 @@ export function EntrevistaEnCurso({
 
   if (flujoEstado === "presentacion") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaPresentacionSeccion
           indice={seccionActual}
           numeroSecciones={secciones.length}
@@ -388,7 +416,12 @@ export function EntrevistaEnCurso({
 
   if (flujoEstado !== "chat") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaPantallaTransicion>
           <p className="text-muted-foreground text-sm">
             La entrevista todavía no está lista para responder.
@@ -400,6 +433,7 @@ export function EntrevistaEnCurso({
 
   return (
     <EntrevistaChat
+      correoUsuario={correoUsuario}
       entrevistaId={entrevistaId}
       indice={seccionActual}
       key={seccion.id}

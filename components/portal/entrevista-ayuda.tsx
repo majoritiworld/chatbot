@@ -16,16 +16,29 @@ const PUNTOS = [
   "Cuando el tema esté cubierto, cierra ese tema para pasar al siguiente. Enviar la entrevista es un paso aparte, al final.",
 ] as const;
 
-export function EntrevistaAyuda() {
-  const [abierta, setAbierta] = useState(false);
+export function EntrevistaAyuda({
+  abierta,
+  className,
+  onOpenChange,
+}: {
+  abierta?: boolean;
+  className?: string;
+  onOpenChange?: (open: boolean) => void;
+} = {}) {
+  const [interna, setInterna] = useState(false);
+  const controlada = onOpenChange !== undefined;
+  const dialogoAbierto = controlada ? Boolean(abierta) : interna;
+  const setDialogoAbierto = controlada ? onOpenChange : setInterna;
   const abrir = useCallback(() => {
-    setAbierta(true);
-  }, []);
+    setDialogoAbierto(true);
+  }, [setDialogoAbierto]);
 
   return (
     <>
       <Button
-        className="text-muted-foreground text-xs hover:text-foreground"
+        className={
+          className ?? "text-muted-foreground text-xs hover:text-foreground"
+        }
         onClick={abrir}
         size="xs"
         type="button"
@@ -33,7 +46,7 @@ export function EntrevistaAyuda() {
       >
         Cómo funciona
       </Button>
-      <Dialog onOpenChange={setAbierta} open={abierta}>
+      <Dialog onOpenChange={setDialogoAbierto} open={dialogoAbierto}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cómo funciona</DialogTitle>

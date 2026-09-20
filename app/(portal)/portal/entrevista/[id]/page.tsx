@@ -30,7 +30,11 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
 
   if (carga.acceso === "ausente") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={portalUser.email}
+        mostrarPortal={mostrarPortal}
+      >
         <Aviso
           mensaje="Esta entrevista no existe o no te corresponde."
           mostrarPortal={mostrarPortal}
@@ -41,7 +45,11 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
 
   if (carga.acceso === "ajena") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={portalUser.email}
+        mostrarPortal={mostrarPortal}
+      >
         <Aviso
           mensaje={
             mostrarPortal
@@ -64,6 +72,7 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     <EntrevistaEnCurso
       consentimientoEn={entrevista.consentimiento_en}
       correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
+      correoUsuario={portalUser.email}
       entrevistaId={entrevista.id}
       estadoInicial={entrevista.estado}
       flujoEstadoInicial={entrevista.flujo_estado}
@@ -97,7 +106,7 @@ function Aviso({
 
 function EntrevistaSkeleton() {
   return (
-    <EntrevistaShell mostrarPortal={false}>
+    <EntrevistaShell compactoMovil mostrarPortal={false}>
       <div className="flex flex-col gap-3 px-6 py-8">
         <Skeleton className="h-4 w-48" />
         <Skeleton className="h-24 w-full" />

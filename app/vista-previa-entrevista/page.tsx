@@ -3,8 +3,6 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { VistaPreviaEntrevistaCliente } from "./vista-previa-entrevista-cliente";
 
-const AISLADA = process.env.PLAYWRIGHT_ISOLATED === "1";
-
 export default function VistaPreviaEntrevista() {
   return (
     <Suspense>
@@ -16,7 +14,7 @@ export default function VistaPreviaEntrevista() {
 async function VistaPreviaEntrevistaDinamica() {
   await connection();
 
-  if (!AISLADA) {
+  if (process.env.PLAYWRIGHT_ISOLATED !== "1") {
     notFound();
   }
 

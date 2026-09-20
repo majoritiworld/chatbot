@@ -38,6 +38,7 @@ import {
   ModelSelectorName,
   ModelSelectorTrigger,
 } from "@/components/ai-elements/model-selector";
+import { AvisoBorradorCompositor } from "@/components/portal/aviso-borrador-compositor";
 import { EntrevistaVozCompositor } from "@/components/portal/entrevista-voz-compositor";
 import { useEntrevistaVoz } from "@/hooks/use-entrevista-voz";
 import {
@@ -832,6 +833,9 @@ function PureMultimodalInput({
 
   return (
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
+      {esEntrevista ? (
+        <AvisoBorradorCompositor visible={input.trim().length > 0} />
+      ) : null}
       {editingMessage && onCancelEdit ? (
         <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
           <span>{esEntrevista ? "Editando mensaje" : "Editing message"}</span>

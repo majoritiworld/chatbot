@@ -8,9 +8,13 @@ import { avisoGuardadoRespuestas } from "@/lib/consultoria/entrevista-piloto";
 import { cn } from "@/lib/utils";
 
 export function GuardarEntrevistaButton({
+  compacto = false,
+  demoFalloGuardar = false,
   entrevistaId,
   seccionId,
 }: {
+  compacto?: boolean;
+  demoFalloGuardar?: boolean;
   entrevistaId: string;
   seccionId: string;
 }) {
@@ -36,6 +40,12 @@ export function GuardarEntrevistaButton({
 
     startTransition(async () => {
       if (demoAislada) {
+        if (demoFalloGuardar) {
+          toast.error(
+            "No se pudo guardar. Revisa la conexión e inténtalo de nuevo."
+          );
+          return;
+        }
         marcarProgresoGuardado();
         toast.success(avisoGuardadoRespuestas(hayBorrador));
         return;
@@ -79,6 +89,7 @@ export function GuardarEntrevistaButton({
     });
   }, [
     demoAislada,
+    demoFalloGuardar,
     entrevistaId,
     hayBorrador,
     marcarProgresoGuardado,
@@ -90,29 +101,25 @@ export function GuardarEntrevistaButton({
   ]);
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className={cn("flex flex-col items-end", !compacto && "gap-1")}>
       <Button
         aria-disabled={noClickeable}
         className={cn(
           "text-muted-foreground text-xs hover:text-foreground",
+          compacto && "min-h-11 min-w-11 px-3",
           progresoGuardado &&
             "cursor-not-allowed opacity-50 hover:text-muted-foreground"
         )}
-        data-tour="entrevista-guardar"
+        data-tour={compacto ? undefined : "entrevista-guardar"}
         disabled={ocupado}
         onClick={handleSave}
-        size="xs"
+        size={compacto ? "sm" : "xs"}
         type="button"
         variant="outline"
       >
         {pending ? "Guardando…" : "Guardar"}
       </Button>
-      {hayBorrador ? (
-        <p className="max-w-48 text-right text-muted-foreground text-xs">
-          Hay texto sin enviar
-        </p>
-      ) : null}
-      {progresoGuardado && !hayBorrador ? (
+      {compacto || hayBorrador ? null : progresoGuardado ? (
         <p className="max-w-48 text-right text-muted-foreground text-xs">
           Respuestas de este tema guardadas
         </p>

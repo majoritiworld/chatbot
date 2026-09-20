@@ -18,11 +18,13 @@ const PUNTOS_USO = [
 const initialState: OnboardingActionState = { status: "idle" };
 
 export function EntrevistaOnboarding({
+  correoUsuario,
   entrevistaId,
   mostrarPortal,
   onAceptado,
   titulo,
 }: {
+  correoUsuario?: string | null;
   entrevistaId: string;
   mostrarPortal: boolean;
   onAceptado: () => void;
@@ -44,7 +46,12 @@ export function EntrevistaOnboarding({
   }, [onAceptado, state.status]);
 
   return (
-    <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+    <EntrevistaShell
+      compactoMovil
+      correoUsuario={correoUsuario}
+      mostrarPortal={mostrarPortal}
+      titulo={titulo}
+    >
       <EntrevistaPantallaTransicion>
         <div className="flex flex-col gap-3">
           <h1 className="font-semibold text-[28px] tracking-tight">
