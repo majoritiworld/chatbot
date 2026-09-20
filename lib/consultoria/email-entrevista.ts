@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Resend } from "resend";
+import { debeBloquearCorreoEntrevista } from "@/lib/consultoria/entrevista-piloto";
 
 const HTML_ESPECIALES = /[&<>"']/g;
 const HTML_ESCAPE: Record<string, string> = {
@@ -47,6 +48,15 @@ export async function enviarCorreoAgradecimiento({
   entrevistaId: string;
   nombre?: string | null;
 }) {
+  if (
+    debeBloquearCorreoEntrevista({
+      flag: process.env.BLOQUEAR_CORREO_ENTREVISTA,
+      vercel: process.env.VERCEL,
+    })
+  ) {
+    throw new Error("Correo bloqueado en el servidor local de prueba");
+  }
+
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.INTERVIEW_EMAIL_FROM;
   if (!(apiKey && from)) {

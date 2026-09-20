@@ -134,6 +134,16 @@ export function decisionReintentoCorreo({
   return "reintentar";
 }
 
+export function debeBloquearCorreoEntrevista({
+  flag,
+  vercel,
+}: {
+  flag: string | undefined;
+  vercel: string | undefined;
+}) {
+  return flag === "1" && vercel !== "1";
+}
+
 export type EstadoEntregaEntrevista =
   | "revision"
   | "enviando"

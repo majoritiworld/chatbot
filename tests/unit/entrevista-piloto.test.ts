@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   avisoGuardadoRespuestas,
   consentimientoEntrevistaListo,
+  debeBloquearCorreoEntrevista,
   debeConfirmarCierrePorBorrador,
   decisionReintentoCorreo,
   encadenarAvanceInicial,
@@ -196,6 +197,18 @@ test.describe("Pilot interview helpers", () => {
         estado: "completada",
       })
     ).toBe("reintentar");
+  });
+
+  test("blocks thank-you mail only on a local server with the flag, not on Vercel", () => {
+    expect(debeBloquearCorreoEntrevista({ flag: "1", vercel: undefined })).toBe(
+      true
+    );
+    expect(debeBloquearCorreoEntrevista({ flag: "1", vercel: "1" })).toBe(
+      false
+    );
+    expect(
+      debeBloquearCorreoEntrevista({ flag: undefined, vercel: undefined })
+    ).toBe(false);
   });
 
   test("keeps portal onboarding for clients and interview landing for stakeholders", () => {
