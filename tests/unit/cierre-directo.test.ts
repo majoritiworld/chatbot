@@ -213,4 +213,14 @@ test.describe("Direct section close from persisted offer", () => {
     expect(instrucciones).toContain("Qué cambió esta semana");
     expect(instrucciones).not.toContain("Sección finalizada manualmente");
   });
+
+  test("forced close still asks for a synthesis of what was and was not answered", () => {
+    const instrucciones = instruccionesSintesisCierre({
+      forzar: true,
+      preguntas: ["Qué cambió esta semana"],
+      tituloSeccion: "General",
+    });
+    expect(instrucciones).toContain("no se respondieron");
+    expect(instrucciones).toContain("Qué cambió esta semana");
+  });
 });

@@ -10,6 +10,7 @@ import {
 } from "@/components/portal/entrevista-menu-secundario";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { GuardarEntrevistaButton } from "@/components/portal/guardar-entrevista-button";
+import { TerminarTemaAntesProvider } from "@/components/portal/terminar-tema-antes-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,64 +97,66 @@ function EntrevistaChatCuerpo({
   const progresoTema = etiquetaProgresoTema(indice, numeroSecciones);
 
   return (
-    <EntrevistaShell
-      acciones={
-        <>
-          <EntrevistaAyuda
-            abierta={ayudaAbierta}
-            className="hidden text-muted-foreground text-xs hover:text-foreground md:inline-flex"
-            onOpenChange={setAyudaAbierta}
-          />
-          <div className="hidden md:block">
-            <GuardarEntrevistaButton
-              demoFalloGuardar={demoFalloGuardar}
-              entrevistaId={entrevistaId}
-              seccionId={seccion.id}
+    <TerminarTemaAntesProvider>
+      <EntrevistaShell
+        acciones={
+          <>
+            <EntrevistaAyuda
+              abierta={ayudaAbierta}
+              className="hidden text-muted-foreground text-xs hover:text-foreground md:inline-flex"
+              onOpenChange={setAyudaAbierta}
             />
-          </div>
-        </>
-      }
-      compactoMovil
-      correoUsuario={correoUsuario}
-      guardarMovil={
-        <GuardarEntrevistaButton
-          compacto
-          demoFalloGuardar={demoFalloGuardar}
-          entrevistaId={entrevistaId}
-          seccionId={seccion.id}
-        />
-      }
-      mostrarPortal={mostrarPortal}
-      onAbrirAyuda={handleAbrirAyuda}
-      onIntentarCerrarSesion={handleIntentarCerrarSesion}
-      onIrAlPortal={handleIrAlPortal}
-      progresoTema={progresoTema}
-      seccion={`${progresoTema}: ${seccion.titulo}`}
-      titulo={titulo}
-      tituloTema={seccion.titulo}
-    >
-      <ChatShell onSeccionCompletada={onSeccionCompletada} />
-      <AlertDialog
-        onOpenChange={handleDialogChange}
-        open={Boolean(destinoPendiente)}
+            <div className="hidden md:block">
+              <GuardarEntrevistaButton
+                demoFalloGuardar={demoFalloGuardar}
+                entrevistaId={entrevistaId}
+                seccionId={seccion.id}
+              />
+            </div>
+          </>
+        }
+        compactoMovil
+        correoUsuario={correoUsuario}
+        guardarMovil={
+          <GuardarEntrevistaButton
+            compacto
+            demoFalloGuardar={demoFalloGuardar}
+            entrevistaId={entrevistaId}
+            seccionId={seccion.id}
+          />
+        }
+        mostrarPortal={mostrarPortal}
+        onAbrirAyuda={handleAbrirAyuda}
+        onIntentarCerrarSesion={handleIntentarCerrarSesion}
+        onIrAlPortal={handleIrAlPortal}
+        progresoTema={progresoTema}
+        seccion={`${progresoTema}: ${seccion.titulo}`}
+        titulo={titulo}
+        tituloTema={seccion.titulo}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Salir de la entrevista?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {aviso ??
-                "Hay cambios que pueden no haberse conservado si sales ahora."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel type="button">Seguir aquí</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmarSalida} type="button">
-              Salir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </EntrevistaShell>
+        <ChatShell onSeccionCompletada={onSeccionCompletada} />
+        <AlertDialog
+          onOpenChange={handleDialogChange}
+          open={Boolean(destinoPendiente)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Salir de la entrevista?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {aviso ??
+                  "Hay cambios que pueden no haberse conservado si sales ahora."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel type="button">Seguir aquí</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmarSalida} type="button">
+                Salir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </EntrevistaShell>
+    </TerminarTemaAntesProvider>
   );
 }
 

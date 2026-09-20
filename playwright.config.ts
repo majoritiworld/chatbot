@@ -19,6 +19,7 @@ export default defineConfig({
     env: {
       AI_GATEWAY_API_KEY: "",
       AUTH_SECRET: "local-test-only",
+      BLOQUEAR_CORREO_ENTREVISTA: "1",
       IS_DEMO: "0",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",

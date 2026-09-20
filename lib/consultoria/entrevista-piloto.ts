@@ -58,6 +58,47 @@ export function etiquetaCierreTema(esUltimo: boolean) {
   return esUltimo ? "Finalizar entrevista" : "Cerrar y continuar";
 }
 
+export function etiquetaCierreAnticipado() {
+  return "Terminar este tema antes de tiempo";
+}
+
+export function avisoCierreAnticipado(esUltimo: boolean) {
+  if (esUltimo) {
+    return "Todavía hay preguntas pendientes de este tema. Si confirmas, se cierra el tema, se entrega la entrevista y ya no podrás agregar más.";
+  }
+
+  return "Todavía hay preguntas pendientes de este tema. Puedes seguir respondiendo o confirmar el cierre.";
+}
+
+export function etiquetaConfirmarCierreAnticipado(esUltimo: boolean) {
+  return esUltimo ? "Finalizar y entregar" : "Cerrar este tema";
+}
+
+export function etiquetaAccionCierreAnticipado({
+  busy,
+  esUltimo,
+  mostrarError,
+}: {
+  busy: boolean;
+  esUltimo: boolean;
+  mostrarError: boolean;
+}) {
+  if (busy) {
+    if (esUltimo) {
+      return "Finalizando entrevista…";
+    }
+    return "Cerrando tema…";
+  }
+  if (mostrarError) {
+    return "Reintentar";
+  }
+  return etiquetaConfirmarCierreAnticipado(esUltimo);
+}
+
+export function avisoBorradorCierreAnticipado() {
+  return "Ese texto no se envía. Puedes seguir editándolo, o descartarlo y confirmar el cierre.";
+}
+
 export function puntosAyudaEntrevista() {
   return [
     "Las preguntas aparecen en el chat. Responde una a una, por escrito o con Hablar.",

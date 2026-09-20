@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { ofertaCierreVigenteEnChat } from "@/lib/consultoria/cierre-seccion";
@@ -48,6 +48,8 @@ export function useCerrarSeccionEntrevista() {
     stop,
   } = useActiveChat();
   const [pending, startTransition] = useTransition();
+  const [errorCierre, setErrorCierre] = useState<string | null>(null);
+  const [exitoCierre, setExitoCierre] = useState(false);
   const cerrandoRef = useRef(false);
   const busy = pending || status === "submitted" || status === "streaming";
   const hayBorrador = input.trim().length > 0;
@@ -72,6 +74,8 @@ export function useCerrarSeccionEntrevista() {
       }
 
       cerrandoRef.current = true;
+      setErrorCierre(null);
+      setExitoCierre(false);
       startTransition(async () => {
         stop();
 
@@ -90,13 +94,19 @@ export function useCerrarSeccionEntrevista() {
           const avance = avanceDeCierre(data);
 
           if (!(response.ok && avance)) {
-            toast.error(data?.error ?? "No se pudo cerrar la sección");
+            const mensaje = data?.error ?? "No se pudo cerrar la sección";
+            setErrorCierre(mensaje);
+            toast.error(mensaje);
             return;
           }
 
+          setErrorCierre(null);
+          setExitoCierre(true);
           onSeccionCompletada?.(avance);
         } catch {
-          toast.error("No se pudo cerrar la sección");
+          const mensaje = "No se pudo cerrar la sección";
+          setErrorCierre(mensaje);
+          toast.error(mensaje);
         } finally {
           cerrandoRef.current = false;
         }
@@ -173,6 +183,8 @@ export function useCerrarSeccionEntrevista() {
   return {
     busy,
     continuar,
+    errorCierre,
+    exitoCierre,
     forzarCierre,
     guardarProgreso,
     pedirCierre,

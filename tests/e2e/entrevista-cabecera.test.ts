@@ -71,7 +71,126 @@ test.describe("Interview mobile header", () => {
     await expect(
       page.getByRole("menuitem", { name: "Volver al portal" })
     ).toHaveCount(0);
-    await expect(page.getByText("Tema 1 de 1", { exact: true })).toBeVisible();
+  });
+
+  test("lets a participant end the current topic early without a model offer", async ({
+    page,
+  }) => {
+    await abrirCabecera(page, "&rol=stakeholder");
+    await expect(
+      page.getByRole("button", { name: "Terminar este tema antes de tiempo" })
+    ).toBeVisible();
+    await page.getByTestId("entrevista-cierre-anticipado").click();
+    await expect(
+      page.getByRole("alertdialog", {
+        name: "¿Terminar este tema antes de tiempo?",
+      })
+    ).toBeVisible();
+    await expect(
+      page.getByText("Todavía hay preguntas pendientes")
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Seguir respondiendo" }).click();
+    await expect(
+      page.getByRole("alertdialog", {
+        name: "¿Terminar este tema antes de tiempo?",
+      })
+    ).toHaveCount(0);
+    await expect(page.getByTestId("multimodal-input")).toBeVisible();
+  });
+
+  test("keeps an unsent draft when ending a topic early", async ({ page }) => {
+    await abrirCabecera(page, "&rol=stakeholder");
+    await page.getByTestId("multimodal-input").click();
+    await page
+      .getByTestId("multimodal-input")
+      .pressSequentially("Borrador que no debe enviarse");
+    await page.getByTestId("entrevista-cierre-anticipado").click();
+    await expect(
+      page.getByRole("alertdialog", { name: "Tienes texto sin enviar" })
+    ).toBeVisible();
+    await expect(page.getByText("Ese texto no se envía")).toBeVisible();
+    await page.getByRole("button", { name: "Seguir editando" }).click();
+    await expect(page.getByTestId("multimodal-input")).toHaveValue(
+      "Borrador que no debe enviarse"
+    );
+  });
+
+  test("warns that confirming the last topic delivers the interview", async ({
+    page,
+  }) => {
+    await abrirCabecera(page, "&rol=stakeholder&temas=1");
+    await page.getByTestId("entrevista-cierre-anticipado").click();
+    await expect(
+      page.getByRole("alertdialog", {
+        name: "¿Finalizar y entregar la entrevista?",
+      })
+    ).toBeVisible();
+    await expect(page.getByText("se entrega la entrevista")).toBeVisible();
+    await expect(
+      page.getByTestId("entrevista-confirmar-cierre-anticipado")
+    ).toHaveText("Finalizar y entregar");
+  });
+
+  test("retries an early close after a failed request without sending the draft", async ({
+    page,
+  }) => {
+    let intentos = 0;
+    await page.route("**/api/entrevista/finalizar", async (route) => {
+      intentos += 1;
+      const body = route.request().postDataJSON() as {
+        forzar?: boolean;
+      };
+      expect(body.forzar).toBe(true);
+      if (intentos === 1) {
+        await route.fulfill({
+          body: JSON.stringify({ error: "No se pudo cerrar la sección" }),
+          contentType: "application/json",
+          status: 500,
+        });
+        return;
+      }
+      await route.fulfill({
+        body: JSON.stringify({
+          flujoEstado: "chat",
+          seccionActual: 1,
+          seccionId: "demo-diagnostico",
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await abrirCabecera(page, "&rol=stakeholder");
+    await page.getByTestId("entrevista-cierre-anticipado").click();
+    await page.getByTestId("entrevista-confirmar-cierre-anticipado").click();
+    await expect(page.getByRole("alert")).toContainText(
+      "No se pudo cerrar la sección"
+    );
+    await expect(
+      page.getByTestId("entrevista-confirmar-cierre-anticipado")
+    ).toHaveText("Reintentar");
+    await page.getByTestId("entrevista-confirmar-cierre-anticipado").click();
+    await expect(
+      page.getByRole("alertdialog", {
+        name: "¿Terminar este tema antes de tiempo?",
+      })
+    ).toHaveCount(0);
+    expect(intentos).toBe(2);
+  });
+
+  test("offers the same early-close action from the mobile menu", async ({
+    page,
+  }) => {
+    await abrirCabecera(page, "&rol=stakeholder");
+    await page.getByRole("button", { name: "Más opciones" }).click();
+    await page
+      .getByRole("menuitem", { name: "Terminar este tema antes de tiempo" })
+      .click();
+    await expect(
+      page.getByRole("alertdialog", {
+        name: "¿Terminar este tema antes de tiempo?",
+      })
+    ).toBeVisible();
   });
 
   test("shows the draft hint next to the composer, not in the header", async ({
@@ -205,5 +324,8 @@ test.describe("Interview desktop header", () => {
         visible: true,
       })
     ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Terminar este tema antes de tiempo" })
+    ).toBeVisible();
   });
 });

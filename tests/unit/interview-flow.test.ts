@@ -604,6 +604,13 @@ test.describe("Auth landing", () => {
     expect(
       resolveAuthLanding("stakeholder", "/chat/abc", "/portal/entrevista/1")
     ).toBe("/portal/entrevista/1");
+    expect(
+      resolveAuthLanding(
+        "stakeholder",
+        "/portal/entrevista/228285c0-5153-469f-b0f1-b13c82b355c0",
+        "/portal/entrevista/a83b3fd0-773e-4778-b9f5-dd6819fb3a66"
+      )
+    ).toBe("/portal/entrevista/228285c0-5153-469f-b0f1-b13c82b355c0");
   });
 
   test("landing interview lookup is only for home redirects", () => {
@@ -647,6 +654,16 @@ test.describe("Auth landing", () => {
     ).toBe("a83b3fd0-773e-4778-b9f5-dd6819fb3a66");
   });
 
+  test("direct interview URLs keep a pending review even when home prefers chat", () => {
+    const homeChat = "/portal/entrevista/a83b3fd0-773e-4778-b9f5-dd6819fb3a66";
+    const revisionPendiente =
+      "/portal/entrevista/228285c0-5153-469f-b0f1-b13c82b355c0";
+    expect(stakeholderPathNeedsLandingInterview(revisionPendiente)).toBe(false);
+    expect(resolveAuthLanding("stakeholder", revisionPendiente, homeChat)).toBe(
+      revisionPendiente
+    );
+  });
+
   test("home interview among review leftovers uses the latest activity, not UUID order", () => {
     expect(
       elegirEntrevistaLanding([
@@ -664,6 +681,29 @@ test.describe("Auth landing", () => {
         },
       ])
     ).toBe("67eac348-2a2f-4a9e-be19-62dcbc98937c");
+  });
+
+  test("home interview order is deterministic when activity ties, and ignores fetch order", () => {
+    const empatadas = [
+      {
+        estado: "abierta" as const,
+        flujo_estado: "chat",
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        ultima_actividad: "2026-09-20T12:00:00.000Z",
+      },
+      {
+        estado: "abierta" as const,
+        flujo_estado: "chat",
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        ultima_actividad: "2026-09-20T12:00:00.000Z",
+      },
+    ];
+    expect(elegirEntrevistaLanding(empatadas)).toBe(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    );
+    expect(elegirEntrevistaLanding([...empatadas].reverse())).toBe(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    );
   });
 
   test("ownership compares emails without depending on a second id lookup", () => {

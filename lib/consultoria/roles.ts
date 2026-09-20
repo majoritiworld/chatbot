@@ -180,7 +180,8 @@ export async function getEntrevistaIdByEmail(
   const { data: entrevistas } = await supabase
     .from("entrevista")
     .select("id, estado, flujo_estado, ultima_actividad")
-    .eq("stakeholder_id", stakeholder.id);
+    .eq("stakeholder_id", stakeholder.id)
+    .order("id");
 
   return elegirEntrevistaLanding(entrevistas ?? []);
 }

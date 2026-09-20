@@ -4,6 +4,7 @@ import { EllipsisIcon } from "lucide-react";
 import Link from "next/link";
 import { type MouseEvent, useCallback } from "react";
 import { signOutAction } from "@/app/(auth)/sign-out-action";
+import { TerminarTemaAntesButton } from "@/components/portal/terminar-tema-antes-button";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -70,6 +71,7 @@ export function EntrevistaMenuSecundario({
               Cómo funciona
             </DropdownMenuItem>
           ) : null}
+          <TerminarTemaAntesButton trigger="menu" />
           {correo ? (
             <>
               {onAbrirAyuda ? <DropdownMenuSeparator /> : null}

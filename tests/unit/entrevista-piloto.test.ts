@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
+  avisoBorradorCierreAnticipado,
+  avisoCierreAnticipado,
   avisoEntregaAlFinalizar,
   avisoGuardadoRespuestas,
   consentimientoEntrevistaListo,
@@ -10,7 +12,10 @@ import {
   entrevistaAceptaChat,
   escribirBorradorEntrevista,
   estadoEntregaEntrevista,
+  etiquetaAccionCierreAnticipado,
+  etiquetaCierreAnticipado,
   etiquetaCierreTema,
+  etiquetaConfirmarCierreAnticipado,
   etiquetaEntregaPendiente,
   etiquetaProgresoTema,
   explicacionEntregaPendiente,
@@ -109,6 +114,30 @@ test.describe("Pilot interview helpers", () => {
     expect(etiquetaProgresoTema(3, 4)).toBe("Tema 4 de 4");
     expect(etiquetaCierreTema(false)).toBe("Cerrar y continuar");
     expect(etiquetaCierreTema(true)).toBe("Finalizar entrevista");
+    expect(etiquetaCierreAnticipado()).toBe(
+      "Terminar este tema antes de tiempo"
+    );
+    expect(avisoCierreAnticipado(false)).toContain("preguntas pendientes");
+    expect(avisoCierreAnticipado(true)).toContain("entrega la entrevista");
+    expect(etiquetaConfirmarCierreAnticipado(true)).toBe(
+      "Finalizar y entregar"
+    );
+    expect(etiquetaConfirmarCierreAnticipado(false)).toBe("Cerrar este tema");
+    expect(
+      etiquetaAccionCierreAnticipado({
+        busy: true,
+        esUltimo: true,
+        mostrarError: false,
+      })
+    ).toBe("Finalizando entrevista…");
+    expect(
+      etiquetaAccionCierreAnticipado({
+        busy: false,
+        esUltimo: false,
+        mostrarError: true,
+      })
+    ).toBe("Reintentar");
+    expect(avisoBorradorCierreAnticipado()).toContain("no se envía");
     expect(avisoEntregaAlFinalizar()).toContain("se enviarán tus respuestas");
     expect(puntosAyudaEntrevista().at(1)).toContain(
       "El texto que todavía no enviaste no se guarda"

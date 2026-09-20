@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { CerrarSeccionEnChat } from "@/components/portal/cerrar-seccion-en-chat";
+import { TerminarTemaAntesButton } from "@/components/portal/terminar-tema-antes-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -202,8 +203,9 @@ export function ChatShell({
             />
 
             {esEntrevista && !isReadonly ? (
-              <div className="mx-auto w-full max-w-[760px] px-3 md:px-4">
+              <div className="mx-auto flex w-full max-w-[760px] flex-col items-start gap-1 px-3 md:px-4">
                 <CerrarSeccionEnChat placement="sticky" />
+                <TerminarTemaAntesButton />
               </div>
             ) : null}
 
