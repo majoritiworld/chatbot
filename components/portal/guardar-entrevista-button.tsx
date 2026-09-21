@@ -105,8 +105,8 @@ export function GuardarEntrevistaButton({
       <Button
         aria-disabled={noClickeable}
         className={cn(
-          "text-muted-foreground text-xs hover:text-foreground",
-          compacto && "min-h-11 min-w-11 px-3",
+          "text-muted-foreground hover:text-foreground",
+          compacto && "h-11 px-2.5 font-medium text-sm shadow-none",
           progresoGuardado &&
             "cursor-not-allowed opacity-50 hover:text-muted-foreground"
         )}
@@ -115,7 +115,7 @@ export function GuardarEntrevistaButton({
         onClick={handleSave}
         size={compacto ? "sm" : "xs"}
         type="button"
-        variant="outline"
+        variant={compacto ? "ghost" : "outline"}
       >
         {pending ? "Guardando…" : "Guardar"}
       </Button>

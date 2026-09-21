@@ -91,21 +91,21 @@ export function EntrevistaShell({
         </div>
 
         {compactoMovil ? (
-          <div className="flex flex-col gap-0.5 px-3 py-2 md:hidden">
-            <div className="flex min-h-11 items-center gap-2">
-              <p className="min-w-0 flex-1 text-muted-foreground text-xs leading-4">
-                {progresoTema ?? titulo}
-              </p>
-              <div className="flex shrink-0 items-center gap-1">
-                {guardarMovil}
-                {menu}
-              </div>
-            </div>
-            {tituloTema ? (
-              <h1 className="line-clamp-2 text-pretty font-medium text-sm leading-snug">
-                {tituloTema}
+          <div className="flex items-center gap-2 px-3 py-2.5 md:hidden">
+            <div className="min-w-0 flex-1">
+              <h1 className="line-clamp-2 text-pretty font-semibold text-[15px] leading-snug tracking-tight">
+                {tituloTema ?? progresoTema ?? titulo}
               </h1>
-            ) : null}
+              {tituloTema && progresoTema ? (
+                <p className="mt-0.5 text-muted-foreground text-xs leading-4">
+                  {progresoTema}
+                </p>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center">
+              {guardarMovil}
+              {menu}
+            </div>
           </div>
         ) : null}
       </header>

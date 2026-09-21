@@ -48,9 +48,8 @@ test("request, resend and OTP keep the assigned interview, not the older home", 
   }
   await enterCode(page);
   await expect(page).toHaveURL(finalPath(target));
-  await expect(
-    page.getByText("Antes de empezar", { exact: true })
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hola, Test" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continuar" })).toBeVisible();
   await page.goto(`/login?next=${encodeURIComponent(home)}`);
   await expect(page).toHaveURL(finalPath(home));
   await page.goto(`/login?${nextQuery}`);

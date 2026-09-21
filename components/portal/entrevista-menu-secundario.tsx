@@ -54,7 +54,7 @@ export function EntrevistaMenuSecundario({
           <Button
             aria-haspopup="menu"
             aria-label="Más opciones"
-            className="min-h-11 min-w-11 text-muted-foreground hover:text-foreground md:min-h-8 md:min-w-8"
+            className="min-h-11 min-w-11 text-muted-foreground hover:text-foreground"
             size="icon-sm"
             type="button"
             variant="ghost"

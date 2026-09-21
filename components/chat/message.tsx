@@ -8,11 +8,7 @@ import type { ChatMessage } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
 import { MessageContent, MessageResponse } from "../ai-elements/message";
 import { Shimmer } from "../ai-elements/shimmer";
-import {
-  ThinkingVerb,
-  VERBOS_PENSANDO_EN,
-  VERBOS_PENSANDO_ES,
-} from "../ai-elements/thinking-verb";
+import { ThinkingVerb } from "../ai-elements/thinking-verb";
 import {
   Tool,
   ToolContent,
@@ -32,6 +28,8 @@ import { Weather } from "./weather";
 function WaitingText({ esEntrevista }: { esEntrevista?: boolean }) {
   const { waitingStatus } = useDataStream();
   const label = esEntrevista ? "Pensando" : "Thinking";
+  const mensajeEspera =
+    esEntrevista || !waitingStatus?.message ? null : waitingStatus.message;
 
   return (
     <div
@@ -42,19 +40,16 @@ function WaitingText({ esEntrevista }: { esEntrevista?: boolean }) {
           : "min-h-[calc(13px*1.65)] text-[13px] leading-[1.65]"
       )}
     >
-      {waitingStatus?.message ? (
+      {mensajeEspera ? (
         <Shimmer
           as="span"
           className="font-medium whitespace-normal break-words"
           duration={1}
         >
-          {waitingStatus.message}
+          {mensajeEspera}
         </Shimmer>
       ) : (
-        <ThinkingVerb
-          label={label}
-          verbs={esEntrevista ? VERBOS_PENSANDO_ES : VERBOS_PENSANDO_EN}
-        />
+        <ThinkingVerb label={label} />
       )}
     </div>
   );

@@ -21,12 +21,14 @@ import {
   explicacionEntregaPendiente,
   leerBorradorEntrevista,
   mensajeSalidaInsegura,
+  minutosAproxEntrevista,
   muestraPantallaRevision,
   pantallaParticipanteEntrevista,
   puntosAyudaEntrevista,
   reiniciarBorradoresEntrevistaParaPruebas,
   salidaEntrevistaInsegura,
   siguienteTransicionInicial,
+  textoDuracionEntrevista,
   textoFinalizandoEntrevista,
   textoTemasTerminados,
 } from "@/lib/consultoria/entrevista-piloto";
@@ -220,6 +222,21 @@ test.describe("Pilot interview helpers", () => {
     ).toBe("completada");
     expect(textoTemasTerminados(1)).toBe("Terminaste el tema.");
     expect(textoTemasTerminados(3)).toBe("Terminaste los 3 temas.");
+    expect(
+      pantallaParticipanteEntrevista({
+        completada: false,
+        errorEntrega: false,
+        flujoEstado: "bienvenida",
+        llegoEnRevision: false,
+        onboardingListo: false,
+        seccionActual: 0,
+      })
+    ).toBe("onboarding");
+    expect(minutosAproxEntrevista(1)).toBe(8);
+    expect(minutosAproxEntrevista(6)).toBe(30);
+    expect(textoDuracionEntrevista(6)).toBe(
+      "Suele tomar alrededor de 30 minutos."
+    );
   });
 
   test("does not promise a safe exit while a draft or save is pending", () => {

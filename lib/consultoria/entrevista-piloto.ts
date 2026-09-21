@@ -125,6 +125,15 @@ export function muestraPantallaRevision({
   return flujoEstado === "revision" && (llegoEnRevision || errorEntrega);
 }
 
+export function minutosAproxEntrevista(numeroSecciones: number) {
+  return Math.max(8, numeroSecciones * 5);
+}
+
+export function textoDuracionEntrevista(numeroSecciones: number) {
+  const minutos = minutosAproxEntrevista(numeroSecciones);
+  return `Suele tomar alrededor de ${minutos} minutos.`;
+}
+
 export type PantallaParticipanteEntrevista =
   | "completada"
   | "onboarding"

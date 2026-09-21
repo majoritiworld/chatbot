@@ -38,6 +38,7 @@ export function EntrevistaEnCurso({
   mostrarPortal = false,
   seccionActualInicial,
   secciones,
+  stakeholderNombre,
   titulo,
 }: {
   consentimientoEn?: string | null;
@@ -330,6 +331,8 @@ export function EntrevistaEnCurso({
         correoUsuario={correoUsuario}
         entrevistaId={entrevistaId}
         mostrarPortal={mostrarPortal}
+        nombre={stakeholderNombre}
+        numeroSecciones={secciones.length}
         onAceptado={marcarOnboardingListo}
         titulo={titulo}
       />
