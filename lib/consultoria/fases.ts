@@ -1,5 +1,6 @@
 import "server-only";
 
+import { estadoVisibleEntrevistaPortal } from "@/lib/consultoria/entrevista-piloto";
 import { getUsuarioPerfil } from "@/lib/consultoria/entrevistas";
 import {
   type FaseEstado,
@@ -52,8 +53,9 @@ type StakeholderEmbed = {
 
 type EntrevistaEmbed = {
   id: string;
+  consentimiento_en: string | null;
   estado: string;
-  ultima_actividad: string | null;
+  flujo_estado: string;
   stakeholder_id: string;
   stakeholder: StakeholderEmbed | StakeholderEmbed[];
 } | null;
@@ -106,8 +108,9 @@ const FASE_SELECT = `
     entrevista_id,
     entrevista:entrevista_id (
       id,
+      consentimiento_en,
       estado,
-      ultima_actividad,
+      flujo_estado,
       stakeholder_id,
       stakeholder:stakeholder_id ( id, nombre, apellido, email, estado_entrevista )
     ),
@@ -133,19 +136,6 @@ function nombreDelResponsable(
   );
 }
 
-function estadoVisible(
-  entrevistaEstado: string,
-  stakeholderEstado: string,
-  ultimaActividad: string | null
-) {
-  if (entrevistaEstado === "completada" || stakeholderEstado === "completada") {
-    return "completada";
-  }
-  if (stakeholderEstado === "en_curso" || ultimaActividad) {
-    return "en_curso";
-  }
-  return stakeholderEstado || "pendiente";
-}
 
 function toFaseDelPortal(
   row: FaseRow,
@@ -195,11 +185,12 @@ function toFaseDelPortal(
 
     entrevistas.push({
       esPropia,
-      estado: estadoVisible(
-        entrevista.estado,
-        stakeholder.estado_entrevista,
-        entrevista.ultima_actividad
-      ),
+      estado: estadoVisibleEntrevistaPortal({
+        consentimientoEn: entrevista.consentimiento_en,
+        entrevistaEstado: entrevista.estado,
+        flujoEstado: entrevista.flujo_estado,
+        stakeholderEstado: stakeholder.estado_entrevista,
+      }),
       id: entrevista.id,
       puedeResponder: esPropia,
       stakeholderId: stakeholder.id,

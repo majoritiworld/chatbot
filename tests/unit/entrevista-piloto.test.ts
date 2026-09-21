@@ -5,6 +5,7 @@ import {
   avisoEntregaAlFinalizar,
   avisoGuardadoRespuestas,
   consentimientoEntrevistaListo,
+  estadoVisibleEntrevistaPortal,
   debeBloquearCorreoEntrevista,
   debeConfirmarCierrePorBorrador,
   decisionReintentoCorreo,
@@ -47,6 +48,33 @@ import {
 } from "@/lib/consultoria/roles";
 
 test.describe("Pilot interview helpers", () => {
+  test("does not treat last activity as having started the interview", () => {
+    expect(
+      estadoVisibleEntrevistaPortal({
+        consentimientoEn: null,
+        entrevistaEstado: "abierta",
+        flujoEstado: "bienvenida",
+        stakeholderEstado: "pendiente",
+      })
+    ).toBe("pendiente");
+    expect(
+      estadoVisibleEntrevistaPortal({
+        consentimientoEn: "2026-09-21T12:00:00Z",
+        entrevistaEstado: "abierta",
+        flujoEstado: "bienvenida",
+        stakeholderEstado: "pendiente",
+      })
+    ).toBe("en_curso");
+    expect(
+      estadoVisibleEntrevistaPortal({
+        consentimientoEn: null,
+        entrevistaEstado: "abierta",
+        flujoEstado: "chat",
+        stakeholderEstado: "pendiente",
+      })
+    ).toBe("en_curso");
+  });
+
   test("does not treat a transcript as consent", () => {
     expect(consentimientoEntrevistaListo(null)).toBe(false);
     expect(consentimientoEntrevistaListo(undefined)).toBe(false);

@@ -6,6 +6,32 @@ export function consentimientoEntrevistaListo(
   return Boolean(consentimientoEn);
 }
 
+export function estadoVisibleEntrevistaPortal({
+  consentimientoEn,
+  entrevistaEstado,
+  flujoEstado,
+  stakeholderEstado,
+}: {
+  consentimientoEn: string | null | undefined;
+  entrevistaEstado: string;
+  flujoEstado: string;
+  stakeholderEstado: string;
+}) {
+  if (entrevistaEstado === "completada" || stakeholderEstado === "completada") {
+    return "completada";
+  }
+
+  const empezo =
+    consentimientoEntrevistaListo(consentimientoEn) ||
+    (flujoEstado !== "bienvenida" && flujoEstado !== "");
+
+  if (empezo || stakeholderEstado === "en_curso") {
+    return "en_curso";
+  }
+
+  return stakeholderEstado || "pendiente";
+}
+
 export function siguienteTransicionInicial(
   flujoEstado: FlujoEntrevista,
   seccionActual: number
