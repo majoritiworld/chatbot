@@ -1,0 +1,25 @@
+---
+description: No verificar en el browser cambios visuales; sí probar flujos críticos
+alwaysApply: true
+---
+
+# Verificación en el browser
+
+Esta regla pisa la instrucción general de “verificar en el browser antes de terminar” cuando el trabajo es solo visual.
+
+## No uses el browser
+
+Si el cambio es de apariencia y el usuario puede verlo en su pantalla, implementa y termina. No abras el browser, no tomes screenshots, no recorres la UI.
+
+Ejemplos: tipografía, color, spacing, layout, copy, iconos, estados vacíos estáticos, clases de Tailwind, componentes de presentación.
+
+## Sí usa el browser (o un sustituto equivalente)
+
+Cuando el riesgo es de comportamiento, no de look:
+
+- Envío de formularios, auth, pagos, permisos
+- Estado que se escribe y se lee en otra ruta
+- Bugs de interacción o “no funciona”
+- El usuario pide explícitamente que lo pruebes
+
+En esos casos, ejercé el flujo crítico. No hagas un pase visual completo.

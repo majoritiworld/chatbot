@@ -1,17 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import {
-  type ActionState,
-  subirDocumento,
-} from "@/app/(admin)/admin/actions";
+import { type ActionState, subirDocumento } from "@/app/(admin)/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type {
-  DocumentoAdmin,
-  FaseAdmin,
-} from "@/lib/consultoria/stakeholders";
+import type { DocumentoAdmin, FaseAdmin } from "@/lib/consultoria/stakeholders";
 
 const initialState: ActionState = { status: "idle" };
 
@@ -82,12 +76,7 @@ export function DocumentoUploadForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="link">Link externo</Label>
-            <Input
-              id="link"
-              name="link"
-              placeholder="https://…"
-              type="url"
-            />
+            <Input id="link" name="link" placeholder="https://…" type="url" />
           </div>
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <Label htmlFor="archivo">Archivo</Label>

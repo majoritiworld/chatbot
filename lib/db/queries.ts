@@ -18,6 +18,7 @@ import type { ArtifactKind } from "@/components/chat/artifact";
 import type { VisibilityType } from "@/components/chat/visibility-selector";
 import { ChatbotError } from "../errors";
 import { generateUUID } from "../utils";
+import { getPostgresUrl } from "./connection";
 import {
   type Chat,
   chat,
@@ -32,7 +33,6 @@ import {
   vote,
 } from "./schema";
 import { generateHashedPassword } from "./utils";
-import { getPostgresUrl } from "./connection";
 
 let db: ReturnType<typeof drizzle> | null = null;
 
@@ -66,7 +66,9 @@ export async function createUser(email: string, password: string) {
   const hashedPassword = generateHashedPassword(password);
 
   try {
-    return await getDb().insert(user).values({ email, password: hashedPassword });
+    return await getDb()
+      .insert(user)
+      .values({ email, password: hashedPassword });
   } catch (error) {
     throw new ChatbotError("bad_request:database", {
       cause: error,
@@ -233,7 +235,10 @@ export async function getChatsByUserId({
 
 export async function getChatById({ id }: { id: string }) {
   try {
-    const [selectedChat] = await getDb().select().from(chat).where(eq(chat.id, id));
+    const [selectedChat] = await getDb()
+      .select()
+      .from(chat)
+      .where(eq(chat.id, id));
     if (!selectedChat) {
       return null;
     }
@@ -264,7 +269,10 @@ export async function updateMessage({
   parts: DBMessage["parts"];
 }) {
   try {
-    return await getDb().update(message).set({ parts }).where(eq(message.id, id));
+    return await getDb()
+      .update(message)
+      .set({ parts })
+      .where(eq(message.id, id));
   } catch (error) {
     throw new ChatbotError("bad_request:database", {
       cause: error,
@@ -305,11 +313,13 @@ export async function voteMessage({
         .set({ isUpvoted: type === "up" })
         .where(and(eq(vote.messageId, messageId), eq(vote.chatId, chatId)));
     }
-    return await getDb().insert(vote).values({
-      chatId,
-      isUpvoted: type === "up",
-      messageId,
-    });
+    return await getDb()
+      .insert(vote)
+      .values({
+        chatId,
+        isUpvoted: type === "up",
+        messageId,
+      });
   } catch (error) {
     throw new ChatbotError("bad_request:database", {
       cause: error,
@@ -526,7 +536,10 @@ export async function updateChatVisibilityById({
   visibility: "private" | "public";
 }) {
   try {
-    return await getDb().update(chat).set({ visibility }).where(eq(chat.id, chatId));
+    return await getDb()
+      .update(chat)
+      .set({ visibility })
+      .where(eq(chat.id, chatId));
   } catch (error) {
     throw new ChatbotError("bad_request:database", { cause: error });
   }

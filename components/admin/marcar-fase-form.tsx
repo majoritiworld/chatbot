@@ -5,8 +5,8 @@ import {
   type ActionState,
   marcarFaseCompletada,
 } from "@/app/(admin)/admin/actions";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { FaseAdmin } from "@/lib/consultoria/stakeholders";
 
 const initialState: ActionState = { status: "idle" };
@@ -52,8 +52,8 @@ export function MarcarFaseForm({
       <div>
         <h2 className="font-medium text-base">Fases del proyecto</h2>
         <p className="text-muted-foreground text-sm">
-          Al marcar una fase como completada, el portal cliente se actualiza
-          vía Realtime.
+          Al marcar una fase como completada, el portal cliente se actualiza vía
+          Realtime.
         </p>
       </div>
 

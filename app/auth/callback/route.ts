@@ -8,6 +8,7 @@ import {
   isStakeholderRole,
   resolveAuthLanding,
 } from "@/lib/consultoria/roles";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 
 /** Types Supabase can send us through an invite or sign-in mail. */
 const TIPOS_EMAIL = new Set<EmailOtpType>([
@@ -27,7 +28,7 @@ function tipoEmail(value: string | null): EmailOtpType | null {
 
 /** Only same-origin paths, so `next` can never become an open redirect. */
 function rutaSegura(value: string | null) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) {
+  if (!value?.startsWith("/") || value.startsWith("//")) {
     return null;
   }
   return value;
@@ -74,8 +75,8 @@ export async function GET(request: NextRequest) {
   let response = NextResponse.redirect(destino(next ?? "/portal"));
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    getSupabaseConfig().url,
+    getSupabaseConfig().anonKey,
     {
       cookies: {
         getAll() {

@@ -3,7 +3,6 @@
 import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useCerrarSeccionEntrevista } from "@/hooks/use-cerrar-seccion-entrevista";
-import { MENSAJE_FORZAR_CIERRE_SECCION } from "@/lib/consultoria/finalizar-seccion";
 
 export function PausaSeccionEnChat({ visible }: { visible: boolean }) {
   const { busy, continuar, forzarCierre, guardarProgreso } =
@@ -49,7 +48,7 @@ export function PausaSeccionEnChat({ visible }: { visible: boolean }) {
         onClick={handleForzar}
         type="button"
       >
-        {MENSAJE_FORZAR_CIERRE_SECCION}
+        Cerrar de todas maneras
       </button>
     </div>
   );

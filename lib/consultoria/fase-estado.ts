@@ -2,13 +2,13 @@
 export type FaseEstado = "bloqueado" | "en_progreso" | "completado";
 
 const ALIASES: Record<string, FaseEstado> = {
-  bloqueado: "bloqueado",
   bloqueada: "bloqueado",
-  pendiente: "bloqueado",
-  en_progreso: "en_progreso",
-  en_curso: "en_progreso",
-  completado: "completado",
+  bloqueado: "bloqueado",
   completada: "completado",
+  completado: "completado",
+  en_curso: "en_progreso",
+  en_progreso: "en_progreso",
+  pendiente: "bloqueado",
 };
 
 export function normalizarEstado(estado: string): FaseEstado {
@@ -17,6 +17,6 @@ export function normalizarEstado(estado: string): FaseEstado {
 
 export const ETIQUETA_ESTADO: Record<FaseEstado, string> = {
   bloqueado: "Bloqueado",
-  en_progreso: "En progreso",
   completado: "Completado",
+  en_progreso: "En progreso",
 };

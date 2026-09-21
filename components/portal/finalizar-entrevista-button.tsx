@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -33,7 +32,6 @@ export function FinalizarEntrevistaButton() {
   }, [pedirCierre, seccionListaParaCerrar]);
 
   const handleForzar = useCallback(() => {
-    setConfirmar(false);
     forzarCierre();
   }, [forzarCierre]);
 
@@ -41,6 +39,16 @@ export function FinalizarEntrevistaButton() {
     setConfirmar(false);
     guardarProgreso();
   }, [guardarProgreso]);
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (busy && !open) {
+        return;
+      }
+      setConfirmar(open);
+    },
+    [busy]
+  );
 
   return (
     <>
@@ -55,8 +63,8 @@ export function FinalizarEntrevistaButton() {
       >
         Finalizar sección
       </Button>
-      <AlertDialog onOpenChange={setConfirmar} open={confirmar}>
-        <AlertDialogContent>
+      <AlertDialog onOpenChange={handleOpenChange} open={confirmar}>
+        <AlertDialogContent className="sm:max-w-sm">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Finalizar esta sección?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -64,16 +72,16 @@ export function FinalizarEntrevistaButton() {
               otro día, o cerrar de todas maneras.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              className="text-muted-foreground"
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col sm:justify-stretch">
+            <AlertDialogCancel
+              className="w-full"
               disabled={busy}
-              onClick={handleForzar}
-              variant="ghost"
+              variant="default"
             >
-              Cerrar de todas maneras
-            </AlertDialogAction>
+              Continuar sección
+            </AlertDialogCancel>
             <Button
+              className="w-full"
               disabled={busy}
               onClick={handleGuardar}
               type="button"
@@ -81,9 +89,15 @@ export function FinalizarEntrevistaButton() {
             >
               Guardar progreso
             </Button>
-            <AlertDialogCancel disabled={busy} variant="default">
-              Continuar sección
-            </AlertDialogCancel>
+            <Button
+              className="w-full text-muted-foreground"
+              disabled={busy}
+              onClick={handleForzar}
+              type="button"
+              variant="ghost"
+            >
+              Cerrar de todas maneras
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

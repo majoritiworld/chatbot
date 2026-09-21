@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export function GET() {
   return new Response("NextAuth removed. Use /login magic link.", {
     status: 410,
   });
 }
 
-export async function POST() {
+export function POST() {
   return NextResponse.json(
     { error: "NextAuth removed. Use Supabase magic link at /login." },
     { status: 410 }

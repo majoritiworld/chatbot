@@ -1,5 +1,5 @@
-import type { UserRole } from "@/lib/supabase/types";
 import { getUsuarioPerfil } from "@/lib/consultoria/entrevistas";
+import type { UserRole } from "@/lib/supabase/types";
 
 /** Kept for template entitlements compatibility. Authenticated users are "regular". */
 export type UserType = "guest" | "regular";
@@ -23,11 +23,11 @@ export async function auth(): Promise<AppSession | null> {
 
   return {
     user: {
-      id: context.user.id,
       email: context.user.email,
+      id: context.user.id,
       name: context.perfil?.nombre ?? context.user.email ?? null,
-      type: "regular",
       role: context.rol,
+      type: "regular",
     },
   };
 }

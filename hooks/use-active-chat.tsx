@@ -64,13 +64,7 @@ function extractChatId(pathname: string): string | null {
   return match ? match[1] : null;
 }
 
-export function ActiveChatProvider({
-  children,
-  entrevistaId,
-  mensajesIniciales,
-  onSeccionCompletada,
-  seccionId,
-}: {
+type ActiveChatProviderProps = {
   children: ReactNode;
   /** Pins the chat to one interview. Used by the client portal embed. */
   entrevistaId?: string;
@@ -79,22 +73,47 @@ export function ActiveChatProvider({
   onSeccionCompletada?: (data: SectionCompletedData) => void;
   /** Active section snapshot for interview requests. */
   seccionId?: string;
-}) {
+};
+
+export function ActiveChatProvider(props: ActiveChatProviderProps) {
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  if (!hasMounted) {
+    return <div className="flex h-full min-h-0 flex-1" />;
+  }
+
+  return <ActiveChatSession {...props} />;
+}
+
+function ActiveChatSession({
+  children,
+  entrevistaId,
+  mensajesIniciales,
+  onSeccionCompletada,
+  seccionId,
+}: ActiveChatProviderProps) {
   const pathname = usePathname();
   const { setDataStream, setWaitingStatus } = useDataStream();
   const { mutate } = useSWRConfig();
 
   const chatIdFromUrl = extractChatId(pathname);
   const isNewChat = !chatIdFromUrl;
-  const newChatIdRef = useRef(generateUUID());
+  const newChatIdRef = useRef<string | null>(null);
   const prevPathnameRef = useRef(pathname);
+  const needsGeneratedChatId = isNewChat && !entrevistaId;
 
-  if (isNewChat && prevPathnameRef.current !== pathname) {
+  if (
+    needsGeneratedChatId &&
+    (newChatIdRef.current === null || prevPathnameRef.current !== pathname)
+  ) {
     newChatIdRef.current = generateUUID();
   }
   prevPathnameRef.current = pathname;
 
-  const chatId = chatIdFromUrl ?? entrevistaId ?? newChatIdRef.current;
+  const chatId = chatIdFromUrl ?? entrevistaId ?? newChatIdRef.current ?? "";
   const esEntrevista = Boolean(entrevistaId);
 
   const entrevistaIdRef = useRef(entrevistaId);
@@ -208,8 +227,8 @@ export function ActiveChatProvider({
 
   const loadedChatIds = useRef(new Set<string>());
 
-  if (isNewChat && !loadedChatIds.current.has(newChatIdRef.current)) {
-    loadedChatIds.current.add(newChatIdRef.current);
+  if (isNewChat && chatId && !loadedChatIds.current.has(chatId)) {
+    loadedChatIds.current.add(chatId);
   }
 
   useEffect(() => {
