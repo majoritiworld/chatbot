@@ -1012,8 +1012,8 @@ export async function invitarEntrevistaAsignada(
 
   return {
     message: invitacion.creada
-      ? "Invitación enviada. Le preparamos el acceso y el enlace a esta entrevista."
-      : "Invitación enviada. El enlace abre esta entrevista.",
+      ? "Invitación enviada. Le preparamos el acceso: entra al portal con su correo y un código."
+      : "Invitación enviada. Entra al portal con su correo y un código.",
     status: "success",
   };
 }

@@ -332,6 +332,8 @@ test.describe("Interview prompt context", () => {
     expect(prompt).toContain(
       "No llames ofrecerCierreSeccion en los demás turnos"
     );
+    expect(prompt).toContain("No escribas síntesis");
+    expect(prompt).toContain("UNA sola vez");
     expect(prompt).toContain(MENSAJE_FORZAR_CIERRE_SECCION);
   });
 

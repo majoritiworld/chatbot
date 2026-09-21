@@ -3,6 +3,7 @@ import type { UseChatHelpers } from "@ai-sdk/react";
 import { useCallback } from "react";
 import { CerrarSeccionEnChat } from "@/components/portal/cerrar-seccion-en-chat";
 import { PausaSeccionEnChat } from "@/components/portal/pausa-seccion-en-chat";
+import { partesCierreSinDuplicar } from "@/lib/consultoria/cierre-seccion";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
@@ -167,13 +168,14 @@ const PurePreviewMessage = ({
       return partes;
     }
 
+    const visibles = partesCierreSinDuplicar(partes);
     return [
-      ...partes.filter(
+      ...visibles.filter(
         (part) =>
           part.type !== "tool-ofrecerCierreSeccion" &&
           part.type !== "tool-ofrecerContinuarOGuardar"
       ),
-      ...partes.filter(
+      ...visibles.filter(
         (part) =>
           part.type === "tool-ofrecerCierreSeccion" ||
           part.type === "tool-ofrecerContinuarOGuardar"

@@ -115,11 +115,19 @@ export async function solicitarCodigo(
   });
 
   if (error) {
+    if (esLimiteDeEnvios(error)) {
+      return {
+        email,
+        message:
+          "Revisa tu correo (y spam): el código ya salió. Puedes pedir otro en un minuto.",
+        next: next ?? undefined,
+        status: "sent",
+      };
+    }
+
     return {
       email,
-      message: esLimiteDeEnvios(error)
-        ? "Ya te enviamos un código hace un momento. Revisa tu correo (y la carpeta de spam) antes de pedir otro."
-        : ERROR_GENERICO,
+      message: ERROR_GENERICO,
       next: next ?? undefined,
       status: "failed",
     };

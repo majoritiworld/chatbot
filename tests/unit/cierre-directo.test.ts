@@ -3,6 +3,7 @@ import {
   autorizarCierreDirecto,
   instruccionesSintesisCierre,
   ofertaCierreVigenteEnChat,
+  partesCierreSinDuplicar,
 } from "@/lib/consultoria/cierre-seccion";
 import {
   construirArchivoTranscripcion,
@@ -212,6 +213,7 @@ test.describe("Direct section close from persisted offer", () => {
     });
     expect(instrucciones).toContain("Qué cambió esta semana");
     expect(instrucciones).not.toContain("Sección finalizada manualmente");
+    expect(instrucciones).toContain("párrafo corto");
   });
 
   test("forced close still asks for a synthesis of what was and was not answered", () => {
@@ -222,5 +224,18 @@ test.describe("Direct section close from persisted offer", () => {
     });
     expect(instrucciones).toContain("no se respondieron");
     expect(instrucciones).toContain("Qué cambió esta semana");
+  });
+
+  test("renders a single close offer when the model called the tool many times", () => {
+    const unica = partesCierreSinDuplicar([
+      { type: "text" },
+      { type: "tool-ofrecerCierreSeccion" },
+      { type: "tool-ofrecerCierreSeccion" },
+      { type: "tool-ofrecerCierreSeccion" },
+    ]);
+    expect(
+      unica.filter((part) => part.type === "tool-ofrecerCierreSeccion")
+    ).toHaveLength(1);
+    expect(unica.filter((part) => part.type === "text")).toHaveLength(1);
   });
 });

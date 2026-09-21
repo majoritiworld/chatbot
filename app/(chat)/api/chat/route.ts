@@ -2,6 +2,7 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
+  hasToolCall,
   isStepCount,
   streamText,
   tool,
@@ -190,7 +191,14 @@ export async function POST(request: Request) {
               openai: { reasoningEffort: modelConfig.reasoningEffort },
             }),
           },
-          stopWhen: isStepCount(8),
+          stopWhen: [
+            hasToolCall(
+              "completarSeccion",
+              "ofrecerCierreSeccion",
+              "ofrecerContinuarOGuardar"
+            ),
+            isStepCount(2),
+          ],
           telemetry: {
             functionId: "entrevista-guiada",
             isEnabled: isProductionEnvironment,

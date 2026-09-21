@@ -44,26 +44,27 @@ Equipo Majoriti`,
 }
 
 function plantillaInvitacion({
-  enlace,
   nombre,
+  portal,
 }: {
-  enlace: string;
   nombre?: string | null;
+  portal: string;
 }) {
   const saludo = saludoCorreo(nombre);
+  const entrada = portal.replace(/\/$/, "");
   const cuerpo =
-    "Te invitamos a responder una entrevista con Majoriti. Abre el enlace para ir a la entrevista que te corresponde.";
+    "Te invitamos a responder una entrevista con Majoriti. Entra al portal, escribe tu correo y te enviaremos un código de 8 dígitos. Si lo pierdes, puedes pedir otro.";
 
   return {
     html: `<p>${escapeHtml(saludo)}</p>
 <p>${cuerpo}</p>
-<p><a href="${escapeHtml(enlace)}">Abrir tu entrevista</a></p>
+<p><a href="${escapeHtml(entrada)}">Entrar al portal</a></p>
 <p>Equipo Majoriti</p>`,
     text: `${saludo}
 
 ${cuerpo}
 
-${enlace}
+${entrada}
 
 Equipo Majoriti`,
   };
@@ -144,16 +145,15 @@ export async function enviarCorreoAgradecimiento({
 
 export async function enviarCorreoInvitacionEntrevista({
   email,
-  enlace,
   nombre,
+  portal,
 }: {
   email: string;
-  enlace: string;
   nombre?: string | null;
+  portal: string;
 }) {
-  const plantilla = plantillaInvitacion({ enlace, nombre });
+  const plantilla = plantillaInvitacion({ nombre, portal });
   return await enviarConResend({
-    // This email contains a personal sign-in credential, not a team update.
     copiarEquipo: false,
     destinatario: email.trim(),
     html: plantilla.html,

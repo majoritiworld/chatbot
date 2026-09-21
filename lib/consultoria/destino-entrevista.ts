@@ -83,6 +83,10 @@ export function enlaceLoginEntrevista(site: string, entrevistaId: string) {
   return `${origen}/login?next=${encodeURIComponent(destino)}`;
 }
 
+export function enlacePortal(site: string) {
+  return site.replace(/\/$/, "");
+}
+
 export type AsignacionInvitacion = {
   entrevistaId: string;
   email: string;
@@ -101,7 +105,6 @@ export async function ejecutarInvitacionEntrevista({
   entrevistaId,
   cargarAsignacion,
   asegurarCuenta,
-  generarEnlace,
   enviarCorreo,
 }: {
   entrevistaId: string;
@@ -110,13 +113,8 @@ export async function ejecutarInvitacionEntrevista({
     email: string;
     nombre: string | null;
   }) => Promise<{ creada: boolean; ok: true } | { ok: false }>;
-  generarEnlace: (args: {
-    email: string;
-    entrevistaId: string;
-  }) => Promise<string | null>;
   enviarCorreo: (args: {
     email: string;
-    enlace: string;
     entrevistaId: string;
     nombre: string | null;
   }) => Promise<void>;
@@ -140,20 +138,8 @@ export async function ejecutarInvitacionEntrevista({
     };
   }
 
-  const enlace = await generarEnlace({
-    email: asignacion.email,
-    entrevistaId: asignacion.entrevistaId,
-  });
-  if (!enlace) {
-    return {
-      message: "No se pudo armar el enlace de la entrevista.",
-      ok: false,
-    };
-  }
-
   await enviarCorreo({
     email: asignacion.email,
-    enlace,
     entrevistaId: asignacion.entrevistaId,
     nombre: asignacion.nombre,
   });

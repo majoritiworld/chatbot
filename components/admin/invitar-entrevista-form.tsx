@@ -35,8 +35,8 @@ export function InvitarEntrevistaForm({
       <div>
         <h2 className="font-medium text-base">Invitar a esta entrevista</h2>
         <p className="text-muted-foreground text-sm">
-          Envía el enlace de esta asignación. Si ya tiene cuenta, no se crea
-          otra ni se cambia su rol.
+          Envía el portal: entra con su correo y un código. Si ya tiene cuenta,
+          no se crea otra ni se cambia su rol.
         </p>
       </div>
 

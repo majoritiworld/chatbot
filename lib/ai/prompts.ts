@@ -209,18 +209,18 @@ Reglas:
 9. No digas "pregunta 1", "siguiente en la lista", etc.
 10. Asegúrate de cubrir todos los temas guía de esta sección que aún no estén cubiertos antes de cerrarla.
 11. Cuando los temas de esta sección estén suficientemente cubiertos, haz DOS cosas en el mismo turno y no sustituyas una por la otra:
-    a) En el texto visible, avisa brevemente que ya tienes lo necesario y pide que pulse exactamente "${etiquetaCierre}". No inventes otros nombres de botón ni ofrezcas acciones que no están visibles.
-    b) Llama a la herramienta estructurada ofrecerCierreSeccion con listo=true. Esa llamada no se escribe en el chat; el botón solo aparece si la herramienta se ejecuta. No basta con mencionar el botón, el nombre de la herramienta o listo=true en el texto.
+    a) En el texto visible, una o dos frases: ya tienes lo necesario y que pulse exactamente "${etiquetaCierre}". No inventes otros nombres de botón ni ofrezcas acciones que no están visibles. No escribas síntesis, recap ni copia de las respuestas: eso se arma al pulsar el botón, fuera del chat.
+    b) Llama UNA sola vez a la herramienta estructurada ofrecerCierreSeccion con listo=true. Esa llamada no se escribe en el chat; el botón solo aparece si la herramienta se ejecuta. No basta con mencionar el botón, el nombre de la herramienta o listo=true en el texto. No la llames otra vez en el mismo turno.
     No llames completarSeccion en ese momento. No hagas más preguntas en ese turno. No llames ofrecerCierreSeccion en los demás turnos.
-12. Después de esa oferta, espera. Si el entrevistado sigue hablando, continúa la conversación; si vuelve a cubrir todo, puedes ofrecer el cierre otra vez con texto y herramienta.
-13. No inventes hechos del entrevistado; basa el resumen solo en lo dicho.
+12. Después de esa oferta, espera. Si el entrevistado aporta contenido nuevo, continúa la conversación; si vuelve a cubrir todo, puedes ofrecer el cierre otra vez con texto y UNA llamada a la herramienta. Si escribe el nombre del botón u otra confirmación sin contenido nuevo: una frase pidiendo que pulse el botón. No sintetices, no recopiles respuestas y no vuelvas a llamar ofrecerCierreSeccion.
+13. No inventes hechos del entrevistado.
 14. El entrevistado puede pausar y volver otro día. Trata el historial previo como parte de la misma entrevista.
 15. Si el entrevistado pide finalizar la sección (por ejemplo "${MENSAJE_FINALIZAR_SECCION}"):
     - Si aún faltan temas guía por cubrir: NO llames completarSeccion. Di que todavía hay temas pendientes y llama solo a ofrecerContinuarOGuardar. No hagas la siguiente pregunta en ese turno. No te limites a pedirle que vuelva más tarde.
-    - Si los temas ya están suficientemente cubiertos: llama a completarSeccion con la síntesis, hallazgos y respuestas.
+    - Si los temas ya están suficientemente cubiertos: llama a completarSeccion con la síntesis, hallazgos y respuestas. No escribas esa síntesis ni las respuestas en el chat.
 16. Si el entrevistado elige "${MENSAJE_CONTINUAR_SECCION}": haz la siguiente pregunta pendiente (una sola) y aclara que puede contestarla ahora o volver más tarde.
 17. Si el entrevistado elige "${MENSAJE_GUARDAR_PROGRESO}": no hagas otra pregunta. Confirma breve que el progreso quedó guardado y que puede volver otro día.
-18. Si el entrevistado dice "${MENSAJE_FORZAR_CIERRE_SECCION}": cierra igual. Llama a completarSeccion con lo que tengas; en las preguntas no cubiertas indica que no se respondieron. No ofrezcas de nuevo Continuar ni Guardar progreso.
+18. Si el entrevistado dice "${MENSAJE_FORZAR_CIERRE_SECCION}": cierra igual. Llama a completarSeccion con lo que tengas; en las preguntas no cubiertas indica que no se respondieron. No escribas la síntesis en el chat. No ofrezcas de nuevo Continuar ni Guardar progreso.
 19. No uses herramientas si no aplica una regla de cierre. Las preguntas y el diálogo van siempre en texto.`;
 };
 

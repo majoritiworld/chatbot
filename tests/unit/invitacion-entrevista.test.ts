@@ -5,6 +5,7 @@ import {
   emailRedirectToAuth,
   enlaceCallbackEntrevista,
   enlaceLoginEntrevista,
+  enlacePortal,
   pathEntrevista,
   rutaEntrevistaPermitida,
 } from "@/lib/consultoria/destino-entrevista";
@@ -61,6 +62,8 @@ test.describe("Interview invitation destination", () => {
     expect(enlaceLoginEntrevista(site, NUEVA)).toBe(
       `https://portal.majoriti.world/login?next=${encodeURIComponent(DESTINO_NUEVA)}`
     );
+    expect(enlacePortal(site)).toBe("https://portal.majoriti.world");
+    expect(enlacePortal(`${site}/`)).toBe("https://portal.majoriti.world");
   });
 
   test("an already signed-in session keeps the invited interview", () => {
@@ -104,21 +107,11 @@ test.describe("Interview invitation destination", () => {
           nombre: "Nuevo",
         }),
       entrevistaId: NUEVA,
-      enviarCorreo: ({ enlace, entrevistaId }) => {
+      enviarCorreo: ({ entrevistaId }) => {
         llamadas.push("enviar");
         expect(entrevistaId).toBe(NUEVA);
-        expect(enlace).toContain(NUEVA);
         return Promise.resolve();
       },
-      generarEnlace: ({ entrevistaId }) =>
-        Promise.resolve(
-          enlaceCallbackEntrevista({
-            entrevistaId,
-            hashedToken: "nuevo-token",
-            site: "https://portal.majoriti.world",
-            type: "magiclink",
-          })
-        ),
     });
 
     expect(resultado).toEqual({ creada: true, enviado: true, ok: true });
@@ -140,10 +133,6 @@ test.describe("Interview invitation destination", () => {
         envios += 1;
         return Promise.resolve();
       },
-      generarEnlace: () =>
-        Promise.resolve(
-          enlaceLoginEntrevista("https://portal.majoriti.world", NUEVA)
-        ),
     };
 
     const primero = await ejecutarInvitacionEntrevista({
@@ -171,9 +160,6 @@ test.describe("Interview invitation destination", () => {
       enviarCorreo: () => {
         envios += 1;
         return Promise.resolve();
-      },
-      generarEnlace: () => {
-        throw new Error("no debe armar enlace");
       },
     });
 

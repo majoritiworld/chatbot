@@ -179,6 +179,9 @@ export function LoginForm({
           </div>
 
           {errorCodigo ? <Aviso mensaje={errorCodigo} tono="error" /> : null}
+          {solicitarState.status === "sent" && solicitarState.message ? (
+            <Aviso mensaje={solicitarState.message} tono="info" />
+          ) : null}
 
           <Button
             className="relative"

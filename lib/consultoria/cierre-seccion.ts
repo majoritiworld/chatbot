@@ -158,6 +158,7 @@ export function instruccionesSintesisCierre({
   return `Prepara el cierre estructurado de la sección "${tituloSeccion}".
 ${cobertura}
 No inventes hechos. Basa síntesis, hallazgos y respuestas solo en la conversación.
+La síntesis es un párrafo corto con lo esencial: no copies las respuestas ni armes un recap pregunta por pregunta ahí. El detalle por pregunta va solo en respuestas.
 Incluye una entrada en respuestas por cada pregunta guía.
 
 Preguntas guía:
@@ -214,6 +215,26 @@ export function herramientasCierreActivas(messages: ChatMessage[]) {
     return ["completarSeccion", "ofrecerContinuarOGuardar"] as const;
   }
   return ["ofrecerCierreSeccion"] as const;
+}
+
+export function partesCierreSinDuplicar<T extends { type: string }>(
+  partes: T[]
+): T[] {
+  const vistos = new Set<string>();
+  const resultado: T[] = [];
+  for (const part of partes) {
+    if (
+      part.type === "tool-ofrecerCierreSeccion" ||
+      part.type === "tool-ofrecerContinuarOGuardar"
+    ) {
+      if (vistos.has(part.type)) {
+        continue;
+      }
+      vistos.add(part.type);
+    }
+    resultado.push(part);
+  }
+  return resultado;
 }
 
 export function ultimoUsuarioEligePausa(messages: ChatMessage[]) {

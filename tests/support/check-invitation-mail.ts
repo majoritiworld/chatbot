@@ -19,12 +19,15 @@ globalThis.fetch = (input, init) => {
 async function main() {
   await enviarCorreoInvitacionEntrevista({
     email: "participant@example.test",
-    enlace: "https://portal.example.test/auth/callback?token_hash=synthetic",
     nombre: "QA",
+    portal: "https://portal.example.test",
   });
   assert.deepEqual(bodies[0].to, ["participant@example.test"]);
   assert.equal(bodies[0].bcc, undefined);
   assert.equal(bodies[0].cc, undefined);
+  assert.match(String(bodies[0].html), /https:\/\/portal\.example\.test/);
+  assert.doesNotMatch(String(bodies[0].html), /token_hash|magiclink/);
+  assert.match(String(bodies[0].text), /código de 8 dígitos/);
   await enviarCorreoAgradecimiento({
     email: "participant@example.test",
     entrevistaId: "synthetic-interview",
