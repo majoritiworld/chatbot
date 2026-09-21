@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  ofertaCierreVigenteEnTurnos,
+  type TurnoEntrevista,
+  textoHabladoTurno,
+} from "@/lib/consultoria/entrevista-contenido";
+import {
   MENSAJE_CONTINUAR_SECCION,
   MENSAJE_FINALIZAR_SECCION,
   MENSAJE_FORZAR_CIERRE_SECCION,
@@ -85,13 +90,18 @@ export function cierrePendienteEnChat(
   return cierreDeMensaje(last);
 }
 
-export function agenteOfrecioCierreListo(messages: ChatMessage[]) {
-  const last = messages.at(-1);
-  if (last?.role !== "assistant") {
+function herramientaCierreEjecutada(message: ChatMessage) {
+  if (message.role !== "assistant") {
     return false;
   }
-  for (const part of last.parts ?? []) {
-    if (part.type !== "tool-ofrecerCierreSeccion" || !("input" in part)) {
+  for (const part of message.parts ?? []) {
+    if (part.type !== "tool-ofrecerCierreSeccion") {
+      continue;
+    }
+    if (!("state" in part) || part.state !== "output-available") {
+      continue;
+    }
+    if (!("input" in part && "output" in part)) {
       continue;
     }
     const parsed = ofertaCierreInputSchema.safeParse(part.input);
@@ -100,6 +110,84 @@ export function agenteOfrecioCierreListo(messages: ChatMessage[]) {
     }
   }
   return false;
+}
+
+export function mensajeOfreceCierreListo(message: ChatMessage) {
+  return herramientaCierreEjecutada(message);
+}
+
+export function autorizarCierreDirecto({
+  forzar,
+  seccionActivaId,
+  seccionSolicitadaId,
+  turnosPersistidos,
+}: {
+  forzar: boolean;
+  seccionActivaId: string | undefined;
+  seccionSolicitadaId: string;
+  turnosPersistidos: TurnoEntrevista[];
+}) {
+  if (seccionActivaId !== seccionSolicitadaId) {
+    return "Esta sección ya no está activa";
+  }
+  if (forzar) {
+    return null;
+  }
+  if (!ofertaCierreVigenteEnTurnos(turnosPersistidos, seccionSolicitadaId)) {
+    return "Esta sección todavía no está lista para cerrar";
+  }
+  return null;
+}
+
+export function instruccionesSintesisCierre({
+  forzar,
+  preguntas,
+  tituloSeccion,
+}: {
+  forzar: boolean;
+  preguntas: string[];
+  tituloSeccion: string;
+}) {
+  const guia = preguntas
+    .map((pregunta, indice) => `${indice + 1}. ${pregunta}`)
+    .join("\n");
+  const cobertura = forzar
+    ? "Cierra con lo que haya. En las preguntas guía no cubiertas indica que no se respondieron."
+    : "Los temas guía de esta sección ya están cubiertos. Resume solo lo dicho.";
+
+  return `Prepara el cierre estructurado de la sección "${tituloSeccion}".
+${cobertura}
+No inventes hechos. Basa síntesis, hallazgos y respuestas solo en la conversación.
+Incluye una entrada en respuestas por cada pregunta guía.
+
+Preguntas guía:
+${guia}`;
+}
+
+export function textoConversacionCierre(turnos: TurnoEntrevista[]) {
+  return turnos
+    .flatMap((turno) => {
+      const texto = textoHabladoTurno(turno.texto);
+      if (!texto) {
+        return [];
+      }
+      const rol =
+        turno.rol === "entrevistado" ? "Entrevistado" : "Entrevistador";
+      return [`${rol}: ${texto}`];
+    })
+    .join("\n");
+}
+
+export function agenteOfrecioCierreListo(messages: ChatMessage[]) {
+  const last = messages.at(-1);
+  if (!last) {
+    return false;
+  }
+  return mensajeOfreceCierreListo(last);
+}
+
+export function ofertaCierreVigenteEnChat(messages: ChatMessage[]) {
+  return messages.some((message) => mensajeOfreceCierreListo(message));
 }
 
 export function ultimoUsuarioPideFinalizar(messages: ChatMessage[]) {

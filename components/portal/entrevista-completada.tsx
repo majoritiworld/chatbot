@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export function EntrevistaCompletada({
   correoPendiente = false,
-  mostrarPortal = true,
+  mostrarPortal = false,
   onReintentarCorreo,
   pending = false,
 }: {
@@ -23,16 +23,17 @@ export function EntrevistaCompletada({
       </span>
       <div className="flex flex-col gap-2">
         <h1 className="font-semibold text-2xl tracking-tight">
-          Gracias por participar
+          Entrevista enviada
         </h1>
         <p className="text-muted-foreground text-sm">
-          Tu entrevista fue enviada correctamente.
+          Gracias. No tienes que hacer nada más.
         </p>
       </div>
       {correoPendiente && onReintentarCorreo ? (
         <div className="flex flex-col gap-2">
           <p className="text-amber-700 text-sm dark:text-amber-300">
-            El correo de confirmación sigue pendiente.
+            La entrevista está enviada. El correo de confirmación sigue
+            pendiente.
           </p>
           <Button
             className="w-fit"
@@ -46,7 +47,7 @@ export function EntrevistaCompletada({
         </div>
       ) : (
         <p className="text-muted-foreground text-sm">
-          También recibirás un correo de confirmación.
+          Te enviamos un correo de confirmación.
         </p>
       )}
       {mostrarPortal ? (

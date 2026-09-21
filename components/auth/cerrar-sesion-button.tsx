@@ -1,13 +1,6 @@
 import Form from "next/form";
-import { redirect } from "next/navigation";
-import { signOut } from "@/app/(auth)/auth";
+import { signOutAction } from "@/app/(auth)/sign-out-action";
 import { Button } from "@/components/ui/button";
-
-async function signOutAction() {
-  "use server";
-  await signOut();
-  redirect("/login");
-}
 
 export function CerrarSesionButton({
   className,

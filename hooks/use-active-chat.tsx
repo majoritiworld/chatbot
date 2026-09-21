@@ -24,6 +24,23 @@ import { toast } from "@/components/chat/toast";
 import type { VisibilityType } from "@/components/chat/visibility-selector";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
+import { transporteChatAislado } from "@/lib/consultoria/chat-aislado";
+import {
+  escribirBorradorEntrevista,
+  leerBorradorEntrevista,
+} from "@/lib/consultoria/entrevista-piloto";
+import type { ModoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
+import {
+  claveKickoff,
+  liberarKickoff,
+  recordarKickoffHecho,
+  reservarKickoff,
+} from "@/lib/consultoria/kickoff-entrevista";
+import {
+  avisarErrorUnaVez,
+  payloadReintento,
+  ultimoMensajeUsuario,
+} from "@/lib/consultoria/reintento-mensaje";
 import type { Vote } from "@/lib/db/schema";
 import { ChatbotError } from "@/lib/errors";
 import type { ChatMessage, SectionCompletedData } from "@/lib/types";
@@ -37,6 +54,8 @@ type ActiveChatContextValue = {
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
   sendMessage: UseChatHelpers<ChatMessage>["sendMessage"];
   status: UseChatHelpers<ChatMessage>["status"];
+  hayMensajeFallido: boolean;
+  reintentarMensajeFallido: () => void;
   stop: UseChatHelpers<ChatMessage>["stop"];
   regenerate: UseChatHelpers<ChatMessage>["regenerate"];
   addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
@@ -52,9 +71,15 @@ type ActiveChatContextValue = {
   setShowCreditCardAlert: Dispatch<SetStateAction<boolean>>;
   entrevistaId?: string;
   seccionId?: string;
+  indiceSeccion?: number;
+  numeroSecciones?: number;
   onSeccionCompletada?: (data: SectionCompletedData) => void;
   progresoGuardado: boolean;
   marcarProgresoGuardado: () => void;
+  guardadoEnCurso: boolean;
+  setGuardadoEnCurso: Dispatch<SetStateAction<boolean>>;
+  demoAislada: boolean;
+  demoVoz?: ModoVozEntrevista;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -64,56 +89,42 @@ function extractChatId(pathname: string): string | null {
   return match ? match[1] : null;
 }
 
-type ActiveChatProviderProps = {
-  children: ReactNode;
-  /** Pins the chat to one interview. Used by the client portal embed. */
-  entrevistaId?: string;
-  /** Transcript already stored for this interview, replayed on reload. */
-  mensajesIniciales?: ChatMessage[];
-  onSeccionCompletada?: (data: SectionCompletedData) => void;
-  /** Active section snapshot for interview requests. */
-  seccionId?: string;
-};
-
-export function ActiveChatProvider(props: ActiveChatProviderProps) {
-  const [hasMounted, setHasMounted] = useState(false);
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-
-  if (!hasMounted) {
-    return <div className="flex h-full min-h-0 flex-1" />;
-  }
-
-  return <ActiveChatSession {...props} />;
-}
-
-function ActiveChatSession({
+export function ActiveChatProvider({
   children,
+  demoAislada = false,
+  demoVoz,
   entrevistaId,
+  indiceSeccion,
   mensajesIniciales,
+  numeroSecciones,
   onSeccionCompletada,
   seccionId,
-}: ActiveChatProviderProps) {
+}: {
+  children: ReactNode;
+  demoAislada?: boolean;
+  demoVoz?: ModoVozEntrevista;
+  entrevistaId?: string;
+  indiceSeccion?: number;
+  mensajesIniciales?: ChatMessage[];
+  numeroSecciones?: number;
+  onSeccionCompletada?: (data: SectionCompletedData) => void;
+  seccionId?: string;
+}) {
   const pathname = usePathname();
   const { setDataStream, setWaitingStatus } = useDataStream();
   const { mutate } = useSWRConfig();
 
   const chatIdFromUrl = extractChatId(pathname);
   const isNewChat = !chatIdFromUrl;
-  const newChatIdRef = useRef<string | null>(null);
+  const newChatIdRef = useRef(generateUUID());
   const prevPathnameRef = useRef(pathname);
-  const needsGeneratedChatId = isNewChat && !entrevistaId;
 
-  if (
-    needsGeneratedChatId &&
-    (newChatIdRef.current === null || prevPathnameRef.current !== pathname)
-  ) {
+  if (isNewChat && prevPathnameRef.current !== pathname) {
     newChatIdRef.current = generateUUID();
   }
   prevPathnameRef.current = pathname;
 
-  const chatId = chatIdFromUrl ?? entrevistaId ?? newChatIdRef.current ?? "";
+  const chatId = chatIdFromUrl ?? entrevistaId ?? newChatIdRef.current;
   const esEntrevista = Boolean(entrevistaId);
 
   const entrevistaIdRef = useRef(entrevistaId);
@@ -127,9 +138,31 @@ function ActiveChatSession({
     currentModelIdRef.current = currentModelId;
   }, [currentModelId]);
 
-  const [input, setInput] = useState("");
+  const [input, setInputState] = useState(() =>
+    leerBorradorEntrevista(entrevistaId, seccionId)
+  );
+  const setInput = useCallback<Dispatch<SetStateAction<string>>>(
+    (actualizacion) => {
+      setInputState((actual) => {
+        const siguiente =
+          typeof actualizacion === "function"
+            ? actualizacion(actual)
+            : actualizacion;
+        escribirBorradorEntrevista(entrevistaId, seccionId, siguiente);
+        return siguiente;
+      });
+    },
+    [entrevistaId, seccionId]
+  );
+  const [guardadoEnCurso, setGuardadoEnCurso] = useState(false);
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [claveGuardada, setClaveGuardada] = useState<string | null>(null);
+  const [mensajeFallido, setMensajeFallido] = useState<ChatMessage | null>(
+    null
+  );
+  const messagesErrorRef = useRef<ChatMessage[]>([]);
+  const esEntrevistaRef = useRef(esEntrevista);
+  esEntrevistaRef.current = esEntrevista;
 
   const { data: chatData, isLoading } = useSWR(
     isNewChat
@@ -156,6 +189,7 @@ function ActiveChatSession({
     regenerate,
     resumeStream,
     addToolApprovalResponse,
+    clearError,
   } = useChat<ChatMessage>({
     generateId: generateUUID,
     id: chatId,
@@ -168,21 +202,28 @@ function ActiveChatSession({
       setDataStream((ds) => (ds ? [...ds, dataPart] : []));
     },
     onError: (error) => {
+      const capturarFallido = () => {
+        setMensajeFallido(ultimoMensajeUsuario(messagesErrorRef.current));
+      };
+      capturarFallido();
+      queueMicrotask(capturarFallido);
       if (error.message?.includes("AI Gateway requires a valid credit card")) {
         setShowCreditCardAlert(true);
-      } else if (error instanceof ChatbotError) {
-        toast({ description: error.message, type: "error" });
-      } else {
-        const fallback = esEntrevista
-          ? "Ocurrió un error. Inténtalo de nuevo."
-          : "Oops, an error occurred!";
-        toast({
-          description: error.message || fallback,
-          type: "error",
-        });
+        return;
       }
+      const fallback = esEntrevistaRef.current
+        ? "Ocurrió un error. Inténtalo de nuevo."
+        : "Oops, an error occurred!";
+      const mensaje =
+        error instanceof ChatbotError
+          ? error.message
+          : error.message || fallback;
+      avisarErrorUnaVez(mensaje, (texto) => {
+        toast({ description: texto, type: "error" });
+      });
     },
     onFinish: () => {
+      setMensajeFallido(null);
       mutate(unstable_serialize(getChatHistoryPaginationKey));
     },
     sendAutomaticallyWhen: ({ messages: currentMessages }) => {
@@ -197,27 +238,31 @@ function ActiveChatSession({
         ) ?? false
       );
     },
-    transport: new DefaultChatTransport({
-      api: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chat`,
-      fetch: fetchWithErrorHandlers,
-      prepareSendMessagesRequest(request) {
-        const lastMessage = request.messages.at(-1);
+    transport: demoAislada
+      ? transporteChatAislado
+      : new DefaultChatTransport({
+          api: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chat`,
+          fetch: fetchWithErrorHandlers,
+          prepareSendMessagesRequest(request) {
+            const lastMessage = request.messages.at(-1);
 
-        return {
-          body: {
-            entrevistaId: entrevistaIdRef.current,
-            id: request.id,
-            message: lastMessage?.role === "user" ? lastMessage : undefined,
-            messages: request.messages,
-            seccionId: seccionIdRef.current,
-            selectedChatModel: currentModelIdRef.current,
-            selectedVisibilityType: visibility,
-            ...request.body,
+            return {
+              body: {
+                entrevistaId: entrevistaIdRef.current,
+                id: request.id,
+                message: lastMessage?.role === "user" ? lastMessage : undefined,
+                messages: request.messages,
+                seccionId: seccionIdRef.current,
+                selectedChatModel: currentModelIdRef.current,
+                selectedVisibilityType: visibility,
+                ...request.body,
+              },
+            };
           },
-        };
-      },
-    }),
+        }),
   });
+
+  messagesErrorRef.current = messages;
 
   useEffect(() => {
     if (status === "submitted" || status === "ready" || status === "error") {
@@ -227,8 +272,8 @@ function ActiveChatSession({
 
   const loadedChatIds = useRef(new Set<string>());
 
-  if (isNewChat && chatId && !loadedChatIds.current.has(chatId)) {
-    loadedChatIds.current.add(chatId);
+  if (isNewChat && !loadedChatIds.current.has(newChatIdRef.current)) {
+    loadedChatIds.current.add(newChatIdRef.current);
   }
 
   useEffect(() => {
@@ -284,23 +329,35 @@ function ActiveChatSession({
     }
   }, [sendMessage, chatId, esEntrevista]);
 
-  // The interview opens itself: with no transcript to replay, ask the agent
-  // for its greeting and first question instead of waiting on the user.
-  const kickoffRef = useRef(false);
+  const kickoffClave =
+    entrevistaId && seccionId ? claveKickoff(entrevistaId, seccionId) : null;
   useEffect(() => {
-    if (!esEntrevista || kickoffRef.current) {
+    if (!esEntrevista || !kickoffClave || demoAislada) {
       return;
     }
     if (messages.length > 0) {
-      kickoffRef.current = true;
+      recordarKickoffHecho(kickoffClave);
+      return;
+    }
+    if (status === "error") {
+      liberarKickoff(kickoffClave);
       return;
     }
     if (status !== "ready") {
       return;
     }
-    kickoffRef.current = true;
+    if (!reservarKickoff(kickoffClave)) {
+      return;
+    }
     sendMessage();
-  }, [esEntrevista, messages.length, status, sendMessage]);
+  }, [
+    demoAislada,
+    esEntrevista,
+    kickoffClave,
+    messages.length,
+    sendMessage,
+    status,
+  ]);
 
   useAutoResume({
     autoResume: !isNewChat && !!chatData,
@@ -326,24 +383,42 @@ function ActiveChatSession({
     setClaveGuardada(messages.map((mensaje) => mensaje.id).join(","));
   }, [messages]);
 
+  const reintentarMensajeFallido = useCallback(() => {
+    if (!mensajeFallido) {
+      return;
+    }
+    clearError();
+    sendMessage(payloadReintento(mensajeFallido));
+  }, [clearError, mensajeFallido, sendMessage]);
+
+  const hayMensajeFallido = status === "error" && Boolean(mensajeFallido);
+
   const value = useMemo<ActiveChatContextValue>(
     () => ({
       addToolApprovalResponse,
       chatId,
       currentModelId,
+      demoAislada,
+      demoVoz,
       entrevistaId,
       esEntrevista,
+      guardadoEnCurso,
+      hayMensajeFallido,
+      indiceSeccion,
       input,
       isLoading: !isNewChat && isLoading,
       isReadonly,
       marcarProgresoGuardado,
       messages,
+      numeroSecciones,
       onSeccionCompletada,
       progresoGuardado,
       regenerate,
+      reintentarMensajeFallido,
       seccionId,
       sendMessage,
       setCurrentModelId,
+      setGuardadoEnCurso,
       setInput,
       setMessages,
       setShowCreditCardAlert,
@@ -357,19 +432,27 @@ function ActiveChatSession({
       addToolApprovalResponse,
       chatId,
       currentModelId,
+      demoAislada,
+      demoVoz,
       entrevistaId,
       esEntrevista,
+      guardadoEnCurso,
+      hayMensajeFallido,
+      indiceSeccion,
       input,
       isLoading,
       isNewChat,
       isReadonly,
       marcarProgresoGuardado,
       messages,
+      numeroSecciones,
       onSeccionCompletada,
       progresoGuardado,
       regenerate,
+      reintentarMensajeFallido,
       seccionId,
       sendMessage,
+      setInput,
       setMessages,
       showCreditCardAlert,
       status,

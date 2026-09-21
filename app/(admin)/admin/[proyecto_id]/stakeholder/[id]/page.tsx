@@ -8,11 +8,13 @@ import { DocumentoUploadForm } from "@/components/admin/documento-upload-form";
 import { EditarStakeholderForm } from "@/components/admin/editar-stakeholder-form";
 import { EntrarComoStakeholderButton } from "@/components/admin/entrar-como-stakeholder-button";
 import { EntrevistaEditor } from "@/components/admin/entrevista-editor";
+import { InvitarEntrevistaForm } from "@/components/admin/invitar-entrevista-form";
 import { MarcarFaseForm } from "@/components/admin/marcar-fase-form";
 import { PreguntasEntrevistaForm } from "@/components/admin/preguntas-entrevista-form";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdminUser } from "@/lib/consultoria/admin";
+import { listarEntrevistasInvitables } from "@/lib/consultoria/invitacion-entrevista";
 import { listPlantillasAdmin } from "@/lib/consultoria/plantillas";
 import { getStakeholderDetalle } from "@/lib/consultoria/stakeholders";
 
@@ -46,6 +48,10 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
   const plantillas = detalle.entrevistaId
     ? []
     : await listPlantillasAdmin(proyectoId);
+  const entrevistasInvitables = await listarEntrevistasInvitables(
+    proyectoId,
+    id
+  );
 
   return (
     <>
@@ -98,6 +104,14 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
         rolActual={detalle.rolPortal}
         stakeholderId={detalle.id}
       />
+
+      {entrevistasInvitables.length > 0 ? (
+        <InvitarEntrevistaForm
+          entrevistas={entrevistasInvitables}
+          proyectoId={proyectoId}
+          stakeholderId={detalle.id}
+        />
+      ) : null}
 
       {detalle.entrevistaId ? (
         <>

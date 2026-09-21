@@ -2,13 +2,13 @@ import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { ensureUsuarioPerfil } from "@/lib/consultoria/auth";
+import { rutaEntrevistaPermitida } from "@/lib/consultoria/destino-entrevista";
 import {
   getEntrevistaIdByEmail,
   homePathForRol,
   isStakeholderRole,
   resolveAuthLanding,
 } from "@/lib/consultoria/roles";
-import { getSupabaseConfig } from "@/lib/supabase/config";
 
 /** Types Supabase can send us through an invite or sign-in mail. */
 const TIPOS_EMAIL = new Set<EmailOtpType>([
@@ -26,14 +26,6 @@ function tipoEmail(value: string | null): EmailOtpType | null {
     : null;
 }
 
-/** Only same-origin paths, so `next` can never become an open redirect. */
-function rutaSegura(value: string | null) {
-  if (!value?.startsWith("/") || value.startsWith("//")) {
-    return null;
-  }
-  return value;
-}
-
 async function landingForUser(
   supabase: ReturnType<typeof createServerClient>,
   userId: string,
@@ -46,9 +38,11 @@ async function landingForUser(
     .eq("id", userId)
     .maybeSingle();
 
-  const entrevistaId = isStakeholderRole(perfil?.rol)
-    ? await getEntrevistaIdByEmail(supabase, email)
-    : null;
+  const explicito = rutaEntrevistaPermitida(next);
+  const entrevistaId =
+    explicito || !isStakeholderRole(perfil?.rol)
+      ? null
+      : await getEntrevistaIdByEmail(supabase, email);
 
   return resolveAuthLanding(
     perfil?.rol,
@@ -63,37 +57,42 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = tipoEmail(searchParams.get("type"));
-  const next = rutaSegura(searchParams.get("next"));
+  const next = rutaEntrevistaPermitida(searchParams.get("next"));
 
   const destino = (path: string) => new URL(`${base}${path}`, origin);
 
   // Whatever happens, the user lands on a screen that can get them in: the
   // login form asks for a code instead of telling them to create an account.
   const loginErrorUrl = destino("/login?error=auth");
+  if (next) {
+    loginErrorUrl.searchParams.set("next", next);
+  }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!(supabaseUrl && supabaseAnonKey)) {
+    return NextResponse.redirect(loginErrorUrl);
+  }
 
   // Build the redirect first so the auth cookies are written onto it.
   let response = NextResponse.redirect(destino(next ?? "/portal"));
 
-  const supabase = createServerClient(
-    getSupabaseConfig().url,
-    getSupabaseConfig().anonKey,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          for (const { name, value } of cookiesToSet) {
-            request.cookies.set(name, value);
-          }
-          response = NextResponse.redirect(destino(next ?? "/portal"));
-          for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, options);
-          }
-        },
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-    }
-  );
+      setAll(cookiesToSet) {
+        for (const { name, value } of cookiesToSet) {
+          request.cookies.set(name, value);
+        }
+        response = NextResponse.redirect(destino(next ?? "/portal"));
+        for (const { name, value, options } of cookiesToSet) {
+          response.cookies.set(name, value, options);
+        }
+      },
+    },
+  });
 
   async function finishAuth() {
     const {
@@ -118,8 +117,8 @@ export async function GET(request: NextRequest) {
     return redirected;
   }
 
-  // Preferred path: a hashed token works from any device and survives mail
-  // clients that prefetch links.
+  // Hashed tokens work across devices. They are single-use: expired or
+  // scanner-consumed links must recover through OTP with the same destination.
   if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
@@ -130,7 +129,7 @@ export async function GET(request: NextRequest) {
       return finishAuth();
     }
 
-    console.error("auth callback verifyOtp failed", error.message);
+    console.error("auth callback verifyOtp failed");
     return NextResponse.redirect(loginErrorUrl);
   }
 
@@ -143,7 +142,7 @@ export async function GET(request: NextRequest) {
       return finishAuth();
     }
 
-    console.error("auth callback code exchange failed", error.message);
+    console.error("auth callback code exchange failed");
     return NextResponse.redirect(loginErrorUrl);
   }
 

@@ -7,7 +7,7 @@ export default function PortalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-dvh flex-col bg-background">
+    <div className="flex h-dvh flex-col bg-background max-md:has-[[data-entrevista-activa]]:[&_[data-session-bar-cuenta]]:hidden">
       <SessionBar />
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {children}

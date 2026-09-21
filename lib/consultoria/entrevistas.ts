@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { autorizarCierreDirecto } from "@/lib/consultoria/cierre-seccion";
 import {
   consolidarRespuestasEntrevista,
   type FlujoEntrevista,
@@ -13,9 +14,19 @@ import {
   type RespuestaResumen,
   type ResumenEntrevista,
   type SeccionCompletada,
+  serializarTurnosParaRpc,
   type TurnoEntrevista,
+  turnosDeSeccion,
 } from "@/lib/consultoria/entrevista-contenido";
+import { decisionReintentoCorreo } from "@/lib/consultoria/entrevista-piloto";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
+import {
+  accesoEntrevistaPortal,
+  coincideFaseYViewer,
+  type EntrevistaPortalCarga,
+} from "@/lib/consultoria/portal-carga-acceso";
+import { mismoEmail } from "@/lib/consultoria/roles";
+import { generarResumenCierreSeccion } from "@/lib/consultoria/sintesis-cierre";
 import { createClient } from "@/lib/supabase/server";
 import type { Entrevista, UserRole } from "@/lib/supabase/types";
 
@@ -54,8 +65,59 @@ type EntrevistaRow = {
   fecha_completada: string | null;
   consentimiento_en: string | null;
   correo_agradecimiento_en: string | null;
+  transcripcion?: unknown;
   stakeholder?: StakeholderEmbed | StakeholderEmbed[];
 };
+
+type FaseEmbed = {
+  id: string;
+  proyecto_id: string;
+};
+
+type TareaEntrevistaCargaRow = {
+  entrevista: EntrevistaRow | EntrevistaRow[] | null;
+  entrevista_id: string | null;
+  fase: FaseEmbed | FaseEmbed[] | null;
+};
+
+type TareaFaseEmbed = {
+  fase: FaseEmbed | FaseEmbed[] | null;
+  fase_id: string;
+  tipo: string;
+};
+
+type EntrevistaEnFaseRow = EntrevistaRow & {
+  tarea?: TareaFaseEmbed | TareaFaseEmbed[] | null;
+};
+
+function filasDesdeEntrevistasEnFase(
+  rows: EntrevistaEnFaseRow[]
+): TareaEntrevistaCargaRow[] {
+  const filas: TareaEntrevistaCargaRow[] = [];
+
+  for (const row of rows) {
+    let tareas: TareaFaseEmbed[] = [];
+    if (Array.isArray(row.tarea)) {
+      tareas = row.tarea;
+    } else if (row.tarea) {
+      tareas = [row.tarea];
+    }
+
+    for (const tarea of tareas) {
+      filas.push({
+        entrevista: row,
+        entrevista_id: row.id,
+        fase: tarea.fase,
+      });
+    }
+  }
+
+  return filas;
+}
+
+const ENTREVISTA_CON_TRANSCRIPCION_SELECT = `${ENTREVISTA_SELECT},
+  transcripcion
+`;
 
 function parseFlujoEstado(value: string): FlujoEntrevista {
   if (value === "presentacion" || value === "chat" || value === "revision") {
@@ -95,6 +157,10 @@ function toEntrevista(row: EntrevistaRow): Entrevista {
   };
 }
 
+/**
+ * Request-local only (React `cache`). It does not reuse proxy `getUser`
+ * results, page data, or another handler.
+ */
 export const getUsuarioPerfil = cache(async () => {
   const supabase = await createClient();
   const {
@@ -120,43 +186,12 @@ export const getUsuarioPerfil = cache(async () => {
   };
 });
 
-/** Stakeholder row matching the signed-in email, if any. */
-export const getOwnStakeholderId = cache(
-  async (email: string | null | undefined) => {
-    if (!email) {
-      return null;
-    }
-
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("stakeholder")
-      .select("id")
-      .ilike("email", email)
-      .maybeSingle();
-
-    return data?.id ?? null;
-  }
-);
-
 async function entrevistaPorId(entrevistaId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("entrevista")
     .select(ENTREVISTA_SELECT)
     .eq("id", entrevistaId)
-    .maybeSingle();
-
-  return data ? toEntrevista(data as EntrevistaRow) : null;
-}
-
-async function entrevistaPorStakeholder(stakeholderId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("entrevista")
-    .select(ENTREVISTA_SELECT)
-    .eq("stakeholder_id", stakeholderId)
-    .order("id")
-    .limit(1)
     .maybeSingle();
 
   return data ? toEntrevista(data as EntrevistaRow) : null;
@@ -171,42 +206,35 @@ export async function resolveEntrevista(
     return null;
   }
 
-  if (entrevistaId) {
-    const entrevista = await entrevistaPorId(entrevistaId);
-    if (entrevista) {
-      return entrevista;
-    }
-  }
-
-  const ownId = await getOwnStakeholderId(context.user.email);
-  if (!ownId) {
+  if (!entrevistaId) {
     return null;
   }
 
-  return entrevistaPorStakeholder(ownId);
+  return entrevistaPorId(entrevistaId);
 }
 
 /**
- * Loads the interview and confirms the caller is the stakeholder in one
- * round: profile once, then interview + own stakeholder in parallel.
+ * Loads the requested interview and confirms the caller owns it.
+ * Does not fall back to another interview assigned to the same email.
  */
 export async function getEntrevistaEscribible(
   entrevistaId?: string | null
 ): Promise<Entrevista | null> {
+  if (!entrevistaId) {
+    return null;
+  }
+
   const context = await getUsuarioPerfil();
   if (!context) {
     return null;
   }
 
-  const [ownId, encontrada] = await Promise.all([
-    getOwnStakeholderId(context.user.email),
-    entrevistaId ? entrevistaPorId(entrevistaId) : Promise.resolve(null),
-  ]);
+  const entrevista = await entrevistaPorId(entrevistaId);
 
-  const entrevista =
-    encontrada ?? (ownId ? await entrevistaPorStakeholder(ownId) : null);
-
-  if (!entrevista || !ownId || entrevista.stakeholder_id !== ownId) {
+  if (
+    !entrevista ||
+    !mismoEmail(entrevista.stakeholder_email, context.user.email)
+  ) {
     return null;
   }
 
@@ -226,6 +254,118 @@ export async function getTranscripcionEntrevista(
     .maybeSingle();
 
   return parseTranscripcion(data?.transcripcion);
+}
+
+export function entrevistaPropiaEnFilasDeFase(
+  rows: TareaEntrevistaCargaRow[],
+  proyectoId: string,
+  viewerEmail: string | null
+): { entrevista: Entrevista; turnos: TurnoEntrevista[] } | null {
+  if (!viewerEmail) {
+    return null;
+  }
+
+  for (const row of rows) {
+    const fase = asOne(row.fase);
+    const entrevistaRow = asOne(row.entrevista);
+    if (!(fase && entrevistaRow)) {
+      continue;
+    }
+
+    const entrevista = toEntrevista(entrevistaRow);
+    if (
+      !coincideFaseYViewer({
+        faseProyectoId: fase.proyecto_id,
+        proyectoId,
+        stakeholderEmail: entrevista.stakeholder_email,
+        viewerEmail,
+      })
+    ) {
+      continue;
+    }
+
+    return {
+      entrevista,
+      turnos: parseTranscripcion(entrevistaRow.transcripcion),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Interview page load after identity: one entrevista row, ownership in app
+ * code, transcript included so the page does not issue a second read.
+ */
+export async function getEntrevistaPortalCarga(
+  entrevistaId: string,
+  viewerEmail: string | null
+): Promise<EntrevistaPortalCarga> {
+  if (!viewerEmail) {
+    return { acceso: "ausente" };
+  }
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("entrevista")
+    .select(ENTREVISTA_CON_TRANSCRIPCION_SELECT)
+    .eq("id", entrevistaId)
+    .maybeSingle();
+
+  if (!data) {
+    return { acceso: "ausente" };
+  }
+
+  const row = data as EntrevistaRow;
+  return accesoEntrevistaPortal(
+    toEntrevista(row),
+    viewerEmail,
+    row.transcripcion
+  );
+}
+
+/**
+ * Phase page companion read: the viewer's interview in that phase/project.
+ * Independent of getFase after identity; still filtered by project and email.
+ */
+export async function getEntrevistaPropiaEnFaseDelProyecto({
+  faseId,
+  proyectoId,
+  viewerEmail,
+}: {
+  faseId: string;
+  proyectoId: string | null;
+  viewerEmail: string | null;
+}): Promise<{ entrevista: Entrevista; turnos: TurnoEntrevista[] } | null> {
+  if (!(proyectoId && viewerEmail)) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("entrevista")
+    .select(`
+      ${ENTREVISTA_CON_TRANSCRIPCION_SELECT},
+      tarea!inner (
+        fase_id,
+        tipo,
+        fase:fase_id!inner ( id, proyecto_id )
+      )
+    `)
+    .eq("tarea.fase_id", faseId)
+    .eq("tarea.tipo", "entrevista")
+    .eq("tarea.fase.proyecto_id", proyectoId)
+    .ilike("stakeholder.email", viewerEmail);
+
+  if (error) {
+    throw error;
+  }
+
+  return entrevistaPropiaEnFilasDeFase(
+    filasDesdeEntrevistasEnFase((data ?? []) as EntrevistaEnFaseRow[]),
+    proyectoId,
+    viewerEmail
+  );
 }
 
 export async function avanzarFlujoEntrevista({
@@ -319,7 +459,7 @@ export async function completarSeccionEntrevista({
     p_completion: completada,
     p_entrevista_id: entrevista.id,
     p_seccion_id: seccion.id,
-    p_transcripcion: turnos,
+    p_transcripcion: serializarTurnosParaRpc(turnos),
   });
 
   if (error) {
@@ -348,6 +488,65 @@ export async function completarSeccionEntrevista({
   };
 }
 
+export async function cerrarSeccionDirecta({
+  entrevistaId,
+  forzar,
+  seccionId,
+}: {
+  entrevistaId: string;
+  forzar: boolean;
+  seccionId: string;
+}) {
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
+  if (!entrevista) {
+    throw new Error("No puedes completar esta sección");
+  }
+
+  const previa = entrevista.secciones_completadas.find(
+    (item) => item.seccionId === seccionId
+  );
+  if (previa) {
+    return completarSeccionEntrevista({
+      entrevistaId,
+      hallazgos: previa.hallazgos,
+      modo: previa.modo,
+      respuestas: previa.respuestas,
+      seccionId,
+      sintesis: previa.sintesis,
+    });
+  }
+
+  const seccion = entrevista.secciones.at(entrevista.seccion_actual);
+  const turnosPersistidos = await getTranscripcionEntrevista(entrevista.id);
+  const denegado = autorizarCierreDirecto({
+    forzar,
+    seccionActivaId: seccion?.id,
+    seccionSolicitadaId: seccionId,
+    turnosPersistidos,
+  });
+  if (denegado) {
+    throw new Error(denegado);
+  }
+  if (!seccion) {
+    throw new Error("Esta sección ya no está activa");
+  }
+
+  const resumen = await generarResumenCierreSeccion({
+    forzar,
+    preguntas: seccion.preguntas,
+    tituloSeccion: seccion.titulo,
+    turnos: turnosDeSeccion(turnosPersistidos, seccion.id, true),
+  });
+
+  return completarSeccionEntrevista({
+    entrevistaId,
+    modo: "agente",
+    seccionId,
+    turnos: turnosDeSeccion(turnosPersistidos, seccion.id, true),
+    ...resumen,
+  });
+}
+
 /**
  * Appends the turns of one exchange and stamps the activity clock. The admin
  * table reads `ultima_actividad` to flag stakeholders who went quiet.
@@ -364,7 +563,7 @@ export async function registrarTurnosEntrevista({
   const supabase = await createClient();
   const { error } = await supabase.rpc("append_interview_turns", {
     p_entrevista_id: entrevistaId,
-    p_turnos: turnos,
+    p_turnos: serializarTurnosParaRpc(turnos),
   });
 
   if (error) {
@@ -490,6 +689,42 @@ export async function enviarEntrevista(entrevistaId: string) {
   return {
     alreadyDone: guardado.alreadyDone,
     correoEnviado: false,
+    email: entrevista.stakeholder_email,
+    nombre: entrevista.stakeholder_nombre,
+  };
+}
+
+export async function entrevistaParaReintentoCorreo(entrevistaId: string) {
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
+
+  if (!entrevista) {
+    throw new Error("No puedes reenviar el correo de esta entrevista");
+  }
+
+  const decision = decisionReintentoCorreo({
+    correoAgradecimientoEn: entrevista.correo_agradecimiento_en,
+    email: entrevista.stakeholder_email,
+    estado: entrevista.estado,
+  });
+
+  if (decision === "no_enviada") {
+    throw new Error("La entrevista todavía no está enviada");
+  }
+
+  if (decision === "ya_enviado") {
+    return {
+      alreadyDone: true as const,
+      email: entrevista.stakeholder_email,
+      nombre: entrevista.stakeholder_nombre,
+    };
+  }
+
+  if (decision === "sin_email" || !entrevista.stakeholder_email) {
+    throw new Error("No hay email para el correo de confirmación");
+  }
+
+  return {
+    alreadyDone: false as const,
     email: entrevista.stakeholder_email,
     nombre: entrevista.stakeholder_nombre,
   };

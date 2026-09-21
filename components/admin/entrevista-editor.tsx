@@ -49,6 +49,19 @@ export function EntrevistaEditor({
     initialState
   );
 
+  const onTranscripcionChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
+      setTranscripcionJson(event.target.value);
+    },
+    []
+  );
+  const onResumenChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) => {
+      setResumenJson(event.target.value);
+    },
+    []
+  );
+
   const turnosVista = useMemo(() => {
     try {
       return JSON.parse(transcripcionJson) as TurnoEntrevista[];
@@ -56,17 +69,6 @@ export function EntrevistaEditor({
       return transcripcionInicial;
     }
   }, [transcripcionJson, transcripcionInicial]);
-
-  const cambiarTranscripcion = useCallback(
-    (event: ChangeEvent<HTMLTextAreaElement>) =>
-      setTranscripcionJson(event.target.value),
-    []
-  );
-  const cambiarResumen = useCallback(
-    (event: ChangeEvent<HTMLTextAreaElement>) =>
-      setResumenJson(event.target.value),
-    []
-  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -107,7 +109,7 @@ export function EntrevistaEditor({
             className="min-h-48 font-mono text-xs"
             id="transcripcion"
             name="transcripcion"
-            onChange={cambiarTranscripcion}
+            onChange={onTranscripcionChange}
             value={transcripcionJson}
           />
         </div>
@@ -120,7 +122,7 @@ export function EntrevistaEditor({
             className="min-h-48 font-mono text-xs"
             id="resumen"
             name="resumen"
-            onChange={cambiarResumen}
+            onChange={onResumenChange}
             value={resumenJson}
           />
         </div>

@@ -8,7 +8,12 @@ import {
   ensureUsuarioPerfil,
   esCuentaMajoriti,
   normalizarEmail,
+  siteUrl,
 } from "@/lib/consultoria/auth";
+import {
+  emailRedirectToAuth,
+  rutaEntrevistaPermitida,
+} from "@/lib/consultoria/destino-entrevista";
 import { landingPathForCurrentUser } from "@/lib/consultoria/portal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -37,6 +42,7 @@ export type AuthActionState = {
   message?: string;
   /** Echoed back so the code step can address the user and allow a resend. */
   email?: string;
+  next?: string;
 };
 
 function esLimiteDeEnvios(error: { status?: number; message: string }) {
@@ -65,9 +71,14 @@ export async function solicitarCodigo(
   const parsed = emailSchema.safeParse({
     email: formData.get("email"),
   });
+  const next = rutaEntrevistaPermitida(String(formData.get("next") ?? ""));
 
   if (!parsed.success) {
-    return { message: "Escribe un email válido", status: "invalid_data" };
+    return {
+      message: "Escribe un email válido",
+      next: next ?? undefined,
+      status: "invalid_data",
+    };
   }
 
   const email = normalizarEmail(parsed.data.email);
@@ -78,6 +89,7 @@ export async function solicitarCodigo(
       email,
       message:
         "Este correo no está en el portal. Escribe a Majoriti para que te den acceso.",
+      next: next ?? undefined,
       status: "failed",
     };
   }
@@ -86,12 +98,18 @@ export async function solicitarCodigo(
   const admin = createAdminClient();
 
   if (!(cuenta.ok && admin)) {
-    return { email, message: ERROR_GENERICO, status: "failed" };
+    return {
+      email,
+      message: ERROR_GENERICO,
+      next: next ?? undefined,
+      status: "failed",
+    };
   }
 
   const { error } = await admin.auth.signInWithOtp({
     email,
     options: {
+      emailRedirectTo: emailRedirectToAuth(siteUrl(), next),
       shouldCreateUser: false,
     },
   });
@@ -102,11 +120,12 @@ export async function solicitarCodigo(
       message: esLimiteDeEnvios(error)
         ? "Ya te enviamos un código hace un momento. Revisa tu correo (y la carpeta de spam) antes de pedir otro."
         : ERROR_GENERICO,
+      next: next ?? undefined,
       status: "failed",
     };
   }
 
-  return { email, status: "sent" };
+  return { email, next: next ?? undefined, status: "sent" };
 }
 
 /** Step 2: exchange the code for a session and land on the right home. */
@@ -115,6 +134,7 @@ export async function verificarCodigo(
   formData: FormData
 ): Promise<AuthActionState> {
   const emailRaw = String(formData.get("email") ?? "");
+  const next = rutaEntrevistaPermitida(String(formData.get("next") ?? ""));
   const parsed = codigoSchema.safeParse({
     codigo: String(formData.get("codigo") ?? "").replace(/\D/g, ""),
     email: emailRaw,
@@ -124,6 +144,7 @@ export async function verificarCodigo(
     return {
       email: normalizarEmail(emailRaw),
       message: "El código tiene 8 dígitos",
+      next: next ?? undefined,
       status: "invalid_data",
     };
   }
@@ -140,13 +161,14 @@ export async function verificarCodigo(
     return {
       email,
       message: "Ese código no es válido o ya venció. Pide uno nuevo.",
+      next: next ?? undefined,
       status: "failed",
     };
   }
 
   await ensureUsuarioPerfil(data.user);
 
-  redirect(await landingPathForCurrentUser());
+  redirect(await landingPathForCurrentUser(next));
 }
 
 /** Majoriti only. Clients cannot obtain a session through this form. */

@@ -6,6 +6,7 @@ import {
   cierrePendienteEnChat,
   herramientasCierreActivas,
   mensajesTextoParaModelo,
+  ofertaCierreVigenteEnChat,
   ultimoUsuarioEligePausa,
   ultimoUsuarioPideFinalizar,
 } from "@/lib/consultoria/cierre-seccion";
@@ -14,6 +15,7 @@ import {
   consolidarRespuestasEntrevista,
   fusionarTurnos,
   haySeccionesPendientes,
+  ofertaCierreVigenteEnTurnos,
   parseSecciones,
   parseSeccionesCompletadas,
   resolverAvanceSeccion,
@@ -30,8 +32,16 @@ import {
   esProyectoComplianceLatam,
   GUION_CL_FASE_1,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
-import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
-import { resolveAuthLanding } from "@/lib/consultoria/roles";
+import {
+  mensajesATurnos,
+  turnosAMensajes,
+} from "@/lib/consultoria/mensajes-a-turnos";
+import {
+  elegirEntrevistaLanding,
+  mismoEmail,
+  resolveAuthLanding,
+  stakeholderPathNeedsLandingInterview,
+} from "@/lib/consultoria/roles";
 import type { ChatMessage } from "@/lib/types";
 
 const SECCION_CONTEXTO = {
@@ -313,10 +323,15 @@ test.describe("Interview prompt context", () => {
     expect(prompt).toContain(MENSAJE_FINALIZAR_SECCION);
     expect(prompt).toContain("ofrecerContinuarOGuardar");
     expect(prompt).toContain("ofrecerCierreSeccion");
-    expect(prompt).toContain('pulse "Finalizar sección"');
+    expect(prompt).toContain("Cerrar y continuar");
+    expect(prompt).not.toContain("Finalizar entrevista");
     expect(prompt).toContain("puede contestarla ahora o volver más tarde");
     expect(prompt).toContain("no hagas otra pregunta");
     expect(prompt).toContain("listo=true");
+    expect(prompt).toContain("herramienta estructurada");
+    expect(prompt).toContain(
+      "No llames ofrecerCierreSeccion en los demás turnos"
+    );
     expect(prompt).toContain(MENSAJE_FORZAR_CIERRE_SECCION);
   });
 
@@ -328,7 +343,20 @@ test.describe("Interview prompt context", () => {
     });
 
     expect(prompt).toContain("saluda a la persona por su nombre");
+    expect(prompt).toContain("haz de inmediato la primera pregunta");
     expect(prompt).not.toContain("salúdala");
+  });
+
+  test("names only the close button that is visible in that section", () => {
+    const ultimo = interviewSystemPrompt({
+      esUltimoTema: true,
+      preguntas: ["Qué cambió esta semana."],
+      tituloSeccion: "General",
+    });
+
+    expect(ultimo).toContain("Finalizar entrevista");
+    expect(ultimo).not.toContain("Cerrar y continuar");
+    expect(ultimo).toContain("No inventes otros nombres de botón");
   });
 });
 
@@ -424,6 +452,56 @@ test.describe("Interview section close offer", () => {
     expect(agenteOfrecioCierreListo(listo)).toBe(true);
     expect(agenteOfrecioCierreListo(incompleto)).toBe(false);
     expect(agenteOfrecioCierreListo(usuarioSigue)).toBe(false);
+    expect(ofertaCierreVigenteEnChat(listo)).toBe(true);
+    expect(ofertaCierreVigenteEnChat(incompleto)).toBe(false);
+    expect(ofertaCierreVigenteEnChat(usuarioSigue)).toBe(true);
+  });
+
+  test("persists the close offer on the section turn and rebuilds it after reload", () => {
+    const seccionId = "11111111-1111-4111-8111-111111111111";
+    const otraSeccion = "22222222-2222-4222-8222-222222222222";
+    const listo: ChatMessage[] = [
+      {
+        id: "a1",
+        parts: [
+          { text: "Ya tengo lo necesario.", type: "text" },
+          {
+            input: { listo: true },
+            output: { ok: true },
+            state: "output-available",
+            toolCallId: "t1",
+            type: "tool-ofrecerCierreSeccion",
+          },
+        ],
+        role: "assistant",
+      },
+    ];
+    const turnos = mensajesATurnos(listo, seccionId, {
+      persistirOfertaEjecutada: true,
+    });
+    expect(turnos.at(0)?.ofertaCierre).toBe(true);
+    expect(turnos.at(0)?.seccionId).toBe(seccionId);
+
+    const reconstruidos = turnosAMensajes(turnos);
+    expect(ofertaCierreVigenteEnChat(reconstruidos)).toBe(true);
+    expect(agenteOfrecioCierreListo(reconstruidos)).toBe(true);
+    expect(ofertaCierreVigenteEnTurnos(turnos, seccionId)).toBe(true);
+    expect(ofertaCierreVigenteEnTurnos(turnos, otraSeccion)).toBe(false);
+    expect(
+      ofertaCierreVigenteEnTurnos(
+        [
+          {
+            at: "2026-09-20T00:00:00.000Z",
+            id: "done",
+            ofertaCierre: true,
+            rol: "entrevistador",
+            seccionId,
+            texto: "Oferta de otra sección ya cerrada.",
+          },
+        ],
+        otraSeccion
+      )
+    ).toBe(false);
   });
 
   test("detects the explicit close request from the last user turn", () => {
@@ -526,5 +604,118 @@ test.describe("Auth landing", () => {
     expect(
       resolveAuthLanding("stakeholder", "/chat/abc", "/portal/entrevista/1")
     ).toBe("/portal/entrevista/1");
+    expect(
+      resolveAuthLanding(
+        "stakeholder",
+        "/portal/entrevista/228285c0-5153-469f-b0f1-b13c82b355c0",
+        "/portal/entrevista/a83b3fd0-773e-4778-b9f5-dd6819fb3a66"
+      )
+    ).toBe("/portal/entrevista/228285c0-5153-469f-b0f1-b13c82b355c0");
+    expect(
+      resolveAuthLanding(
+        "stakeholder",
+        "https://evil.example/portal/entrevista/228285c0-5153-469f-b0f1-b13c82b355c0",
+        "/portal/entrevista/a83b3fd0-773e-4778-b9f5-dd6819fb3a66"
+      )
+    ).toBe("/portal/entrevista/a83b3fd0-773e-4778-b9f5-dd6819fb3a66");
+  });
+
+  test("landing interview lookup is only for home redirects", () => {
+    expect(stakeholderPathNeedsLandingInterview("/portal")).toBe(true);
+    expect(stakeholderPathNeedsLandingInterview("/portal/fase/x")).toBe(true);
+    expect(stakeholderPathNeedsLandingInterview("/chat/abc")).toBe(true);
+    expect(stakeholderPathNeedsLandingInterview("/admin")).toBe(true);
+    expect(
+      stakeholderPathNeedsLandingInterview(
+        "/portal/entrevista/8668e9fc-6fc5-42c0-b858-6cc3cc1162cc"
+      )
+    ).toBe(false);
+    expect(stakeholderPathNeedsLandingInterview("/api/chat")).toBe(false);
+    expect(stakeholderPathNeedsLandingInterview("/api/entrevista/flujo")).toBe(
+      false
+    );
+  });
+
+  test("home interview prefers in-progress chat over an earlier UUID still in review", () => {
+    expect(
+      elegirEntrevistaLanding([
+        {
+          estado: "abierta",
+          flujo_estado: "revision",
+          id: "228285c0-5153-469f-b0f1-b13c82b355c0",
+          ultima_actividad: "2026-09-20T08:54:35.613386+00",
+        },
+        {
+          estado: "completada",
+          flujo_estado: "revision",
+          id: "484c3223-aadd-4b22-b78a-2e6089736e34",
+          ultima_actividad: "2026-09-20T12:27:18.700761+00",
+        },
+        {
+          estado: "abierta",
+          flujo_estado: "chat",
+          id: "a83b3fd0-773e-4778-b9f5-dd6819fb3a66",
+          ultima_actividad: "2026-09-19T12:18:15.166989+00",
+        },
+      ])
+    ).toBe("a83b3fd0-773e-4778-b9f5-dd6819fb3a66");
+  });
+
+  test("direct interview URLs keep a pending review even when home prefers chat", () => {
+    const homeChat = "/portal/entrevista/a83b3fd0-773e-4778-b9f5-dd6819fb3a66";
+    const revisionPendiente =
+      "/portal/entrevista/228285c0-5153-469f-b0f1-b13c82b355c0";
+    expect(stakeholderPathNeedsLandingInterview(revisionPendiente)).toBe(false);
+    expect(resolveAuthLanding("stakeholder", revisionPendiente, homeChat)).toBe(
+      revisionPendiente
+    );
+  });
+
+  test("home interview among review leftovers uses the latest activity, not UUID order", () => {
+    expect(
+      elegirEntrevistaLanding([
+        {
+          estado: "abierta",
+          flujo_estado: "revision",
+          id: "228285c0-5153-469f-b0f1-b13c82b355c0",
+          ultima_actividad: "2026-09-20T08:54:35.613386+00",
+        },
+        {
+          estado: "abierta",
+          flujo_estado: "revision",
+          id: "67eac348-2a2f-4a9e-be19-62dcbc98937c",
+          ultima_actividad: "2026-09-20T12:03:52.366159+00",
+        },
+      ])
+    ).toBe("67eac348-2a2f-4a9e-be19-62dcbc98937c");
+  });
+
+  test("home interview order is deterministic when activity ties, and ignores fetch order", () => {
+    const empatadas = [
+      {
+        estado: "abierta" as const,
+        flujo_estado: "chat",
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        ultima_actividad: "2026-09-20T12:00:00.000Z",
+      },
+      {
+        estado: "abierta" as const,
+        flujo_estado: "chat",
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        ultima_actividad: "2026-09-20T12:00:00.000Z",
+      },
+    ];
+    expect(elegirEntrevistaLanding(empatadas)).toBe(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    );
+    expect(elegirEntrevistaLanding([...empatadas].reverse())).toBe(
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    );
+  });
+
+  test("ownership compares emails without depending on a second id lookup", () => {
+    expect(mismoEmail("QA@Majoriti.world", "qa@majoriti.world")).toBe(true);
+    expect(mismoEmail("a@x.com", "b@x.com")).toBe(false);
+    expect(mismoEmail(null, "a@x.com")).toBe(false);
   });
 });

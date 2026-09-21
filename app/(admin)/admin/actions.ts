@@ -30,6 +30,7 @@ import {
   impersonarStakeholder,
   restaurarSesionMajoriti,
 } from "@/lib/consultoria/impersonar";
+import { enviarInvitacionEntrevista } from "@/lib/consultoria/invitacion-entrevista";
 import {
   enviarPlantillaALista,
   getPlantillaDelProyecto,
@@ -946,6 +947,73 @@ export async function asignarEntrevista(
   revalidatePath("/portal");
   return {
     message: `Entrevista creada en "${plantilla.fase.nombre}".`,
+    status: "success",
+  };
+}
+
+const invitarEntrevistaSchema = z.object({
+  entrevistaId: z.string().uuid("Entrevista inválida"),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+  stakeholderId: z.string().uuid("Stakeholder inválido"),
+});
+
+/** Mail the assignment URL. Does not create another interview or change role. */
+export async function invitarEntrevistaAsignada(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = invitarEntrevistaSchema.safeParse({
+    entrevistaId: formData.get("entrevistaId"),
+    proyectoId: formData.get("proyectoId"),
+    stakeholderId: formData.get("stakeholderId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const supabase = await createClient();
+  const { data: entrevista } = await supabase
+    .from("entrevista")
+    .select("id, stakeholder:stakeholder_id ( id, proyecto_id )")
+    .eq("id", parsed.data.entrevistaId)
+    .maybeSingle();
+
+  const stakeholder = entrevista?.stakeholder;
+  const fila = Array.isArray(stakeholder) ? stakeholder.at(0) : stakeholder;
+
+  if (
+    !(
+      entrevista &&
+      fila?.id === parsed.data.stakeholderId &&
+      fila.proyecto_id === parsed.data.proyectoId
+    )
+  ) {
+    return {
+      message: "Esa entrevista no pertenece a esta persona.",
+      status: "error",
+    };
+  }
+
+  let invitacion: Awaited<ReturnType<typeof enviarInvitacionEntrevista>>;
+  try {
+    invitacion = await enviarInvitacionEntrevista(parsed.data.entrevistaId);
+  } catch {
+    return {
+      message: "No se pudo enviar la invitación. Inténtalo de nuevo.",
+      status: "error",
+    };
+  }
+  if (!invitacion.ok) {
+    return { message: invitacion.message, status: "error" };
+  }
+
+  return {
+    message: invitacion.creada
+      ? "Invitación enviada. Le preparamos el acceso y el enlace a esta entrevista."
+      : "Invitación enviada. El enlace abre esta entrevista.",
     status: "success",
   };
 }

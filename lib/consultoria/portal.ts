@@ -1,6 +1,7 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
+import { rutaEntrevistaPermitida } from "@/lib/consultoria/destino-entrevista";
 import { getUsuarioPerfil } from "@/lib/consultoria/entrevistas";
 import {
   getEntrevistaIdByEmail,
@@ -48,7 +49,7 @@ async function resolveProyectoId(
 }
 
 /** Where a signed-in user belongs right after auth, based on their role. */
-export async function landingPathForCurrentUser() {
+export async function landingPathForCurrentUser(next?: string | null) {
   const context = await getUsuarioPerfil();
 
   if (!context?.user) {
@@ -56,6 +57,11 @@ export async function landingPathForCurrentUser() {
   }
 
   const { rol } = context;
+  const explicito = rutaEntrevistaPermitida(next);
+  if (explicito) {
+    return explicito;
+  }
+
   const supabase = await createClient();
   const entrevistaId = isStakeholderRole(rol)
     ? await getEntrevistaIdByEmail(supabase, context.user.email)
@@ -65,7 +71,9 @@ export async function landingPathForCurrentUser() {
 }
 
 /** Redirects anyone who is not a portal user. Never returns for those roles. */
-export async function requirePortalUser(): Promise<PortalUser> {
+export async function requirePortalUser(opciones?: {
+  conProyecto?: boolean;
+}): Promise<PortalUser> {
   const context = await getUsuarioPerfil();
 
   if (!context?.user) {
@@ -82,11 +90,10 @@ export async function requirePortalUser(): Promise<PortalUser> {
     redirect(rol === "majoriti" ? "/admin" : "/sin-acceso");
   }
 
-  const proyectoId = await resolveProyectoId(
-    rol,
-    perfil?.proyecto_id,
-    user.email
-  );
+  const proyectoId =
+    opciones?.conProyecto === false
+      ? (perfil?.proyecto_id ?? null)
+      : await resolveProyectoId(rol, perfil?.proyecto_id, user.email);
 
   return {
     email: user.email ?? null,

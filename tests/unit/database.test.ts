@@ -157,6 +157,34 @@ test("replayed transcript messages are stored once", async () => {
   expect(result.rows[0].transcripcion).toEqual([turn]);
 });
 
+test("silent close-offer turns persist by ID and survive a retry", async () => {
+  await advance();
+  const offer = {
+    at: "2026-09-20T00:00:00Z",
+    id: "60000000-0000-4000-8000-000000000099",
+    ofertaCierre: true,
+    rol: "entrevistador",
+    seccionId: SECTION,
+    texto: "\u200b",
+  };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    // biome-ignore lint/performance/noAwaitInLoops: retry must wait for the previous append
+    await db.query("SELECT public.append_interview_turns($1, $2::jsonb)", [
+      INTERVIEW,
+      JSON.stringify([offer]),
+    ]);
+  }
+  const result = await db.query<{
+    transcripcion: Array<{ id: string; ofertaCierre?: boolean; texto: string }>;
+  }>("SELECT transcripcion FROM public.entrevista WHERE id = $1", [INTERVIEW]);
+  expect(result.rows[0].transcripcion).toHaveLength(1);
+  expect(result.rows[0].transcripcion[0]).toMatchObject({
+    id: offer.id,
+    ofertaCierre: true,
+    texto: "\u200b",
+  });
+});
+
 test("two answers with the same text remain two turns when IDs differ", async () => {
   await advance();
   const first = turn;
@@ -247,4 +275,62 @@ test("participants cannot bypass the flow with a direct update or premature subm
   await expect(
     db.query("SELECT public.submit_interview($1, '{}', '[]')", [INTERVIEW])
   ).rejects.toThrow(/not ready/);
+});
+
+test("transcript rows stay visible to the owner and same-project client, not to other projects", async () => {
+  const secreto = "SECRETO-TRANSCRIPCION-AJENA";
+  const otherProject = "20000000-0000-4000-8000-000000000002";
+  const otherClient = "10000000-0000-4000-8000-000000000004";
+
+  await db.exec("RESET ROLE");
+  await db.query(
+    "UPDATE public.entrevista SET transcripcion = $1::jsonb WHERE id = $2",
+    [JSON.stringify([{ texto: secreto }]), INTERVIEW]
+  );
+  await db.query("UPDATE public.usuario SET proyecto_id = $1 WHERE id = $2", [
+    PROJECT,
+    OTHER,
+  ]);
+  await db.query(
+    "INSERT INTO public.proyecto (id, nombre, cliente) VALUES ($1, 'Other', 'Other')",
+    [otherProject]
+  );
+  await db.query(
+    "INSERT INTO auth.users (id, email, raw_app_meta_data) VALUES ($1, 'cross@example.test', '{\"role\":\"cliente\"}')",
+    [otherClient]
+  );
+  await db.query("UPDATE public.usuario SET proyecto_id = $1 WHERE id = $2", [
+    otherProject,
+    otherClient,
+  ]);
+
+  await actAs(db, USER, "participant@example.test");
+  expect(
+    (
+      await db.query<{ transcripcion: { texto: string }[] }>(
+        "SELECT transcripcion FROM public.entrevista WHERE id = $1",
+        [INTERVIEW]
+      )
+    ).rows[0]?.transcripcion[0]?.texto
+  ).toBe(secreto);
+
+  await actAs(db, OTHER, "other@example.test");
+  expect(
+    (
+      await db.query<{ transcripcion: { texto: string }[] }>(
+        "SELECT transcripcion FROM public.entrevista WHERE id = $1",
+        [INTERVIEW]
+      )
+    ).rows[0]?.transcripcion[0]?.texto
+  ).toBe(secreto);
+
+  await actAs(db, otherClient, "cross@example.test");
+  expect(
+    (
+      await db.query(
+        "SELECT transcripcion FROM public.entrevista WHERE id = $1",
+        [INTERVIEW]
+      )
+    ).rows
+  ).toHaveLength(0);
 });

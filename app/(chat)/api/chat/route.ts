@@ -23,11 +23,15 @@ import {
   pausaSeccionInputSchema,
 } from "@/lib/consultoria/cierre-seccion";
 import {
+  entrevistaAceptaChat,
+  etiquetaCierreTema,
+} from "@/lib/consultoria/entrevista-piloto";
+import {
   completarSeccionEntrevista,
   getEntrevistaEscribible,
-  getTranscripcionEntrevista,
   registrarTurnosEntrevista,
 } from "@/lib/consultoria/entrevistas";
+import { textoKickoffEntrevista } from "@/lib/consultoria/kickoff-entrevista";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
 import {
   ErrorGuardadoTranscripcion,
@@ -95,14 +99,11 @@ export async function POST(request: Request) {
       ).toResponse();
     }
 
-    if (!entrevista.consentimiento_en) {
-      const turnosPrevios = await getTranscripcionEntrevista(entrevista.id);
-      if (turnosPrevios.length === 0) {
-        return new ChatbotError(
-          "forbidden:chat",
-          "Acepta las indicaciones antes de empezar la entrevista"
-        ).toResponse();
-      }
+    if (!entrevistaAceptaChat(entrevista.consentimiento_en)) {
+      return new ChatbotError(
+        "forbidden:chat",
+        "Acepta las indicaciones antes de empezar la entrevista"
+      ).toResponse();
     }
 
     let uiMessages: ChatMessage[] = [];
@@ -148,9 +149,7 @@ export async function POST(request: Request) {
     const haySeccionesPrevias = seccionesPrevias.length > 0;
     // The portal opens the interview with no user turn: the agent speaks
     // first. This opener is never persisted to the transcript.
-    const kickoff = haySeccionesPrevias
-      ? "Estoy listo para continuar con esta sección. No te presentes de nuevo; haz una transición breve y la primera pregunta."
-      : "Estoy listo para comenzar. Preséntate, salúdame y haz la primera pregunta.";
+    const kickoff = textoKickoffEntrevista(haySeccionesPrevias);
     const mensajesModelo = mensajesTextoParaModelo(uiMessages);
     const modelMessages =
       mensajesModelo.length > 0
@@ -162,6 +161,10 @@ export async function POST(request: Request) {
             },
           ];
 
+    const esUltimoTema =
+      entrevista.seccion_actual >= entrevista.secciones.length - 1;
+    const etiquetaCierre = etiquetaCierreTema(esUltimoTema);
+
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
         let avancePendiente: SectionCompletedData | undefined;
@@ -169,6 +172,7 @@ export async function POST(request: Request) {
           activeTools: [...herramientasCierreActivas(uiMessages)],
           instructions: interviewSystemPrompt({
             descripcionSeccion: seccion.descripcion,
+            esUltimoTema,
             firmaEntrevistado: entrevista.stakeholder_firma,
             nombreEntrevistado: entrevista.stakeholder_nombre,
             preguntas: seccion.preguntas,
@@ -214,8 +218,7 @@ export async function POST(request: Request) {
               inputSchema: cierreSeccionInputSchema,
             }),
             ofrecerCierreSeccion: tool({
-              description:
-                "Muestra el botón Finalizar sección cuando los temas guía ya están cubiertos. No cierra la sección; espera a que el entrevistado pulse el botón. Siempre escribe antes un mensaje de texto para la persona.",
+              description: `Llama a esta herramienta estructurada para mostrar el botón "${etiquetaCierre}" cuando los temas guía ya están cubiertos. No cierra la sección. El botón aparece por esta llamada, no por mencionar la herramienta o su nombre en el texto. No menciones otros botones.`,
               execute: () => ({ ok: true as const }),
               inputSchema: ofertaCierreInputSchema,
             }),
@@ -242,7 +245,9 @@ export async function POST(request: Request) {
               registrarTurnosEntrevista({
                 entrevistaId: entrevista.id,
                 estricto: true,
-                turnos: mensajesATurnos([responseMessage], seccion.id),
+                turnos: mensajesATurnos([responseMessage], seccion.id, {
+                  persistirOfertaEjecutada: true,
+                }),
               }),
             sendReasoning: isReasoningModel,
             stream: result.stream,

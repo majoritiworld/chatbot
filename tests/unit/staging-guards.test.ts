@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { withRestoredProyectoId } from "../support/restore-proyecto";
+import {
+  withRestoredProyectoId,
+  withRestoredRolYProyecto,
+} from "../support/restore-proyecto";
 import {
   exigirCuentasDePrueba,
   exigirListaAutorizada,
@@ -128,4 +131,43 @@ test("successful assignment is still rolled back to the original project", async
     userId: "user",
   });
   expect(store.get("user")).toBe("11111111-1111-4111-8111-111111111111");
+});
+
+test("role and project assignment restores both even if the check fails", async () => {
+  const perfiles = new Map<string, { proyecto_id: string | null; rol: string }>(
+    [
+      [
+        "user",
+        {
+          proyecto_id: "11111111-1111-4111-8111-111111111111",
+          rol: "stakeholder",
+        },
+      ],
+    ]
+  );
+  await expect(
+    withRestoredRolYProyecto({
+      during: () => Promise.reject(new Error("portal check failed")),
+      getUsuario: (id) => {
+        const perfil = perfiles.get(id);
+        if (!perfil) {
+          throw new Error("missing profile");
+        }
+        return Promise.resolve(perfil);
+      },
+      next: {
+        proyecto_id: "22222222-2222-4222-8222-222222222222",
+        rol: "cliente",
+      },
+      setUsuario: (id, next) => {
+        perfiles.set(id, next);
+        return Promise.resolve();
+      },
+      userId: "user",
+    })
+  ).rejects.toThrow("portal check failed");
+  expect(perfiles.get("user")).toEqual({
+    proyecto_id: "11111111-1111-4111-8111-111111111111",
+    rol: "stakeholder",
+  });
 });

@@ -30,7 +30,7 @@ export function PausaSeccionEnChat({ visible }: { visible: boolean }) {
           size="sm"
           type="button"
         >
-          Continuar
+          Seguir respondiendo
         </Button>
         <Button
           disabled={busy}
@@ -39,7 +39,7 @@ export function PausaSeccionEnChat({ visible }: { visible: boolean }) {
           type="button"
           variant="outline"
         >
-          {busy ? "Guardando…" : "Guardar progreso"}
+          {busy ? "Guardando…" : "Guardar"}
         </Button>
       </div>
       <button
@@ -48,7 +48,7 @@ export function PausaSeccionEnChat({ visible }: { visible: boolean }) {
         onClick={handleForzar}
         type="button"
       >
-        Cerrar de todas maneras
+        Cerrar este tema igual
       </button>
     </div>
   );

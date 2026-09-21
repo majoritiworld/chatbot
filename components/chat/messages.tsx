@@ -66,7 +66,12 @@ function PureMessages({
   }, [scrollToBottom]);
 
   return (
-    <div className="relative flex-1 bg-background">
+    <div
+      className={cn(
+        "relative flex-1",
+        esEntrevista ? "bg-white" : "bg-background"
+      )}
+    >
       {messages.length === 0 && !(isLoading || esEntrevista) && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <Greeting />
@@ -75,19 +80,28 @@ function PureMessages({
       <div
         className={cn(
           "absolute inset-0 touch-pan-y overflow-y-auto",
-          messages.length > 0 ? "bg-background" : "bg-transparent"
+          messages.length > 0
+            ? esEntrevista
+              ? "bg-white"
+              : "bg-background"
+            : "bg-transparent"
         )}
         ref={messagesContainerRef}
         style={isArtifactVisible ? { scrollbarWidth: "none" } : undefined}
       >
         <div
           className={cn(
-            "mx-auto flex min-h-full min-w-0 flex-col gap-5 px-2 py-6 md:gap-7 md:px-4",
-            esEntrevista ? "max-w-[760px]" : "max-w-4xl"
+            "mx-auto flex min-h-full min-w-0 flex-col px-3 md:px-4",
+            esEntrevista
+              ? "max-w-[760px] gap-6 py-8 md:gap-8"
+              : "max-w-4xl gap-5 py-6 md:gap-7"
           )}
         >
           <div
-            className="flex min-w-0 flex-col gap-5 md:gap-7"
+            className={cn(
+              "flex min-w-0 flex-col",
+              esEntrevista ? "gap-6 md:gap-8" : "gap-5 md:gap-7"
+            )}
             data-tour={esEntrevista ? "entrevista-chat" : undefined}
           >
             {messages.map((message, index) => (

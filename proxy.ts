@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { rutaEntrevistaPermitida } from "@/lib/consultoria/destino-entrevista";
 import {
   getEntrevistaIdByEmail,
   homePathForRol,
@@ -6,6 +7,7 @@ import {
   isPortalRole,
   isStakeholderRole,
   stakeholderNeedsInterviewLanding,
+  stakeholderPathNeedsLandingInterview,
 } from "@/lib/consultoria/roles";
 import { updateSession } from "@/lib/supabase/middleware";
 
@@ -16,6 +18,13 @@ export async function proxy(request: NextRequest) {
 
   if (pathname.startsWith("/ping")) {
     return new Response("pong");
+  }
+
+  if (
+    process.env.PLAYWRIGHT_ISOLATED === "1" &&
+    pathname.startsWith("/vista-previa-entrevista")
+  ) {
+    return NextResponse.next();
   }
 
   const { supabase, supabaseResponse, user } = await updateSession(request);
@@ -55,12 +64,17 @@ export async function proxy(request: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
 
-    const entrevistaId = isStakeholderRole(perfil?.rol)
-      ? await getEntrevistaIdByEmail(supabase, user.email)
-      : null;
+    const explicito = rutaEntrevistaPermitida(
+      request.nextUrl.searchParams.get("next")
+    );
+    const entrevistaId =
+      explicito || !isStakeholderRole(perfil?.rol)
+        ? null
+        : await getEntrevistaIdByEmail(supabase, user.email);
     const url = request.nextUrl.clone();
-    url.pathname = `${base}${homePathForRol(perfil?.rol, entrevistaId)}`;
+    url.pathname = `${base}${explicito ?? homePathForRol(perfil?.rol, entrevistaId)}`;
     url.searchParams.delete("error");
+    url.searchParams.delete("next");
     return NextResponse.redirect(url);
   }
 
@@ -80,9 +94,11 @@ export async function proxy(request: NextRequest) {
     const portalRole = isPortalRole(perfil?.rol);
     const isMajoriti = perfil?.rol === "majoriti";
     const url = request.nextUrl.clone();
-    const entrevistaId = isStakeholderRole(perfil?.rol)
-      ? await getEntrevistaIdByEmail(supabase, user.email)
-      : null;
+    const entrevistaId =
+      isStakeholderRole(perfil?.rol) &&
+      stakeholderPathNeedsLandingInterview(pathname)
+        ? await getEntrevistaIdByEmail(supabase, user.email)
+        : null;
     const home = `${base}${homePathForRol(perfil?.rol, entrevistaId)}`;
 
     if (isGenericChatPath(pathname)) {

@@ -38,8 +38,8 @@ function WaitingText({ esEntrevista }: { esEntrevista?: boolean }) {
       className={cn(
         "flex min-w-0 items-center leading-[1.65]",
         esEntrevista
-          ? "min-h-[calc(15px*1.65)] text-[15px]"
-          : "min-h-[calc(13px*1.65)] text-[13px]"
+          ? "min-h-[calc(1rem*1.7)] text-base leading-[1.7] md:min-h-[calc(17px*1.7)] md:text-[17px]"
+          : "min-h-[calc(13px*1.65)] text-[13px] leading-[1.65]"
       )}
     >
       {waitingStatus?.message ? (
@@ -222,12 +222,16 @@ const PurePreviewMessage = ({
       return (
         <MessageContent
           className={cn(
-            "leading-[1.65]",
-            esEntrevista ? "text-[15px]" : "text-[13px]",
-            {
-              "w-fit max-w-[min(80%,56ch)] overflow-hidden break-words rounded-2xl rounded-br-lg border border-border/30 bg-gradient-to-br from-secondary to-muted px-3.5 py-2 shadow-[var(--shadow-card)]":
-                message.role === "user",
-            }
+            esEntrevista
+              ? "bg-transparent p-0 text-base leading-[1.7] text-neutral-900 shadow-none md:text-[17px]"
+              : "text-[13px] leading-[1.65]",
+            message.role === "user" &&
+              !esEntrevista &&
+              "w-fit max-w-[min(80%,56ch)] overflow-hidden break-words rounded-2xl rounded-br-lg border border-border/30 bg-gradient-to-br from-secondary to-muted px-3.5 py-2 shadow-[var(--shadow-card)]",
+            esEntrevista &&
+              message.role === "user" &&
+              "ml-auto w-fit max-w-[min(88%,100%)] overflow-hidden break-words rounded-2xl bg-[#E8F2FC] px-4 py-2.5 text-neutral-900",
+            esEntrevista && message.role === "assistant" && "max-w-full"
           )}
           data-testid="message-content"
           key={key}
@@ -436,6 +440,7 @@ const PurePreviewMessage = ({
         "group/message w-full",
         !isAssistant && "animate-[fade-up_0.25s_cubic-bezier(0.22,1,0.36,1)]"
       )}
+      data-message-id={message.id}
       data-role={message.role}
       data-testid={`message-${message.role}`}
     >
@@ -444,7 +449,7 @@ const PurePreviewMessage = ({
           isUser ? "flex flex-col items-end gap-2" : "flex items-start gap-3"
         )}
       >
-        {isAssistant && (
+        {isAssistant && !esEntrevista && (
           <div className="flex h-[calc(13px*1.65)] shrink-0 items-center">
             <div className="flex size-7 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/50">
               <SparklesIcon size={13} />
@@ -474,12 +479,13 @@ export const ThinkingMessage = ({
     data-testid="message-assistant-loading"
   >
     <div className="flex items-start gap-3">
-      <div className="flex h-[calc(13px*1.65)] shrink-0 items-center">
-        <div className="flex size-7 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/50">
-          <SparklesIcon size={13} />
+      {esEntrevista ? null : (
+        <div className="flex h-[calc(13px*1.65)] shrink-0 items-center">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground ring-1 ring-border/50">
+            <SparklesIcon size={13} />
+          </div>
         </div>
-      </div>
-
+      )}
       <WaitingText esEntrevista={esEntrevista} />
     </div>
   </div>

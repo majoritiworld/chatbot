@@ -5,11 +5,7 @@ import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pan
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { turnosDeSeccion } from "@/lib/consultoria/entrevista-contenido";
-import {
-  getOwnStakeholderId,
-  getTranscripcionEntrevista,
-  resolveEntrevista,
-} from "@/lib/consultoria/entrevistas";
+import { getEntrevistaPortalCarga } from "@/lib/consultoria/entrevistas";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
 import { isClienteRole } from "@/lib/consultoria/roles";
@@ -28,13 +24,17 @@ export default function EntrevistaPage({
 
 async function EntrevistaContenido({ id }: { id: Promise<string> }) {
   const entrevistaId = await id;
-  const portalUser = await requirePortalUser();
+  const portalUser = await requirePortalUser({ conProyecto: false });
   const mostrarPortal = isClienteRole(portalUser.rol);
-  const entrevista = await resolveEntrevista(entrevistaId);
+  const carga = await getEntrevistaPortalCarga(entrevistaId, portalUser.email);
 
-  if (!entrevista) {
+  if (carga.acceso === "ausente") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={portalUser.email}
+        mostrarPortal={mostrarPortal}
+      >
         <Aviso
           mensaje="Esta entrevista no existe o no te corresponde."
           mostrarPortal={mostrarPortal}
@@ -43,13 +43,13 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     );
   }
 
-  const ownStakeholderId = await getOwnStakeholderId(portalUser.email);
-  const esPropia =
-    ownStakeholderId !== null && entrevista.stakeholder_id === ownStakeholderId;
-
-  if (!esPropia) {
+  if (carga.acceso === "ajena") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={portalUser.email}
+        mostrarPortal={mostrarPortal}
+      >
         <Aviso
           mensaje={
             mostrarPortal
@@ -62,7 +62,7 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     );
   }
 
-  const turnos = await getTranscripcionEntrevista(entrevista.id);
+  const { entrevista, turnos } = carga;
   const seccionActiva = entrevista.secciones.at(entrevista.seccion_actual);
   const turnosActivos = seccionActiva
     ? turnosDeSeccion(turnos, seccionActiva.id, entrevista.seccion_actual === 0)
@@ -72,6 +72,7 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     <EntrevistaEnCurso
       consentimientoEn={entrevista.consentimiento_en}
       correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
+      correoUsuario={portalUser.email}
       entrevistaId={entrevista.id}
       estadoInicial={entrevista.estado}
       flujoEstadoInicial={entrevista.flujo_estado}
@@ -105,7 +106,7 @@ function Aviso({
 
 function EntrevistaSkeleton() {
   return (
-    <EntrevistaShell>
+    <EntrevistaShell compactoMovil mostrarPortal={false}>
       <div className="flex flex-col gap-3 px-6 py-8">
         <Skeleton className="h-4 w-48" />
         <Skeleton className="h-24 w-full" />

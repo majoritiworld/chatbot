@@ -7,6 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { CerrarSeccionEnChat } from "@/components/portal/cerrar-seccion-en-chat";
+import { TerminarTemaAntesButton } from "@/components/portal/terminar-tema-antes-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,9 +47,13 @@ export function ChatShell({
 } = {}) {
   const {
     chatId,
+    demoAislada,
+    demoVoz,
     esEntrevista,
     messages,
     setMessages,
+    hayMensajeFallido,
+    reintentarMensajeFallido,
     sendMessage,
     status,
     stop,
@@ -174,7 +180,8 @@ export function ChatShell({
 
           <div
             className={cn(
-              "relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+              "relative flex min-h-0 flex-1 flex-col overflow-hidden",
+              esEntrevista ? "bg-white" : "bg-background",
               !esEntrevista &&
                 "md:rounded-tl-[12px] md:border-t md:border-l md:border-border/40"
             )}
@@ -195,10 +202,19 @@ export function ChatShell({
               votes={votes}
             />
 
+            {esEntrevista && !isReadonly ? (
+              <div className="mx-auto flex w-full max-w-[760px] flex-col items-start gap-1 px-3 md:px-4">
+                <CerrarSeccionEnChat placement="sticky" />
+                <TerminarTemaAntesButton />
+              </div>
+            ) : null}
+
             <div
               className={cn(
-                "sticky bottom-0 z-1 mx-auto flex w-full gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4",
-                esEntrevista ? "max-w-[760px]" : "max-w-4xl"
+                "sticky bottom-0 z-1 mx-auto flex w-full gap-2 border-t-0 bg-background pb-3 md:pb-4",
+                esEntrevista
+                  ? "max-w-[760px] bg-white px-3 md:px-4"
+                  : "max-w-4xl bg-background px-2 md:px-4"
               )}
             >
               {!isReadonly && (
@@ -206,13 +222,17 @@ export function ChatShell({
                   attachments={attachments}
                   chatId={chatId}
                   composerAction={composerAction}
+                  demoAislada={demoAislada}
+                  demoVoz={demoVoz}
                   editingMessage={editingMessage}
                   esEntrevista={esEntrevista}
+                  hayMensajeFallido={hayMensajeFallido}
                   input={input}
                   isLoading={isLoading}
                   messages={messages}
                   onCancelEdit={handleCancelEdit}
                   onModelChange={setCurrentModelId}
+                  reintentarMensajeFallido={reintentarMensajeFallido}
                   selectedModelId={currentModelId}
                   selectedVisibilityType={visibilityType}
                   sendMessage={

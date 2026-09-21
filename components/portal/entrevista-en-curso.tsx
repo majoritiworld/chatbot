@@ -2,8 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Toaster, toast } from "sonner";
-import { EntrevistaBienvenida } from "@/components/portal/entrevista-bienvenida";
+import { toast } from "sonner";
 import { EntrevistaChat } from "@/components/portal/entrevista-chat";
 import { EntrevistaCompletada } from "@/components/portal/entrevista-completada";
 import { EntrevistaOnboarding } from "@/components/portal/entrevista-onboarding";
@@ -11,10 +10,18 @@ import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pan
 import { EntrevistaPresentacionSeccion } from "@/components/portal/entrevista-presentacion-seccion";
 import { EntrevistaRevision } from "@/components/portal/entrevista-revision";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
+import { Button } from "@/components/ui/button";
 import type {
   FlujoEntrevista,
   SeccionEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
+import {
+  consentimientoEntrevistaListo,
+  encadenarAvanceInicial,
+  pantallaParticipanteEntrevista,
+  siguienteTransicionInicial,
+  textoFinalizandoEntrevista,
+} from "@/lib/consultoria/entrevista-piloto";
 import { createClient } from "@/lib/supabase/client";
 import type { ChatMessage } from "@/lib/types";
 
@@ -23,18 +30,19 @@ const REDIRECT_POST_SUBMIT_MS = 2800;
 export function EntrevistaEnCurso({
   consentimientoEn,
   correoAgradecimientoEn,
+  correoUsuario,
   entrevistaId,
   estadoInicial,
   flujoEstadoInicial,
   mensajesIniciales,
-  mostrarPortal = true,
+  mostrarPortal = false,
   seccionActualInicial,
   secciones,
-  stakeholderNombre,
   titulo,
 }: {
   consentimientoEn?: string | null;
   correoAgradecimientoEn?: string | null;
+  correoUsuario?: string | null;
   entrevistaId: string;
   estadoInicial: string;
   flujoEstadoInicial: FlujoEntrevista;
@@ -47,21 +55,89 @@ export function EntrevistaEnCurso({
 }) {
   const router = useRouter();
   const yaEstabaCompletada = estadoInicial === "completada";
+  const llegoEnRevision = flujoEstadoInicial === "revision";
   const [completada, setCompletada] = useState(yaEstabaCompletada);
   const [correoPendiente, setCorreoPendiente] = useState(
     yaEstabaCompletada && !correoAgradecimientoEn
   );
+  const [errorEntrega, setErrorEntrega] = useState(false);
   const submitEnCursoRef = useRef(false);
   const [flujoEstado, setFlujoEstado] =
     useState<FlujoEntrevista>(flujoEstadoInicial);
+  const flujoRef = useRef(flujoEstadoInicial);
   const [seccionActual, setSeccionActual] = useState(seccionActualInicial);
   const [onboardingListo, setOnboardingListo] = useState(
-    Boolean(consentimientoEn) || mensajesIniciales.length > 0
+    consentimientoEntrevistaListo(consentimientoEn)
   );
+  const [avanceError, setAvanceError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const avanceLockRef = useRef(false);
+
   const marcarOnboardingListo = useCallback(() => {
     setOnboardingListo(true);
+    setAvanceError(null);
   }, []);
+
+  const postAvance = useCallback(
+    async (desde: "bienvenida" | "presentacion") => {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/entrevista/flujo`,
+        {
+          body: JSON.stringify({ desde, entrevistaId }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      );
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        flujoEstado?: FlujoEntrevista;
+      } | null;
+      if (!response.ok || !data?.flujoEstado) {
+        throw new Error(data?.error ?? "No se pudo continuar");
+      }
+      return data.flujoEstado;
+    },
+    [entrevistaId]
+  );
+
+  const encadenar = useCallback(() => {
+    if (avanceLockRef.current) {
+      return;
+    }
+
+    avanceLockRef.current = true;
+    startTransition(async () => {
+      const signal = { cancelled: false };
+      try {
+        const siguiente = await encadenarAvanceInicial({
+          avanzar: postAvance,
+          flujoEstado: flujoRef.current,
+          seccionActual,
+          signal,
+        });
+        flujoRef.current = siguiente;
+        setFlujoEstado(siguiente);
+        setAvanceError(null);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "No se pudo continuar";
+        setAvanceError(message);
+        toast.error(message);
+      } finally {
+        avanceLockRef.current = false;
+      }
+    });
+  }, [postAvance, seccionActual]);
+
+  useEffect(() => {
+    if (!onboardingListo || completada) {
+      return;
+    }
+    if (!siguienteTransicionInicial(flujoRef.current, seccionActual)) {
+      return;
+    }
+    encadenar();
+  }, [completada, encadenar, onboardingListo, seccionActual]);
 
   useEffect(() => {
     if (completada) {
@@ -111,60 +187,9 @@ export function EntrevistaEnCurso({
     };
   }, [completada, correoPendiente, mostrarPortal, router, yaEstabaCompletada]);
 
-  const avanzar = useCallback(
-    (desde: "bienvenida" | "presentacion") => {
-      startTransition(async () => {
-        try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/entrevista/flujo`,
-            {
-              body: JSON.stringify({ desde, entrevistaId }),
-              headers: { "Content-Type": "application/json" },
-              method: "POST",
-            }
-          );
-          const data = (await response.json().catch(() => null)) as {
-            error?: string;
-            flujoEstado?: FlujoEntrevista;
-          } | null;
-          if (!response.ok || !data?.flujoEstado) {
-            throw new Error(data?.error ?? "No se pudo continuar");
-          }
-          setFlujoEstado(data.flujoEstado);
-        } catch (error) {
-          toast.error(
-            error instanceof Error ? error.message : "No se pudo continuar"
-          );
-        }
-      });
-    },
-    [entrevistaId]
-  );
-
-  const marcarSeccionCompletada = useCallback(
-    ({
-      flujoEstado: siguienteEstado,
-      seccionActual: siguienteSeccion,
-    }: {
-      flujoEstado: FlujoEntrevista;
-      seccionActual: number;
-    }) => {
-      setSeccionActual(siguienteSeccion);
-      setFlujoEstado(siguienteEstado);
-    },
-    []
-  );
-  const continuarBienvenida = useCallback(
-    () => avanzar("bienvenida"),
-    [avanzar]
-  );
-  const contestarSeccion = useCallback(
-    () => avanzar("presentacion"),
-    [avanzar]
-  );
-
   const enviar = useCallback(() => {
     submitEnCursoRef.current = true;
+    setErrorEntrega(false);
     startTransition(async () => {
       try {
         const response = await fetch(
@@ -189,7 +214,9 @@ export function EntrevistaEnCurso({
         }
         setCorreoPendiente(data.correoEnviado === false);
         setCompletada(true);
+        setErrorEntrega(false);
       } catch (error) {
+        setErrorEntrega(true);
         toast.error(
           error instanceof Error
             ? error.message
@@ -201,22 +228,106 @@ export function EntrevistaEnCurso({
     });
   }, [entrevistaId]);
 
-  if (completada) {
+  const marcarSeccionCompletada = useCallback(
+    ({
+      flujoEstado: siguienteEstado,
+      seccionActual: siguienteSeccion,
+    }: {
+      flujoEstado: FlujoEntrevista;
+      seccionActual: number;
+    }) => {
+      flujoRef.current = siguienteEstado;
+      setSeccionActual(siguienteSeccion);
+      setFlujoEstado(siguienteEstado);
+      if (siguienteEstado === "revision") {
+        enviar();
+      }
+    },
+    [enviar]
+  );
+
+  const contestarSeccion = useCallback(() => {
+    if (avanceLockRef.current) {
+      return;
+    }
+    avanceLockRef.current = true;
+    startTransition(async () => {
+      try {
+        const siguiente = await postAvance("presentacion");
+        flujoRef.current = siguiente;
+        setFlujoEstado(siguiente);
+        setAvanceError(null);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "No se pudo continuar"
+        );
+      } finally {
+        avanceLockRef.current = false;
+      }
+    });
+  }, [postAvance]);
+
+  const reintentarCorreo = useCallback(() => {
+    startTransition(async () => {
+      try {
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/entrevista/enviar`,
+          {
+            body: JSON.stringify({ entrevistaId, soloCorreo: true }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          }
+        );
+        const data = (await response.json().catch(() => null)) as {
+          error?: string;
+          correoEnviado?: boolean;
+          ok?: boolean;
+        } | null;
+        if (!response.ok || !data?.ok) {
+          throw new Error(data?.error ?? "No se pudo reenviar el correo");
+        }
+        setCorreoPendiente(data.correoEnviado === false);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo reenviar el correo"
+        );
+      }
+    });
+  }, [entrevistaId]);
+
+  const pantalla = pantallaParticipanteEntrevista({
+    completada,
+    errorEntrega,
+    flujoEstado,
+    llegoEnRevision,
+    onboardingListo,
+    seccionActual,
+  });
+
+  if (pantalla === "completada") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaCompletada
           correoPendiente={correoPendiente}
           mostrarPortal={mostrarPortal}
-          onReintentarCorreo={enviar}
+          onReintentarCorreo={reintentarCorreo}
           pending={pending}
         />
       </EntrevistaShell>
     );
   }
 
-  if (!onboardingListo) {
+  if (pantalla === "onboarding") {
     return (
       <EntrevistaOnboarding
+        correoUsuario={correoUsuario}
         entrevistaId={entrevistaId}
         mostrarPortal={mostrarPortal}
         onAceptado={marcarOnboardingListo}
@@ -225,30 +336,70 @@ export function EntrevistaEnCurso({
     );
   }
 
-  if (flujoEstado === "bienvenida") {
+  if (pantalla === "finalizando") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
-        <EntrevistaBienvenida
-          nombre={stakeholderNombre}
-          numeroSecciones={secciones.length}
-          onContinuar={continuarBienvenida}
-          pending={pending}
-        />
-        <Toaster position="top-center" />
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
+        <EntrevistaPantallaTransicion>
+          <p className="text-muted-foreground text-sm">
+            {textoFinalizandoEntrevista()}
+          </p>
+        </EntrevistaPantallaTransicion>
       </EntrevistaShell>
     );
   }
 
-  if (flujoEstado === "revision") {
+  if (pantalla === "entrega_pendiente") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaRevision
-          nombre={stakeholderNombre}
+          errorEntrega={errorEntrega}
           numeroSecciones={secciones.length}
           onEnviar={enviar}
           pending={pending}
         />
-        <Toaster position="top-center" />
+      </EntrevistaShell>
+    );
+  }
+
+  if (pantalla === "avance") {
+    return (
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
+        <EntrevistaPantallaTransicion>
+          {avanceError ? (
+            <>
+              <p className="text-destructive text-sm" role="alert">
+                {avanceError}
+              </p>
+              <Button
+                className="w-fit"
+                disabled={pending}
+                onClick={encadenar}
+                type="button"
+              >
+                {pending ? "Reintentando…" : "Reintentar"}
+              </Button>
+            </>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Abriendo la entrevista…
+            </p>
+          )}
+        </EntrevistaPantallaTransicion>
       </EntrevistaShell>
     );
   }
@@ -256,7 +407,12 @@ export function EntrevistaEnCurso({
   const seccion = secciones.at(seccionActual);
   if (!seccion) {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaPantallaTransicion>
           <p className="text-destructive text-sm" role="alert">
             Esta entrevista no tiene una sección activa. Contacta a Majoriti.
@@ -268,7 +424,12 @@ export function EntrevistaEnCurso({
 
   if (flujoEstado === "presentacion") {
     return (
-      <EntrevistaShell mostrarPortal={mostrarPortal} titulo={titulo}>
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
         <EntrevistaPresentacionSeccion
           indice={seccionActual}
           numeroSecciones={secciones.length}
@@ -276,13 +437,30 @@ export function EntrevistaEnCurso({
           pending={pending}
           seccion={seccion}
         />
-        <Toaster position="top-center" />
+      </EntrevistaShell>
+    );
+  }
+
+  if (flujoEstado !== "chat") {
+    return (
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
+        <EntrevistaPantallaTransicion>
+          <p className="text-muted-foreground text-sm">
+            La entrevista todavía no está lista para responder.
+          </p>
+        </EntrevistaPantallaTransicion>
       </EntrevistaShell>
     );
   }
 
   return (
     <EntrevistaChat
+      correoUsuario={correoUsuario}
       entrevistaId={entrevistaId}
       indice={seccionActual}
       key={seccion.id}
@@ -290,6 +468,7 @@ export function EntrevistaEnCurso({
         seccionActual === seccionActualInicial ? mensajesIniciales : []
       }
       mostrarPortal={mostrarPortal}
+      numeroSecciones={secciones.length}
       onSeccionCompletada={marcarSeccionCompletada}
       seccion={seccion}
       titulo={titulo}
