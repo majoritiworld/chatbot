@@ -1,6 +1,6 @@
 import "server-only";
 
-import { invitarAlPortal } from "@/lib/consultoria/auth";
+import { asegurarAccesoPortal } from "@/lib/consultoria/auth";
 import type { DestinatarioPlantilla } from "@/lib/consultoria/destinatarios";
 import {
   parsePreguntas,
@@ -12,6 +12,7 @@ import {
   NOMBRE_PLANTILLA_CL_FASE_1,
   seccionesDeGuionClFase1,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
+import { enviarInvitacionEntrevista } from "@/lib/consultoria/invitacion-entrevista";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import {
   type FaseObjetivo,
@@ -387,16 +388,28 @@ async function enviarADestinatario({
     destinatario.nombre,
     destinatario.apellido
   );
-  const acceso = await invitarAlPortal({
+  const acceso = await asegurarAccesoPortal({
     email: destinatario.email,
     nombre: nombreVisible,
     proyectoId,
     rol,
   });
 
+  if (!acceso.ok) {
+    return {
+      correoEnviado: false,
+      detalle: `${nombreVisible} <${destinatario.email}>: ${acceso.message}`,
+      status: resultado.status,
+    };
+  }
+
+  const invitacion = await enviarInvitacionEntrevista(resultado.entrevistaId);
+
   return {
-    correoEnviado: acceso.enviado,
-    detalle: `${nombreVisible} <${destinatario.email}>: ${acceso.message}`,
+    correoEnviado: invitacion.ok,
+    detalle: invitacion.ok
+      ? `${nombreVisible} <${destinatario.email}>: Invitado a la entrevista.`
+      : `${nombreVisible} <${destinatario.email}>: ${invitacion.message}`,
     status: resultado.status,
   };
 }

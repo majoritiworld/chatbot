@@ -8,6 +8,7 @@ import { DocumentoUploadForm } from "@/components/admin/documento-upload-form";
 import { EditarStakeholderForm } from "@/components/admin/editar-stakeholder-form";
 import { EntrarComoStakeholderButton } from "@/components/admin/entrar-como-stakeholder-button";
 import { EntrevistaEditor } from "@/components/admin/entrevista-editor";
+import { InvitarEntrevistaForm } from "@/components/admin/invitar-entrevista-form";
 import { MarcarFaseForm } from "@/components/admin/marcar-fase-form";
 import { PreguntasEntrevistaForm } from "@/components/admin/preguntas-entrevista-form";
 import { Badge } from "@/components/ui/badge";
@@ -105,6 +106,12 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
             entrevistaId={detalle.entrevistaId}
             proyectoId={proyectoId}
             secciones={detalle.secciones}
+            stakeholderId={detalle.id}
+          />
+
+          <InvitarEntrevistaForm
+            entrevistaId={detalle.entrevistaId}
+            proyectoId={proyectoId}
             stakeholderId={detalle.id}
           />
 

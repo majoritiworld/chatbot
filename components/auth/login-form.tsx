@@ -58,8 +58,10 @@ function Aviso({ mensaje, tono }: { mensaje: string; tono: "error" | "info" }) {
 
 export function LoginForm({
   enlaceInvalido = false,
+  nextDestino = null,
 }: {
   enlaceInvalido?: boolean;
+  nextDestino?: string | null;
 }) {
   const [solicitarState, solicitarAction, solicitarPending] = useActionState(
     solicitarCodigo,
@@ -151,6 +153,9 @@ export function LoginForm({
           ref={codigoFormRef}
         >
           <input name="email" type="hidden" value={emailEnviado} />
+          {nextDestino ? (
+            <input name="next" type="hidden" value={nextDestino} />
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <Label
@@ -191,6 +196,9 @@ export function LoginForm({
 
         <form action={solicitarAction} className="flex flex-col gap-3">
           <input name="email" type="hidden" value={emailEnviado} />
+          {nextDestino ? (
+            <input name="next" type="hidden" value={nextDestino} />
+          ) : null}
           {errorReenvio ? <Aviso mensaje={errorReenvio} tono="error" /> : null}
           <Button
             className="relative"
@@ -248,6 +256,9 @@ export function LoginForm({
       ) : null}
 
       <form action={solicitarAction} className="flex flex-col gap-4">
+        {nextDestino ? (
+          <input name="next" type="hidden" value={nextDestino} />
+        ) : null}
         <div className="flex flex-col gap-2">
           <Label className="font-normal text-muted-foreground" htmlFor="email">
             Email

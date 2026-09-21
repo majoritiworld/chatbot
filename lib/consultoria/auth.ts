@@ -310,6 +310,38 @@ async function asignarAccesoPortal({
   }
 }
 
+/**
+ * Prepares Auth + portal role without mailing. Interview mail is a separate
+ * step so an existing account can receive a new assignment link unchanged.
+ */
+export async function asegurarAccesoPortal({
+  email,
+  nombre,
+  proyectoId,
+  rol = "stakeholder",
+}: {
+  email: string;
+  nombre?: string | null;
+  proyectoId: string;
+  rol?: RolPortal;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const cuenta = await ensureAuthUser({ email, nombre });
+  if (!cuenta.ok) {
+    return {
+      message: "No se pudo preparar el acceso al portal.",
+      ok: false,
+    };
+  }
+
+  await asignarAccesoPortal({
+    email,
+    proyectoId,
+    rol,
+    userId: cuenta.userId,
+  });
+  return { ok: true };
+}
+
 export type ResultadoRolPortal = { ok: true } | { ok: false; message: string };
 
 /**

@@ -19,8 +19,12 @@ function escapeHtml(value: string) {
   );
 }
 
+function saludoCorreo(nombre?: string | null) {
+  return nombre?.trim() ? `Hola ${nombre.trim()},` : "Hola,";
+}
+
 function plantillaAgradecimiento(nombre?: string | null) {
-  const saludo = nombre?.trim() ? `Hola ${nombre.trim()},` : "Hola,";
+  const saludo = saludoCorreo(nombre);
   const cuerpo =
     "Gracias por completar la entrevista con Majoriti. Tus respuestas fueron enviadas correctamente y serán consideradas en el trabajo de consultoría.";
 
@@ -39,14 +43,44 @@ Equipo Majoriti`,
   };
 }
 
-export async function enviarCorreoAgradecimiento({
-  email,
-  entrevistaId,
+function plantillaInvitacion({
+  enlace,
   nombre,
 }: {
-  email: string;
-  entrevistaId: string;
+  enlace: string;
   nombre?: string | null;
+}) {
+  const saludo = saludoCorreo(nombre);
+  const cuerpo =
+    "Te invitamos a responder una entrevista con Majoriti. Abre el enlace para ir a la entrevista que te corresponde.";
+
+  return {
+    html: `<p>${escapeHtml(saludo)}</p>
+<p>${cuerpo}</p>
+<p><a href="${escapeHtml(enlace)}">Abrir tu entrevista</a></p>
+<p>Equipo Majoriti</p>`,
+    text: `${saludo}
+
+${cuerpo}
+
+${enlace}
+
+Equipo Majoriti`,
+  };
+}
+
+async function enviarConResend({
+  destinatario,
+  html,
+  idempotencyKey,
+  subject,
+  text,
+}: {
+  destinatario: string;
+  html: string;
+  idempotencyKey?: string;
+  subject: string;
+  text: string;
 }) {
   if (
     debeBloquearCorreoEntrevista({
@@ -60,26 +94,24 @@ export async function enviarCorreoAgradecimiento({
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.INTERVIEW_EMAIL_FROM;
   if (!(apiKey && from)) {
-    throw new Error("El correo de agradecimiento no está configurado");
+    throw new Error("El correo de la entrevista no está configurado");
   }
 
   const copiaEquipo =
     process.env.INTERVIEW_EMAIL_BCC?.trim() || "hello@majoriti.world";
-  const destinatario = email.trim();
   const mismaBandeja = destinatario.toLowerCase() === copiaEquipo.toLowerCase();
 
   const resend = new Resend(apiKey);
-  const plantilla = plantillaAgradecimiento(nombre);
   const { data, error } = await resend.emails.send(
     {
       from,
-      html: plantilla.html,
-      subject: "Gracias por participar en la entrevista",
-      text: plantilla.text,
+      html,
+      subject,
+      text,
       to: [destinatario],
       ...(!mismaBandeja && { bcc: [copiaEquipo] }),
     },
-    { idempotencyKey: `entrevista-${entrevistaId}-agradecimiento` }
+    idempotencyKey ? { idempotencyKey } : undefined
   );
 
   if (error) {
@@ -87,4 +119,41 @@ export async function enviarCorreoAgradecimiento({
   }
 
   return data;
+}
+
+export async function enviarCorreoAgradecimiento({
+  email,
+  entrevistaId,
+  nombre,
+}: {
+  email: string;
+  entrevistaId: string;
+  nombre?: string | null;
+}) {
+  const plantilla = plantillaAgradecimiento(nombre);
+  return await enviarConResend({
+    destinatario: email.trim(),
+    html: plantilla.html,
+    idempotencyKey: `entrevista-${entrevistaId}-agradecimiento`,
+    subject: "Gracias por participar en la entrevista",
+    text: plantilla.text,
+  });
+}
+
+export async function enviarCorreoInvitacionEntrevista({
+  email,
+  enlace,
+  nombre,
+}: {
+  email: string;
+  enlace: string;
+  nombre?: string | null;
+}) {
+  const plantilla = plantillaInvitacion({ enlace, nombre });
+  return await enviarConResend({
+    destinatario: email.trim(),
+    html: plantilla.html,
+    subject: "Invitación a la entrevista de Majoriti",
+    text: plantilla.text,
+  });
 }

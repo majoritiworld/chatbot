@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { rutaEntrevistaPermitida } from "@/lib/consultoria/destino-entrevista";
 import type { UserRole } from "@/lib/supabase/types";
 
 /** Access granted when Majoriti sends an interview. */
@@ -87,24 +88,15 @@ export function isGenericChatPath(pathname: string) {
 }
 
 /**
- * Where to send someone right after signing in. Clients ignore `next` so a
- * leftover interview URL never dumps them back into chat or post-submit.
+ * Where to send someone right after signing in. An explicit interview path
+ * wins; anything else uses the role home.
  */
 export function resolveAuthLanding(
-  rol: UserRole | string | null | undefined,
+  _rol: UserRole | string | null | undefined,
   next: string | null,
   home: string
 ) {
-  if (
-    isClienteRole(rol) ||
-    !next ||
-    isGenericChatPath(next) ||
-    stakeholderNeedsInterviewLanding(next)
-  ) {
-    return home;
-  }
-
-  return next;
+  return rutaEntrevistaPermitida(next) ?? home;
 }
 
 export type EntrevistaLandingFila = {

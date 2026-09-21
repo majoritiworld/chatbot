@@ -611,6 +611,13 @@ test.describe("Auth landing", () => {
         "/portal/entrevista/a83b3fd0-773e-4778-b9f5-dd6819fb3a66"
       )
     ).toBe("/portal/entrevista/228285c0-5153-469f-b0f1-b13c82b355c0");
+    expect(
+      resolveAuthLanding(
+        "stakeholder",
+        "https://evil.example/portal/entrevista/228285c0-5153-469f-b0f1-b13c82b355c0",
+        "/portal/entrevista/a83b3fd0-773e-4778-b9f5-dd6819fb3a66"
+      )
+    ).toBe("/portal/entrevista/a83b3fd0-773e-4778-b9f5-dd6819fb3a66");
   });
 
   test("landing interview lookup is only for home redirects", () => {

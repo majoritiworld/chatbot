@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { ensureUsuarioPerfil } from "@/lib/consultoria/auth";
+import { rutaEntrevistaPermitida } from "@/lib/consultoria/destino-entrevista";
 import {
   getEntrevistaIdByEmail,
   homePathForRol,
@@ -25,14 +26,6 @@ function tipoEmail(value: string | null): EmailOtpType | null {
     : null;
 }
 
-/** Only same-origin paths, so `next` can never become an open redirect. */
-function rutaSegura(value: string | null) {
-  if (!value?.startsWith("/") || value.startsWith("//")) {
-    return null;
-  }
-  return value;
-}
-
 async function landingForUser(
   supabase: ReturnType<typeof createServerClient>,
   userId: string,
@@ -45,9 +38,11 @@ async function landingForUser(
     .eq("id", userId)
     .maybeSingle();
 
-  const entrevistaId = isStakeholderRole(perfil?.rol)
-    ? await getEntrevistaIdByEmail(supabase, email)
-    : null;
+  const explicito = rutaEntrevistaPermitida(next);
+  const entrevistaId =
+    explicito || !isStakeholderRole(perfil?.rol)
+      ? null
+      : await getEntrevistaIdByEmail(supabase, email);
 
   return resolveAuthLanding(
     perfil?.rol,
@@ -62,7 +57,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = tipoEmail(searchParams.get("type"));
-  const next = rutaSegura(searchParams.get("next"));
+  const next = rutaEntrevistaPermitida(searchParams.get("next"));
 
   const destino = (path: string) => new URL(`${base}${path}`, origin);
 

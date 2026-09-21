@@ -176,7 +176,12 @@ export async function crearEntrevistaConTarea({
 }
 
 export type ResultadoProvisionPlantilla =
-  | { ok: true; status: "creado" | "asignado"; stakeholderId: string }
+  | {
+      ok: true;
+      status: "creado" | "asignado";
+      stakeholderId: string;
+      entrevistaId: string;
+    }
   | { ok: false; status: "omitido" | "error"; message: string };
 
 /**
@@ -238,6 +243,7 @@ export async function provisionarDestinatarioPlantilla({
     }
 
     return {
+      entrevistaId: entrevista.entrevistaId,
       ok: true,
       stakeholderId: existente.id,
       status: "asignado",
@@ -279,7 +285,12 @@ export async function provisionarDestinatarioPlantilla({
     return { message: entrevista.message, ok: false, status: "error" };
   }
 
-  return { ok: true, stakeholderId: stakeholder.id, status: "creado" };
+  return {
+    entrevistaId: entrevista.entrevistaId,
+    ok: true,
+    stakeholderId: stakeholder.id,
+    status: "creado",
+  };
 }
 
 export type ResultadoFase =

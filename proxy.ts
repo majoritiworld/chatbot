@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { rutaEntrevistaPermitida } from "@/lib/consultoria/destino-entrevista";
 import {
   getEntrevistaIdByEmail,
   homePathForRol,
@@ -63,12 +64,17 @@ export async function proxy(request: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
 
-    const entrevistaId = isStakeholderRole(perfil?.rol)
-      ? await getEntrevistaIdByEmail(supabase, user.email)
-      : null;
+    const explicito = rutaEntrevistaPermitida(
+      request.nextUrl.searchParams.get("next")
+    );
+    const entrevistaId =
+      explicito || !isStakeholderRole(perfil?.rol)
+        ? null
+        : await getEntrevistaIdByEmail(supabase, user.email);
     const url = request.nextUrl.clone();
-    url.pathname = `${base}${homePathForRol(perfil?.rol, entrevistaId)}`;
+    url.pathname = `${base}${explicito ?? homePathForRol(perfil?.rol, entrevistaId)}`;
     url.searchParams.delete("error");
+    url.searchParams.delete("next");
     return NextResponse.redirect(url);
   }
 
