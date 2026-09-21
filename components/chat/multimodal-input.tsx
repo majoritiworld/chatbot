@@ -38,7 +38,10 @@ import {
   ModelSelectorName,
   ModelSelectorTrigger,
 } from "@/components/ai-elements/model-selector";
-import { EntrevistaVozCompositor } from "@/components/portal/entrevista-voz-compositor";
+import {
+  BOTON_ICONO_COMPOSITOR_ENTREVISTA,
+  EntrevistaVozCompositor,
+} from "@/components/portal/entrevista-voz-compositor";
 import { useEntrevistaVoz } from "@/hooks/use-entrevista-voz";
 import {
   type ChatModel,
@@ -1040,7 +1043,7 @@ function PureMultimodalInput({
                 aria-label="Enviar respuesta"
                 className={cn(
                   esEntrevista
-                    ? "size-8 rounded-full bg-neutral-900 text-white hover:bg-neutral-800"
+                    ? `${BOTON_ICONO_COMPOSITOR_ENTREVISTA} bg-neutral-900 p-0 text-white hover:bg-neutral-800`
                     : "h-7 w-7 rounded-xl transition-all duration-200",
                   input.trim()
                     ? esEntrevista
@@ -1051,6 +1054,7 @@ function PureMultimodalInput({
                       : "bg-muted text-muted-foreground/25 cursor-not-allowed"
                 )}
                 data-testid="send-button"
+                size={esEntrevista ? "sm" : "icon-sm"}
                 disabled={
                   !input.trim() ||
                   uploadQueue.length > 0 ||

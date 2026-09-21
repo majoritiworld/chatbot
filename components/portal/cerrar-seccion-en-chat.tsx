@@ -101,10 +101,10 @@ export function CerrarSeccionEnChat({
   return (
     <div className="pt-3">
       <Button
+        className="h-11 rounded-full px-4"
         data-testid="entrevista-cerrar-tema"
         disabled={busy}
         onClick={handleClick}
-        size="sm"
         type="button"
         variant="outline"
       >
