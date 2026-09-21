@@ -137,11 +137,11 @@ test.describe("Pilot interview helpers", () => {
     ).toBe("Reintentar");
     expect(avisoBorradorCierreAnticipado()).toContain("no se envía");
     expect(avisoEntregaAlFinalizar()).toContain("se enviarán tus respuestas");
-    expect(puntosAyudaEntrevista().at(1)).toContain(
-      "El texto que todavía no enviaste no se guarda"
+    expect(puntosAyudaEntrevista().at(3)).toContain(
+      "el texto que aún no enviaste no queda guardado"
     );
     expect(puntosAyudaEntrevista().at(2)).toContain(
-      "Finalizar entrevista guarda y entrega"
+      "si es la última sección, también se entregará la entrevista"
     );
     expect(puntosAyudaEntrevista().join(" ")).not.toContain(
       "Enviar la entrevista es un paso aparte"

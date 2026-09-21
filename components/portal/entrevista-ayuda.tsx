@@ -46,7 +46,7 @@ export function EntrevistaAyuda({
           <DialogHeader>
             <DialogTitle>Cómo funciona</DialogTitle>
             <DialogDescription>
-              Puedes cerrar esta ayuda y seguir respondiendo.
+              Una conversación guiada, a tu ritmo.
             </DialogDescription>
           </DialogHeader>
           <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed">

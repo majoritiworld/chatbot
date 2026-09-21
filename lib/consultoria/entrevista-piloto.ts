@@ -101,9 +101,11 @@ export function avisoBorradorCierreAnticipado() {
 
 export function puntosAyudaEntrevista() {
   return [
-    "Las preguntas aparecen en el chat. Responde una a una, por escrito o con Hablar.",
-    "Guardar conserva las respuestas ya enviadas de este tema. El texto que todavía no enviaste no se guarda.",
-    "Cuando un tema está cubierto, ciérralo para pasar al siguiente. En el último, Finalizar entrevista guarda y entrega tus respuestas; después aparece la pantalla de gracias.",
+    "Responde las preguntas del chat por escrito o pulsando el micrófono. Si hablas, podrás revisar y editar la transcripción antes de enviarla.",
+    "El agente te guiará con preguntas para cubrir cada sección. Cuando esté lista, te ofrecerá pasar a la siguiente: pulsa el botón para continuar.",
+    "Si sientes que ya respondiste suficiente, puedes pulsar Finalizar sección sin esperar al agente. Te pediremos confirmar antes de cerrar; si es la última sección, también se entregará la entrevista.",
+    "Puedes hacer una pausa y volver después. Guardar conserva las respuestas ya enviadas; el texto que aún no enviaste no queda guardado.",
+    "Al finalizar la última sección, tus respuestas se entregan y verás la confirmación. No necesitas enviarlas de nuevo.",
   ] as const;
 }
 
