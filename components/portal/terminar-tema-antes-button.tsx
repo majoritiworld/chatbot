@@ -206,13 +206,13 @@ export function TerminarTemaAntesButton({
   return (
     <Button
       className={cn(
-        "h-auto min-h-11 px-0 text-left font-normal text-muted-foreground text-xs underline decoration-muted-foreground/70 underline-offset-2 hover:bg-transparent hover:text-foreground md:min-h-0"
+        "min-h-11 w-fit rounded-full border-border/60 px-4 font-medium text-sm shadow-none hover:bg-muted/50"
       )}
       data-testid="entrevista-cierre-anticipado"
       disabled={contexto.busy}
       onClick={contexto.abrir}
       type="button"
-      variant="ghost"
+      variant="outline"
     >
       {textoBoton}
     </Button>

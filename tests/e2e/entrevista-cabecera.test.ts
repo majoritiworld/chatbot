@@ -78,7 +78,7 @@ test.describe("Interview mobile header", () => {
   }) => {
     await abrirCabecera(page, "&rol=stakeholder");
     await expect(
-      page.getByRole("button", { name: "Terminar este tema antes de tiempo" })
+      page.getByRole("button", { name: "Finalizar sección" })
     ).toBeVisible();
     await page.getByTestId("entrevista-cierre-anticipado").click();
     await expect(
@@ -183,9 +183,7 @@ test.describe("Interview mobile header", () => {
   }) => {
     await abrirCabecera(page, "&rol=stakeholder");
     await page.getByRole("button", { name: "Más opciones" }).click();
-    await page
-      .getByRole("menuitem", { name: "Terminar este tema antes de tiempo" })
-      .click();
+    await page.getByRole("menuitem", { name: "Finalizar sección" }).click();
     await expect(
       page.getByRole("alertdialog", {
         name: "¿Terminar este tema antes de tiempo?",
@@ -193,7 +191,7 @@ test.describe("Interview mobile header", () => {
     ).toBeVisible();
   });
 
-  test("shows the draft hint next to the composer, not in the header", async ({
+  test("keeps the draft without showing a persistent hint", async ({
     page,
   }) => {
     await abrirCabecera(page);
@@ -202,7 +200,7 @@ test.describe("Interview mobile header", () => {
     await page
       .getByTestId("multimodal-input")
       .pressSequentially("Borrador de prueba");
-    await expect(page.getByText("Borrador sin enviar")).toBeVisible();
+    await expect(page.getByText("Borrador sin enviar")).toHaveCount(0);
     await expect(
       page.getByTestId("entrevista-cabecera").getByText("Borrador sin enviar")
     ).toHaveCount(0);
@@ -325,7 +323,7 @@ test.describe("Interview desktop header", () => {
       })
     ).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Terminar este tema antes de tiempo" })
+      page.getByRole("button", { name: "Finalizar sección" })
     ).toBeVisible();
   });
 });

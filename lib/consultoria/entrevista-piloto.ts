@@ -59,7 +59,7 @@ export function etiquetaCierreTema(esUltimo: boolean) {
 }
 
 export function etiquetaCierreAnticipado() {
-  return "Terminar este tema antes de tiempo";
+  return "Finalizar sección";
 }
 
 export function avisoCierreAnticipado(esUltimo: boolean) {

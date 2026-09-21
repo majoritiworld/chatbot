@@ -114,9 +114,7 @@ test.describe("Pilot interview helpers", () => {
     expect(etiquetaProgresoTema(3, 4)).toBe("Tema 4 de 4");
     expect(etiquetaCierreTema(false)).toBe("Cerrar y continuar");
     expect(etiquetaCierreTema(true)).toBe("Finalizar entrevista");
-    expect(etiquetaCierreAnticipado()).toBe(
-      "Terminar este tema antes de tiempo"
-    );
+    expect(etiquetaCierreAnticipado()).toBe("Finalizar sección");
     expect(avisoCierreAnticipado(false)).toContain("preguntas pendientes");
     expect(avisoCierreAnticipado(true)).toContain("entrega la entrevista");
     expect(etiquetaConfirmarCierreAnticipado(true)).toBe(
