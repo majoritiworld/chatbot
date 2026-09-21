@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { requireAdminUser } from "@/lib/consultoria/admin";
 import { ensureAuthUser, siteUrl } from "@/lib/consultoria/auth";
 import {
   type AsignacionInvitacion,
@@ -15,6 +16,37 @@ import {
 import { enviarCorreoInvitacionEntrevista } from "@/lib/consultoria/email-entrevista";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
+/** List metadata only; choosing an invitation must not use an arbitrary row. */
+export async function listarEntrevistasInvitables(
+  proyectoId: string,
+  stakeholderId: string
+) {
+  await requireAdminUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("entrevista")
+    .select(
+      "id, estado, plantilla:plantilla_id (nombre), stakeholder:stakeholder_id!inner(proyecto_id)"
+    )
+    .eq("stakeholder_id", stakeholderId)
+    .eq("stakeholder.proyecto_id", proyectoId)
+    .order("id");
+  if (error) {
+    throw new Error("No se pudieron cargar las entrevistas para invitar.");
+  }
+  return (data ?? []).map((fila) => {
+    const plantilla = Array.isArray(fila.plantilla)
+      ? fila.plantilla.at(0)
+      : fila.plantilla;
+    return {
+      estado: fila.estado,
+      id: fila.id,
+      nombre: plantilla?.nombre ?? "Entrevista",
+    };
+  });
+}
 
 const generateLinkProperties = z.object({
   hashed_token: z.string().min(1).optional(),

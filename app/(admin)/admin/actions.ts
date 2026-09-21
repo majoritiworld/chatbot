@@ -997,7 +997,15 @@ export async function invitarEntrevistaAsignada(
     };
   }
 
-  const invitacion = await enviarInvitacionEntrevista(parsed.data.entrevistaId);
+  let invitacion: Awaited<ReturnType<typeof enviarInvitacionEntrevista>>;
+  try {
+    invitacion = await enviarInvitacionEntrevista(parsed.data.entrevistaId);
+  } catch {
+    return {
+      message: "No se pudo enviar la invitación. Inténtalo de nuevo.",
+      status: "error",
+    };
+  }
   if (!invitacion.ok) {
     return { message: invitacion.message, status: "error" };
   }

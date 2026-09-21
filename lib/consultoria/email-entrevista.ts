@@ -70,12 +70,14 @@ Equipo Majoriti`,
 }
 
 async function enviarConResend({
+  copiarEquipo = true,
   destinatario,
   html,
   idempotencyKey,
   subject,
   text,
 }: {
+  copiarEquipo?: boolean;
   destinatario: string;
   html: string;
   idempotencyKey?: string;
@@ -109,7 +111,7 @@ async function enviarConResend({
       subject,
       text,
       to: [destinatario],
-      ...(!mismaBandeja && { bcc: [copiaEquipo] }),
+      ...(copiarEquipo && !mismaBandeja && { bcc: [copiaEquipo] }),
     },
     idempotencyKey ? { idempotencyKey } : undefined
   );
@@ -151,6 +153,8 @@ export async function enviarCorreoInvitacionEntrevista({
 }) {
   const plantilla = plantillaInvitacion({ enlace, nombre });
   return await enviarConResend({
+    // This email contains a personal sign-in credential, not a team update.
+    copiarEquipo: false,
     destinatario: email.trim(),
     html: plantilla.html,
     subject: "Invitación a la entrevista de Majoriti",

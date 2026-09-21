@@ -11,11 +11,11 @@ import { Button } from "@/components/ui/button";
 const initialState: ActionState = { status: "idle" };
 
 export function InvitarEntrevistaForm({
-  entrevistaId,
+  entrevistas,
   proyectoId,
   stakeholderId,
 }: {
-  entrevistaId: string;
+  entrevistas: { id: string; nombre: string; estado: string }[];
   proyectoId: string;
   stakeholderId: string;
 }) {
@@ -29,7 +29,6 @@ export function InvitarEntrevistaForm({
       action={formAction}
       className="flex flex-col gap-4 rounded-xl border border-border p-4"
     >
-      <input name="entrevistaId" type="hidden" value={entrevistaId} />
       <input name="proyectoId" type="hidden" value={proyectoId} />
       <input name="stakeholderId" type="hidden" value={stakeholderId} />
 
@@ -40,6 +39,26 @@ export function InvitarEntrevistaForm({
           otra ni se cambia su rol.
         </p>
       </div>
+
+      <label className="flex flex-col gap-2 text-sm">
+        Entrevista que recibirá la persona
+        <select
+          className="w-full rounded-md border bg-background p-2"
+          defaultValue=""
+          disabled={pending}
+          name="entrevistaId"
+          required
+        >
+          <option disabled value="">
+            Selecciona una entrevista
+          </option>
+          {entrevistas.map((entrevista) => (
+            <option key={entrevista.id} value={entrevista.id}>
+              {entrevista.nombre} · {entrevista.estado} · {entrevista.id}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <ActionMensaje state={state} />
 

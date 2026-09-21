@@ -64,6 +64,9 @@ export async function GET(request: NextRequest) {
   // Whatever happens, the user lands on a screen that can get them in: the
   // login form asks for a code instead of telling them to create an account.
   const loginErrorUrl = destino("/login?error=auth");
+  if (next) {
+    loginErrorUrl.searchParams.set("next", next);
+  }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -114,8 +117,8 @@ export async function GET(request: NextRequest) {
     return redirected;
   }
 
-  // Preferred path: a hashed token works from any device and survives mail
-  // clients that prefetch links.
+  // Hashed tokens work across devices. They are single-use: expired or
+  // scanner-consumed links must recover through OTP with the same destination.
   if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
@@ -126,7 +129,7 @@ export async function GET(request: NextRequest) {
       return finishAuth();
     }
 
-    console.error("auth callback verifyOtp failed", error.message);
+    console.error("auth callback verifyOtp failed");
     return NextResponse.redirect(loginErrorUrl);
   }
 
@@ -139,7 +142,7 @@ export async function GET(request: NextRequest) {
       return finishAuth();
     }
 
-    console.error("auth callback code exchange failed", error.message);
+    console.error("auth callback code exchange failed");
     return NextResponse.redirect(loginErrorUrl);
   }
 
