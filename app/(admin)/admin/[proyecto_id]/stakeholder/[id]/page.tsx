@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { AdminSeccion } from "@/components/admin/admin-seccion";
 import { AsignarEntrevistaForm } from "@/components/admin/asignar-entrevista-form";
 import { CambiarRolPortalForm } from "@/components/admin/cambiar-rol-portal-form";
 import { DescargarTranscripcionButton } from "@/components/admin/descargar-transcripcion-button";
@@ -96,45 +97,73 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
         </p>
       </div>
 
-      <EditarStakeholderForm
-        apellido={detalle.apellido}
-        email={detalle.email}
-        firma={detalle.firma}
-        nombre={detalle.nombre}
-        proyectoId={proyectoId}
-        stakeholderId={detalle.id}
-      />
-
-      <CambiarRolPortalForm
-        proyectoId={proyectoId}
-        rolActual={detalle.rolPortal}
-        stakeholderId={detalle.id}
-      />
-
-      {entrevistasInvitables.length > 0 ? (
-        <InvitarEntrevistaForm
-          entrevistas={entrevistasInvitables}
+      <AdminSeccion
+        descripcion="Nombre, apellido, correo y empresa. Si cambia el correo, entra al portal con el nuevo."
+        titulo="Datos de la persona"
+      >
+        <EditarStakeholderForm
+          apellido={detalle.apellido}
+          email={detalle.email}
+          firma={detalle.firma}
+          nombre={detalle.nombre}
           proyectoId={proyectoId}
           stakeholderId={detalle.id}
         />
+      </AdminSeccion>
+
+      <AdminSeccion
+        descripcion={
+          detalle.rolPortal
+            ? "Cambia cómo entra esta persona la próxima vez que abra el portal."
+            : "Todavía no tiene cuenta. Si ya le enviaste la entrevista, elige el acceso y guarda."
+        }
+        resumen={etiquetaAccesoAdmin(detalle.rolPortal)}
+        titulo="Acceso al portal"
+      >
+        <CambiarRolPortalForm
+          proyectoId={proyectoId}
+          rolActual={detalle.rolPortal}
+          stakeholderId={detalle.id}
+        />
+      </AdminSeccion>
+
+      {entrevistasInvitables.length > 0 ? (
+        <AdminSeccion
+          descripcion="Envía el portal: entra con su correo y un código. Si ya tiene cuenta, no se crea otra ni se cambia su rol."
+          titulo="Invitar a esta entrevista"
+        >
+          <InvitarEntrevistaForm
+            entrevistas={entrevistasInvitables}
+            proyectoId={proyectoId}
+            stakeholderId={detalle.id}
+          />
+        </AdminSeccion>
       ) : null}
 
       {detalle.entrevistaId ? (
         <>
-          <PreguntasEntrevistaForm
-            entrevistaId={detalle.entrevistaId}
-            proyectoId={proyectoId}
-            secciones={detalle.secciones}
-            stakeholderId={detalle.id}
-          />
+          <AdminSeccion
+            descripcion="Los cambios aplican a la próxima respuesta del entrevistador."
+            resumen={`${detalle.secciones.length} secciones`}
+            titulo="Guion de la entrevista"
+          >
+            <PreguntasEntrevistaForm
+              entrevistaId={detalle.entrevistaId}
+              proyectoId={proyectoId}
+              secciones={detalle.secciones}
+              stakeholderId={detalle.id}
+            />
+          </AdminSeccion>
 
-          <EntrevistaEditor
-            entrevistaId={detalle.entrevistaId}
-            proyectoId={proyectoId}
-            resumenInicial={detalle.resumen}
-            stakeholderId={detalle.id}
-            transcripcionInicial={detalle.transcripcion}
-          />
+          <AdminSeccion titulo="Transcripción">
+            <EntrevistaEditor
+              entrevistaId={detalle.entrevistaId}
+              proyectoId={proyectoId}
+              resumenInicial={detalle.resumen}
+              stakeholderId={detalle.id}
+              transcripcionInicial={detalle.transcripcion}
+            />
+          </AdminSeccion>
         </>
       ) : (
         <AsignarEntrevistaForm
@@ -145,22 +174,46 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
         />
       )}
 
-      <MarcarFaseForm
-        fases={detalle.fases}
-        faseVinculadaId={detalle.faseVinculadaId}
-        proyectoId={proyectoId}
-        stakeholderId={detalle.id}
-      />
+      <AdminSeccion
+        descripcion="Al marcar una fase como completada, el portal cliente se actualiza vía Realtime."
+        titulo="Fases del proyecto"
+      >
+        <MarcarFaseForm
+          fases={detalle.fases}
+          faseVinculadaId={detalle.faseVinculadaId}
+          proyectoId={proyectoId}
+          stakeholderId={detalle.id}
+        />
+      </AdminSeccion>
 
-      <DocumentoUploadForm
-        documentos={detalle.documentos}
-        faseDefaultId={detalle.faseVinculadaId}
-        fases={detalle.fases}
-        proyectoId={detalle.proyectoId}
-        stakeholderId={detalle.id}
-      />
+      <AdminSeccion
+        resumen={
+          detalle.documentos.length === 1
+            ? "1 documento"
+            : `${detalle.documentos.length} documentos`
+        }
+        titulo="Documentos"
+      >
+        <DocumentoUploadForm
+          documentos={detalle.documentos}
+          faseDefaultId={detalle.faseVinculadaId}
+          fases={detalle.fases}
+          proyectoId={detalle.proyectoId}
+          stakeholderId={detalle.id}
+        />
+      </AdminSeccion>
     </>
   );
+}
+
+function etiquetaAccesoAdmin(rol: string | null) {
+  if (rol === "cliente") {
+    return "Cliente";
+  }
+  if (rol === "stakeholder") {
+    return "Stakeholder";
+  }
+  return "Sin cuenta";
 }
 
 function DetalleSkeleton() {

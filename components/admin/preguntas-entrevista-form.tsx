@@ -29,20 +29,10 @@ export function PreguntasEntrevistaForm({
   );
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-4 rounded-xl border border-border p-4"
-    >
+    <form action={formAction} className="flex flex-col gap-4">
       <input name="stakeholderId" type="hidden" value={stakeholderId} />
       <input name="proyectoId" type="hidden" value={proyectoId} />
       <input name="entrevistaId" type="hidden" value={entrevistaId} />
-
-      <div>
-        <h2 className="font-medium text-base">Guion de la entrevista</h2>
-        <p className="text-muted-foreground text-sm">
-          Los cambios aplican a la próxima respuesta del entrevistador.
-        </p>
-      </div>
 
       <SeccionesField defaultValue={secciones} />
 

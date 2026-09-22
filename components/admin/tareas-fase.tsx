@@ -7,6 +7,7 @@ import {
   eliminarTarea,
 } from "@/app/(admin)/admin/actions";
 import { ActionMensaje } from "@/components/admin/action-mensaje";
+import { AdminAlta } from "@/components/admin/admin-seccion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,10 +76,7 @@ function CrearTareaForm({
   }
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-3 border-border border-t pt-4"
-    >
+    <form action={formAction} className="flex flex-col gap-3">
       <input name="proyectoId" type="hidden" value={proyectoId} />
       <input name="faseId" type="hidden" value={faseId} />
 
@@ -134,13 +132,6 @@ export function TareasFase({
 }) {
   return (
     <section className="flex flex-col gap-4">
-      <div>
-        <h2 className="font-medium text-base">Tareas</h2>
-        <p className="text-muted-foreground text-sm">
-          Checklist que el cliente ve en esta fase, con la persona a cargo.
-        </p>
-      </div>
-
       {tareas.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           Todavía no hay tareas. Agrégalas abajo.
@@ -169,11 +160,13 @@ export function TareasFase({
         </ul>
       )}
 
-      <CrearTareaForm
-        faseId={faseId}
-        personas={personas}
-        proyectoId={proyectoId}
-      />
+      <AdminAlta etiqueta="Agregar tarea">
+        <CrearTareaForm
+          faseId={faseId}
+          personas={personas}
+          proyectoId={proyectoId}
+        />
+      </AdminAlta>
     </section>
   );
 }

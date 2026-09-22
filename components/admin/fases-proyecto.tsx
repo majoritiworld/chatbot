@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { type ActionState, crearFase } from "@/app/(admin)/admin/actions";
 import { ActionMensaje } from "@/components/admin/action-mensaje";
+import { AdminAlta, AdminSeccion } from "@/components/admin/admin-seccion";
 import { FaseEstadoBotones } from "@/components/admin/editar-fase-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,15 +76,12 @@ export function FasesProyecto({
   const [state, formAction, pending] = useActionState(crearFase, initialState);
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border p-4">
-      <div>
-        <h2 className="font-medium text-base">Fases</h2>
-        <p className="text-muted-foreground text-sm">
-          El cliente solo puede entrar a las fases desbloqueadas. Abre una fase
-          para editar su descripción, fechas, entrevistas y tareas.
-        </p>
-      </div>
-
+    <AdminSeccion
+      defaultOpen
+      descripcion="El cliente solo puede entrar a las fases desbloqueadas. Abre una fase para editar su descripción, fechas, entrevistas y tareas."
+      resumen={fases.length === 1 ? "1 fase" : `${fases.length} fases`}
+      titulo="Fases"
+    >
       {fases.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           Todavía no hay fases. Crea la primera para poder colgar una entrevista
@@ -97,37 +95,36 @@ export function FasesProyecto({
         </ul>
       )}
 
-      <form
-        action={formAction}
-        className="flex flex-col gap-3 border-border border-t pt-4"
-      >
-        <input name="proyectoId" type="hidden" value={proyectoId} />
+      <AdminAlta etiqueta="Agregar fase">
+        <form action={formAction} className="flex flex-col gap-3">
+          <input name="proyectoId" type="hidden" value={proyectoId} />
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex min-w-56 flex-1 flex-col gap-1.5">
-            <Label htmlFor="fase-nombre">Nueva fase</Label>
-            <Input
-              id="fase-nombre"
-              name="nombre"
-              placeholder="Entrevistas de diagnóstico"
-              required
-            />
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex min-w-56 flex-1 flex-col gap-1.5">
+              <Label htmlFor="fase-nombre">Nueva fase</Label>
+              <Input
+                id="fase-nombre"
+                name="nombre"
+                placeholder="Entrevistas de diagnóstico"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="fase-fecha">Fecha de inicio</Label>
+              <Input id="fase-fecha" name="fechaEstimada" type="date" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="fase-fecha-cierre">Fecha de cierre</Label>
+              <Input id="fase-fecha-cierre" name="fechaCierre" type="date" />
+            </div>
+            <Button disabled={pending} type="submit" variant="outline">
+              {pending ? "Agregando…" : "Agregar fase"}
+            </Button>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="fase-fecha">Fecha de inicio</Label>
-            <Input id="fase-fecha" name="fechaEstimada" type="date" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="fase-fecha-cierre">Fecha de cierre</Label>
-            <Input id="fase-fecha-cierre" name="fechaCierre" type="date" />
-          </div>
-          <Button disabled={pending} type="submit" variant="outline">
-            {pending ? "Agregando…" : "Agregar fase"}
-          </Button>
-        </div>
 
-        <ActionMensaje state={state} />
-      </form>
-    </section>
+          <ActionMensaje state={state} />
+        </form>
+      </AdminAlta>
+    </AdminSeccion>
   );
 }

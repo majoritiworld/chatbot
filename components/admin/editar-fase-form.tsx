@@ -95,14 +95,7 @@ export function EditarFaseForm({
   const estado = normalizarEstado(fase.estado);
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border p-4">
-      <div>
-        <h2 className="font-medium text-base">Datos de la fase</h2>
-        <p className="text-muted-foreground text-sm">
-          Título, descripción y fechas que ve el cliente en el portal.
-        </p>
-      </div>
-
+    <div className="flex flex-col gap-4">
       <form action={formAction} className="flex flex-col gap-4">
         <input name="proyectoId" type="hidden" value={proyectoId} />
         <input name="faseId" type="hidden" value={fase.id} />
@@ -166,6 +159,6 @@ export function EditarFaseForm({
           proyectoId={proyectoId}
         />
       </div>
-    </section>
+    </div>
   );
 }

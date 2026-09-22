@@ -16,12 +16,9 @@ export function CrearProyectoForm() {
   );
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-4 rounded-xl border border-border p-4"
-    >
+    <form action={formAction} className="flex flex-col gap-4">
       <div>
-        <h2 className="font-medium text-base">Nuevo proyecto</h2>
+        <h2 className="font-medium text-sm">Nuevo proyecto</h2>
         <p className="text-muted-foreground text-sm">
           Después de crearlo defines sus fases y las entrevistas agénticas.
         </p>

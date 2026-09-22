@@ -67,11 +67,20 @@ export type ActionState = {
   message?: string;
 };
 
-function revalidateProyecto(proyectoId: string, faseId?: string) {
+function revalidateProyecto(
+  proyectoId: string,
+  faseId?: string,
+  plantillaId?: string
+) {
   revalidatePath(`/admin/${proyectoId}`);
   revalidatePath("/portal");
   if (faseId) {
     revalidatePath(`/admin/${proyectoId}/fase/${faseId}`);
+  }
+  if (faseId && plantillaId) {
+    revalidatePath(
+      `/admin/${proyectoId}/fase/${faseId}/plantilla/${plantillaId}`
+    );
   }
 }
 
@@ -638,12 +647,11 @@ export async function guardarPreguntasPlantilla(
     return { message: error.message, status: "error" };
   }
 
-  revalidatePath(`/admin/${parsed.data.proyectoId}`);
-  if (plantilla?.fase_id) {
-    revalidatePath(
-      `/admin/${parsed.data.proyectoId}/fase/${plantilla.fase_id}`
-    );
-  }
+  revalidateProyecto(
+    parsed.data.proyectoId,
+    plantilla?.fase_id ?? undefined,
+    parsed.data.plantillaId
+  );
   return {
     message: `${secciones.length} secciones guardadas. No cambia a quienes ya se la enviaste.`,
     status: "success",
@@ -698,14 +706,15 @@ export async function enviarPlantillaEntrevista(
   }
 
   revalidatePath("/admin");
-  revalidatePath(`/admin/${parsed.data.proyectoId}`);
-  revalidatePath("/portal");
   const plantilla = await getPlantillaDelProyecto(
     parsed.data.proyectoId,
     parsed.data.plantillaId
   );
   if (plantilla) {
-    revalidatePath(`/admin/${parsed.data.proyectoId}/fase/${plantilla.faseId}`);
+    revalidateProyecto(parsed.data.proyectoId, plantilla.faseId, plantilla.id);
+  } else {
+    revalidatePath(`/admin/${parsed.data.proyectoId}`);
+    revalidatePath("/portal");
   }
 
   const { resumen } = resultado;

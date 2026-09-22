@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { AdminAlta } from "@/components/admin/admin-seccion";
 import { CrearProyectoForm } from "@/components/admin/crear-proyecto-form";
 import { ProyectosLista } from "@/components/admin/proyectos-lista";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +18,9 @@ export default function AdminPage() {
         <AdminContenido />
       </Suspense>
 
-      <CrearProyectoForm />
+      <AdminAlta etiqueta="Nuevo proyecto">
+        <CrearProyectoForm />
+      </AdminAlta>
     </main>
   );
 }

@@ -45,20 +45,14 @@ export function CrearPlantillaForm({
   }
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-4 rounded-xl border border-border p-4"
-    >
+    <form action={formAction} className="flex flex-col gap-4">
       <input name="proyectoId" type="hidden" value={proyectoId} />
       {faseFija ? <input name="faseId" type="hidden" value={faseFija} /> : null}
 
-      <div>
-        <h2 className="font-medium text-base">Crear entrevista agéntica</h2>
-        <p className="text-muted-foreground text-sm">
-          El guion es el mismo para todos. Al enviarla, el agente se refiere a
-          cada firma socia por su nombre.
-        </p>
-      </div>
+      <p className="text-muted-foreground text-sm">
+        El guion es el mismo para todos. Al enviarla, el agente se refiere a
+        cada firma socia por su nombre.
+      </p>
 
       <div
         className={

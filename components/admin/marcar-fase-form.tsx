@@ -42,20 +42,9 @@ export function MarcarFaseForm({
   }
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-4 rounded-xl border border-border p-4"
-    >
+    <form action={formAction} className="flex flex-col gap-4">
       <input name="stakeholderId" type="hidden" value={stakeholderId} />
       <input name="proyectoId" type="hidden" value={proyectoId} />
-
-      <div>
-        <h2 className="font-medium text-base">Fases del proyecto</h2>
-        <p className="text-muted-foreground text-sm">
-          Al marcar una fase como completada, el portal cliente se actualiza vía
-          Realtime.
-        </p>
-      </div>
 
       <ul className="flex flex-col gap-2">
         {fases.map((fase) => (

@@ -73,8 +73,6 @@ export function EntrevistaEditor({
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
-        <h2 className="font-medium text-base">Transcripción</h2>
-
         {turnosVista.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             Aún no hay turnos guardados. Se llenan a medida que avanza la

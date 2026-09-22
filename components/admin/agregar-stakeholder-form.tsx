@@ -22,13 +22,13 @@ export function AgregarStakeholderForm({ proyectoId }: { proyectoId: string }) {
   return (
     <form
       action={formAction}
-      className="flex flex-col gap-4 rounded-xl border border-border p-4"
+      className="flex flex-col gap-4"
       key={state.status === "success" ? (state.message ?? "ok") : "form"}
     >
       <input name="proyectoId" type="hidden" value={proyectoId} />
 
       <div>
-        <h3 className="font-medium text-sm">Agregar persona</h3>
+        <h3 className="font-medium text-sm">Nueva persona</h3>
         <p className="text-muted-foreground text-sm">
           Nombre y apellido por separado. Le enviamos el acceso al portal.
         </p>

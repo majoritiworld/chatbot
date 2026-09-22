@@ -21,14 +21,6 @@ export function EntrevistasFase({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="font-medium text-base">Entrevistas enviadas</h2>
-        <p className="text-muted-foreground text-sm">
-          Personas que ya tienen esta entrevista. Ábrela para ver la
-          transcripción.
-        </p>
-      </div>
-
       {entrevistas.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           Todavía no hay envíos. Crea el guion abajo y mándalo a la lista de

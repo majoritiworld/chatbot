@@ -29,15 +29,12 @@ export function DocumentoUploadForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form
-        action={formAction}
-        className="flex flex-col gap-4 rounded-xl border border-border p-4"
-      >
+      <form action={formAction} className="flex flex-col gap-4">
         <input name="stakeholderId" type="hidden" value={stakeholderId} />
         <input name="proyectoId" type="hidden" value={proyectoId} />
 
         <div>
-          <h2 className="font-medium text-base">Documento de fase</h2>
+          <h2 className="font-medium text-sm">Subir archivo</h2>
           <p className="text-muted-foreground text-sm">
             Sube un archivo a Storage o pega un link externo.
           </p>

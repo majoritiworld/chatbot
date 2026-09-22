@@ -8,6 +8,7 @@ import {
   eliminarEvento,
 } from "@/app/(admin)/admin/actions";
 import { ActionMensaje } from "@/components/admin/action-mensaje";
+import { AdminAlta, AdminSeccion } from "@/components/admin/admin-seccion";
 import { MinutaMarkdown } from "@/components/minuta-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -286,10 +287,7 @@ function CrearEventoForm({ proyectoId }: { proyectoId: string }) {
   const seRepite = recurrencia !== "ninguna";
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-3 border-border border-t pt-4"
-    >
+    <form action={formAction} className="flex flex-col gap-3">
       <input name="proyectoId" type="hidden" value={proyectoId} />
 
       <div className="flex flex-wrap items-end gap-3">
@@ -387,15 +385,11 @@ export function EventosProyecto({
   eventos: EventoDelProyecto[];
 }) {
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border p-4">
-      <div>
-        <h2 className="font-medium text-base">Fechas relevantes</h2>
-        <p className="text-muted-foreground text-sm">
-          Reuniones y otros hitos que el cliente ve en el calendario. Las fechas
-          de cada fase se editan al abrirla y no aparecen en el calendario.
-        </p>
-      </div>
-
+    <AdminSeccion
+      descripcion="Reuniones y otros hitos que el cliente ve en el calendario. Las fechas de cada fase se editan al abrirla y no aparecen en el calendario."
+      resumen={eventos.length === 1 ? "1 fecha" : `${eventos.length} fechas`}
+      titulo="Fechas relevantes"
+    >
       {eventos.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           Todavía no hay reuniones ni eventos extra.
@@ -412,7 +406,9 @@ export function EventosProyecto({
         </ul>
       )}
 
-      <CrearEventoForm proyectoId={proyectoId} />
-    </section>
+      <AdminAlta etiqueta="Agregar fecha">
+        <CrearEventoForm proyectoId={proyectoId} />
+      </AdminAlta>
+    </AdminSeccion>
   );
 }

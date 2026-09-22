@@ -30,20 +30,11 @@ export function CambiarRolPortalForm({
   return (
     <form
       action={formAction}
-      className="flex flex-col gap-4 rounded-xl border border-border p-4"
+      className="flex flex-col gap-4"
       key={`${stakeholderId}-${rol}`}
     >
       <input name="proyectoId" type="hidden" value={proyectoId} />
       <input name="stakeholderId" type="hidden" value={stakeholderId} />
-
-      <div>
-        <h2 className="font-medium text-base">Acceso al portal</h2>
-        <p className="text-muted-foreground text-sm">
-          {rolActual
-            ? "Cambia cómo entra esta persona la próxima vez que abra el portal."
-            : "Todavía no tiene cuenta. Si ya le enviaste la entrevista, elige el acceso y guarda."}
-        </p>
-      </div>
 
       <RolPortalOpciones
         defaultValue={rol}

@@ -35,19 +35,11 @@ export function EditarStakeholderForm({
   return (
     <form
       action={formAction}
-      className="flex flex-col gap-4 rounded-xl border border-border p-4"
+      className="flex flex-col gap-4"
       key={`${stakeholderId}-${nombre}-${apellido ?? ""}-${email}-${firma ?? ""}`}
     >
       <input name="proyectoId" type="hidden" value={proyectoId} />
       <input name="stakeholderId" type="hidden" value={stakeholderId} />
-
-      <div>
-        <h2 className="font-medium text-base">Datos de la persona</h2>
-        <p className="text-muted-foreground text-sm">
-          Nombre, apellido, correo y empresa. Si cambia el correo, entra al
-          portal con el nuevo.
-        </p>
-      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">

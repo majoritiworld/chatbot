@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { AdminAlta, AdminSeccion } from "@/components/admin/admin-seccion";
 import { AgregarStakeholderForm } from "@/components/admin/agregar-stakeholder-form";
 import { EventosProyecto } from "@/components/admin/eventos-proyecto";
 import { FasesProyecto } from "@/components/admin/fases-proyecto";
@@ -70,14 +71,24 @@ async function ProyectoContenido({ params }: { params: ProyectoParams }) {
 
       <EventosProyecto eventos={eventos} proyectoId={proyectoId} />
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-medium text-base">Personas</h2>
+      <AdminSeccion
+        defaultOpen
+        descripcion="Quienes entran al portal de este proyecto. Ábrelos para editar datos, invitaciones o la transcripción."
+        resumen={
+          stakeholders.length === 1
+            ? "1 persona"
+            : `${stakeholders.length} personas`
+        }
+        titulo="Personas"
+      >
         <StakeholdersTable
           proyectoId={proyectoId}
           stakeholders={stakeholders}
         />
-        <AgregarStakeholderForm proyectoId={proyectoId} />
-      </section>
+        <AdminAlta etiqueta="Agregar persona">
+          <AgregarStakeholderForm proyectoId={proyectoId} />
+        </AdminAlta>
+      </AdminSeccion>
     </>
   );
 }

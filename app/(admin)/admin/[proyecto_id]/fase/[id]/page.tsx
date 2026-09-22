@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { AdminSeccion } from "@/components/admin/admin-seccion";
 import { EditarFaseForm } from "@/components/admin/editar-fase-form";
 import { EntrevistasFase } from "@/components/admin/entrevistas-fase";
 import { PlantillasProyecto } from "@/components/admin/plantillas-proyecto";
@@ -75,16 +76,37 @@ async function FaseContenido({ params }: { params: FaseParams }) {
         <p className="text-muted-foreground text-sm">{proyecto.cliente}</p>
       </header>
 
-      <EditarFaseForm fase={fase} proyectoId={proyectoId} />
+      <AdminSeccion
+        descripcion="Título, descripción y fechas que ve el cliente en el portal."
+        titulo="Datos de la fase"
+      >
+        <EditarFaseForm fase={fase} proyectoId={proyectoId} />
+      </AdminSeccion>
 
-      <EntrevistasFase entrevistas={entrevistas} proyectoId={proyectoId} />
+      <AdminSeccion
+        defaultOpen={entrevistas.length > 0}
+        descripcion="Personas que ya tienen esta entrevista. Ábrela para ver la transcripción."
+        resumen={
+          entrevistas.length === 1 ? "1 envío" : `${entrevistas.length} envíos`
+        }
+        titulo="Entrevistas enviadas"
+      >
+        <EntrevistasFase entrevistas={entrevistas} proyectoId={proyectoId} />
+      </AdminSeccion>
 
-      <TareasFase
-        faseId={fase.id}
-        personas={personas}
-        proyectoId={proyectoId}
-        tareas={tareas}
-      />
+      <AdminSeccion
+        defaultOpen={tareas.length > 0}
+        descripcion="Checklist que el cliente ve en esta fase, con la persona a cargo."
+        resumen={tareas.length === 1 ? "1 tarea" : `${tareas.length} tareas`}
+        titulo="Tareas"
+      >
+        <TareasFase
+          faseId={fase.id}
+          personas={personas}
+          proyectoId={proyectoId}
+          tareas={tareas}
+        />
+      </AdminSeccion>
 
       <PlantillasProyecto
         faseId={fase.id}

@@ -1,3 +1,4 @@
+import { AdminAlta, AdminSeccion } from "@/components/admin/admin-seccion";
 import { CrearPlantillaForm } from "@/components/admin/crear-plantilla-form";
 import { PlantillaEntrevistaCard } from "@/components/admin/plantilla-entrevista-card";
 import type { PlantillaAdmin } from "@/lib/consultoria/plantillas";
@@ -15,33 +16,36 @@ export function PlantillasProyecto({
   faseId?: string;
 }) {
   return (
-    <section className="flex flex-col gap-4">
-      <div>
-        <h2 className="font-medium text-base">Entrevistas agénticas</h2>
-        <p className="text-muted-foreground text-sm">
-          Armas el skill una vez y luego lo mandas a todos los stakeholders de
-          esta fase.
-        </p>
-      </div>
-
+    <AdminSeccion
+      defaultOpen
+      descripcion="Armas el skill una vez y luego lo mandas a todos los stakeholders de esta fase. Abre el guion para ver o editar las preguntas."
+      resumen={
+        plantillas.length === 1
+          ? "1 entrevista"
+          : `${plantillas.length} entrevistas`
+      }
+      titulo="Entrevistas agénticas"
+    >
       {plantillas.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           Todavía no hay un guion. Créalo abajo y después pega la lista de
           correos.
         </p>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {plantillas.map((plantilla) => (
             <PlantillaEntrevistaCard key={plantilla.id} plantilla={plantilla} />
           ))}
         </div>
       )}
 
-      <CrearPlantillaForm
-        faseId={faseId}
-        fases={fases}
-        proyectoId={proyectoId}
-      />
-    </section>
+      <AdminAlta etiqueta="Crear entrevista agéntica">
+        <CrearPlantillaForm
+          faseId={faseId}
+          fases={fases}
+          proyectoId={proyectoId}
+        />
+      </AdminAlta>
+    </AdminSeccion>
   );
 }

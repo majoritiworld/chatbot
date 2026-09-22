@@ -25,20 +25,9 @@ export function InvitarEntrevistaForm({
   );
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-4 rounded-xl border border-border p-4"
-    >
+    <form action={formAction} className="flex flex-col gap-4">
       <input name="proyectoId" type="hidden" value={proyectoId} />
       <input name="stakeholderId" type="hidden" value={stakeholderId} />
-
-      <div>
-        <h2 className="font-medium text-base">Invitar a esta entrevista</h2>
-        <p className="text-muted-foreground text-sm">
-          Envía el portal: entra con su correo y un código. Si ya tiene cuenta,
-          no se crea otra ni se cambia su rol.
-        </p>
-      </div>
 
       <label className="flex flex-col gap-2 text-sm">
         Entrevista que recibirá la persona
