@@ -58,6 +58,7 @@ export type Entrevista = {
   fecha_completada: string | null;
   consentimiento_en: string | null;
   correo_agradecimiento_en: string | null;
+  notion_transcripcion_id: string | null;
   transcripcion?: unknown;
   resumen?: unknown;
   ultima_actividad?: string | null;

@@ -130,6 +130,7 @@ const server = createServer(async (request, response) => {
             fecha_completada: null,
             flujo_estado: "bienvenida",
             id: queriedId,
+            notion_transcripcion_id: null,
             preguntas: [],
             seccion_actual: 0,
             secciones: [

@@ -20,6 +20,7 @@ const entrevista: Entrevista = {
   fecha_completada: null,
   flujo_estado: "chat",
   id: ENTREVISTA_ID,
+  notion_transcripcion_id: null,
   preguntas: ["Pregunta"],
   seccion_actual: 0,
   secciones: [

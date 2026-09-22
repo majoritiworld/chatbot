@@ -42,6 +42,7 @@ const ENTREVISTA_SELECT = `
   fecha_completada,
   consentimiento_en,
   correo_agradecimiento_en,
+  notion_transcripcion_id,
   stakeholder:stakeholder_id ( id, nombre, apellido, firma, email )
 `;
 
@@ -65,6 +66,7 @@ type EntrevistaRow = {
   fecha_completada: string | null;
   consentimiento_en: string | null;
   correo_agradecimiento_en: string | null;
+  notion_transcripcion_id: string | null;
   transcripcion?: unknown;
   stakeholder?: StakeholderEmbed | StakeholderEmbed[];
 };
@@ -144,6 +146,7 @@ function toEntrevista(row: EntrevistaRow): Entrevista {
     fecha_completada: row.fecha_completada,
     flujo_estado: parseFlujoEstado(row.flujo_estado),
     id: row.id,
+    notion_transcripcion_id: row.notion_transcripcion_id,
     preguntas:
       secciones.length > 0 ? preguntasDeSecciones(secciones) : preguntas,
     seccion_actual: row.seccion_actual,

@@ -6,6 +6,7 @@ import {
   enviarEntrevista,
   marcarCorreoAgradecimientoEnviado,
 } from "@/lib/consultoria/entrevistas";
+import { sincronizarTranscripcionNotion } from "@/lib/consultoria/notion-transcripcion";
 
 const bodySchema = z.object({
   entrevistaId: z.guid(),
@@ -25,6 +26,16 @@ async function enviarNotificacion(entrevistaId: string) {
   });
   await marcarCorreoAgradecimientoEnviado(entrevistaId);
   return { correoEnviado: true, ok: true as const };
+}
+
+async function publicarNotion(entrevistaId: string) {
+  try {
+    await sincronizarTranscripcionNotion(entrevistaId);
+    return null;
+  } catch (error) {
+    console.error("No se pudo publicar la transcripción en Notion", error);
+    return "La entrevista se envió, pero la transcripción no llegó a Notion.";
+  }
 }
 
 export async function POST(request: Request) {
@@ -54,14 +65,22 @@ export async function POST(request: Request) {
     }
 
     const result = await enviarEntrevista(parsed.data.entrevistaId);
+    const warningNotion = await publicarNotion(parsed.data.entrevistaId);
+
     if (!result.email) {
       return Response.json({
         ok: true,
-        warning: "La entrevista se envió, pero no encontramos un email.",
+        warning:
+          warningNotion ??
+          "La entrevista se envió, pero no encontramos un email.",
       });
     }
     if (result.correoEnviado) {
-      return Response.json({ correoEnviado: true, ok: true });
+      return Response.json({
+        correoEnviado: true,
+        ok: true,
+        ...(warningNotion ? { warning: warningNotion } : {}),
+      });
     }
 
     try {
@@ -71,12 +90,17 @@ export async function POST(request: Request) {
         nombre: result.nombre,
       });
       await marcarCorreoAgradecimientoEnviado(parsed.data.entrevistaId);
-      return Response.json({ correoEnviado: true, ok: true });
+      return Response.json({
+        correoEnviado: true,
+        ok: true,
+        ...(warningNotion ? { warning: warningNotion } : {}),
+      });
     } catch {
       return Response.json({
         correoEnviado: false,
         ok: true,
         warning:
+          warningNotion ??
           "La entrevista se envió, pero el correo de confirmación sigue pendiente.",
       });
     }

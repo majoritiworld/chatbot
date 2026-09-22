@@ -43,6 +43,7 @@ export type StakeholderAdmin = {
   proyectoCliente: string;
   entrevistaId: string | null;
   entrevistaEstado: string | null;
+  notionTranscripcionId: string | null;
   ultimaActividad: string | null;
   alerta: AlertaActividad;
   /** Portal access; null until they have a `usuario` row. */
@@ -95,6 +96,7 @@ type ProyectoEmbed = {
 type EntrevistaEmbed = {
   id: string;
   estado: string;
+  notion_transcripcion_id?: string | null;
   ultima_actividad: string | null;
   fecha_completada: string | null;
   preguntas?: unknown;
@@ -160,6 +162,7 @@ function toStakeholderAdmin(row: StakeholderRow): StakeholderAdmin {
     id: row.id,
     nombre: row.nombre,
     nombreCompleto: nombreCompleto(row.nombre, row.apellido),
+    notionTranscripcionId: entrevista?.notion_transcripcion_id ?? null,
     proyectoCliente: proyecto?.cliente ?? "",
     proyectoId: proyecto?.id ?? row.proyecto_id,
     proyectoNombre: proyecto?.nombre ?? "Sin proyecto",
@@ -221,7 +224,7 @@ export async function listStakeholdersAdmin(
       estado_entrevista,
       proyecto_id,
       proyecto:proyecto_id ( id, nombre, cliente ),
-      entrevista ( id, estado, ultima_actividad, fecha_completada )
+      entrevista ( id, estado, notion_transcripcion_id, ultima_actividad, fecha_completada )
     `
     )
     .eq("proyecto_id", proyectoId)
@@ -481,6 +484,7 @@ export async function getStakeholderDetalle(
       entrevista (
         id,
         estado,
+        notion_transcripcion_id,
         ultima_actividad,
         fecha_completada,
         preguntas,
@@ -653,8 +657,10 @@ export async function actualizarStakeholderAdmin({
 }
 
 export type TranscripcionDescargable = {
+  entrevistaId: string | null;
   nombre: string;
   firma: string | null;
+  proyectoId: string | null;
   proyectoNombre: string | null;
   estadoEntrevista: string;
   fecha: string | null;
@@ -666,6 +672,7 @@ type TranscripcionRow = {
   apellido: string | null;
   firma: string | null;
   estado_entrevista: string;
+  proyecto_id: string;
   proyecto: { nombre: string } | Array<{ nombre: string }> | null;
   entrevista: EntrevistaEmbed | EntrevistaEmbed[];
 };
@@ -687,8 +694,9 @@ export async function getTranscripcionDescargable(
       apellido,
       firma,
       estado_entrevista,
+      proyecto_id,
       proyecto:proyecto_id ( nombre ),
-      entrevista ( transcripcion, fecha_completada, ultima_actividad )
+      entrevista ( id, transcripcion, fecha_completada, ultima_actividad )
     `
     )
     .eq("id", stakeholderId)
@@ -706,10 +714,12 @@ export async function getTranscripcionDescargable(
   const entrevista = asOne(row.entrevista);
 
   return {
+    entrevistaId: entrevista?.id ?? null,
     estadoEntrevista: row.estado_entrevista,
     fecha: entrevista?.fecha_completada ?? entrevista?.ultima_actividad ?? null,
     firma: row.firma,
     nombre: nombreCompleto(row.nombre, row.apellido),
+    proyectoId: row.proyecto_id,
     proyectoNombre: asOne(row.proyecto)?.nombre ?? null,
     turnos: parseTranscripcion(entrevista?.transcripcion),
   };

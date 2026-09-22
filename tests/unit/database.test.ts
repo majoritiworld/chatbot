@@ -273,8 +273,63 @@ test("participants cannot bypass the flow with a direct update or premature subm
     )
   ).rejects.toThrow(/validated transitions/);
   await expect(
+    db.query(
+      "UPDATE public.entrevista SET notion_transcripcion_id = 'page' WHERE id = $1",
+      [INTERVIEW]
+    )
+  ).rejects.toThrow(/validated transitions/);
+  await expect(
     db.query("SELECT public.submit_interview($1, '{}', '[]')", [INTERVIEW])
   ).rejects.toThrow(/not ready/);
+});
+
+test("Notion page id is written only through the sync RPC", async () => {
+  await expect(
+    db.query("SELECT public.mark_interview_notion_synced($1, 'page-1')", [
+      INTERVIEW,
+    ])
+  ).rejects.toThrow(/Interview not found/);
+
+  await db.exec("RESET ROLE");
+  await actAs(db, ADMIN, "admin@example.test");
+  await db.query(
+    "UPDATE public.entrevista SET estado = 'completada' WHERE id = $1",
+    [INTERVIEW]
+  );
+
+  await db.exec("RESET ROLE");
+  await actAs(db, USER, "participant@example.test");
+  await db.query("SELECT public.mark_interview_notion_synced($1, 'page-1')", [
+    INTERVIEW,
+  ]);
+  expect(
+    (
+      await db.query<{ notion_transcripcion_id: string }>(
+        "SELECT notion_transcripcion_id FROM public.entrevista WHERE id = $1",
+        [INTERVIEW]
+      )
+    ).rows[0].notion_transcripcion_id
+  ).toBe("page-1");
+
+  await db.query("SELECT public.mark_interview_notion_synced($1, 'page-2')", [
+    INTERVIEW,
+  ]);
+  expect(
+    (
+      await db.query<{ notion_transcripcion_id: string }>(
+        "SELECT notion_transcripcion_id FROM public.entrevista WHERE id = $1",
+        [INTERVIEW]
+      )
+    ).rows[0].notion_transcripcion_id
+  ).toBe("page-1");
+
+  await db.exec("RESET ROLE");
+  await actAs(db, OTHER, "other@example.test");
+  await expect(
+    db.query("SELECT public.mark_interview_notion_synced($1, 'page-3')", [
+      INTERVIEW,
+    ])
+  ).rejects.toThrow();
 });
 
 test("transcript rows stay visible to the owner and same-project client, not to other projects", async () => {

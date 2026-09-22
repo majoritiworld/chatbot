@@ -426,6 +426,10 @@ export type ArchivoTranscripcion = {
   content: string;
 };
 
+export function tituloTranscripcion(nombre: string) {
+  return `Transcripción — ${nombre}`;
+}
+
 /**
  * Turns are stored in arrival order, so the array is already chronological;
  * `at` is unreliable for sorting because older rows default to the epoch.
@@ -465,7 +469,7 @@ export function construirArchivoTranscripcion({
           .join("\n\n");
 
   return {
-    content: `# Transcripción — ${nombre}\n\n${metadatos.join("\n")}\n\n---\n\n${cuerpo}\n`,
+    content: `# ${tituloTranscripcion(nombre)}\n\n${metadatos.join("\n")}\n\n---\n\n${cuerpo}\n`,
     filename: `transcripcion-${slug(nombre)}-${momento.toISOString().slice(0, 10)}.md`,
   };
 }

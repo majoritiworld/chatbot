@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { DescargarTranscripcionButton } from "@/components/admin/descargar-transcripcion-button";
 import { EntrarComoStakeholderButton } from "@/components/admin/entrar-como-stakeholder-button";
+import { EnviarNotionTranscripcionButton } from "@/components/admin/enviar-notion-transcripcion-button";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -126,6 +127,11 @@ export function StakeholdersTable({
                 <EntrarComoStakeholderButton stakeholderId={row.id} />
                 <DescargarTranscripcionButton
                   completada={row.estadoEntrevista === "completada"}
+                  stakeholderId={row.id}
+                />
+                <EnviarNotionTranscripcionButton
+                  completada={row.estadoEntrevista === "completada"}
+                  notionPageId={row.notionTranscripcionId}
                   stakeholderId={row.id}
                 />
               </div>

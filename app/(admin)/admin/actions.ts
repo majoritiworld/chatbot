@@ -31,6 +31,7 @@ import {
   restaurarSesionMajoriti,
 } from "@/lib/consultoria/impersonar";
 import { enviarInvitacionEntrevista } from "@/lib/consultoria/invitacion-entrevista";
+import { sincronizarTranscripcionNotion } from "@/lib/consultoria/notion-transcripcion";
 import {
   enviarPlantillaALista,
   getPlantillaDelProyecto,
@@ -1166,6 +1167,58 @@ export async function descargarTranscripcion(
     filename: archivo.filename,
     status: "success",
   };
+}
+
+export type PublicacionNotionTranscripcion =
+  | { alreadyDone: boolean; status: "success"; url: string }
+  | { status: "error"; message: string };
+
+export async function publicarTranscripcionNotion(
+  stakeholderId: string
+): Promise<PublicacionNotionTranscripcion> {
+  await requireAdminUser();
+
+  const datos = await getTranscripcionDescargable(stakeholderId);
+
+  if (!datos) {
+    return { message: "No encontramos al stakeholder", status: "error" };
+  }
+
+  if (!(datos.entrevistaId && datos.estadoEntrevista === "completada")) {
+    return {
+      message: "La entrevista todavía no está completada",
+      status: "error",
+    };
+  }
+
+  try {
+    const resultado = await sincronizarTranscripcionNotion(datos.entrevistaId);
+    if (resultado.status === "skipped") {
+      return {
+        message:
+          "Faltan NOTION_API_KEY o NOTION_TRANSCRIPCIONES_DATABASE_ID en el servidor",
+        status: "error",
+      };
+    }
+
+    if (datos.proyectoId) {
+      revalidatePath(`/admin/${datos.proyectoId}`);
+      revalidatePath(`/admin/${datos.proyectoId}/stakeholder/${stakeholderId}`);
+    }
+    return {
+      alreadyDone: resultado.status === "alreadyDone",
+      status: "success",
+      url: resultado.url,
+    };
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudo enviar la transcripción a Notion",
+      status: "error",
+    };
+  }
 }
 
 export async function guardarContenidoEntrevista(
