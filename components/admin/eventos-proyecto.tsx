@@ -9,6 +9,10 @@ import {
 } from "@/app/(admin)/admin/actions";
 import { ActionMensaje } from "@/components/admin/action-mensaje";
 import { AdminAlta, AdminSeccion } from "@/components/admin/admin-seccion";
+import {
+  CalendarioGoogle,
+  type ReunionGoogle,
+} from "@/components/admin/calendario-google";
 import { MinutaMarkdown } from "@/components/minuta-markdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -245,6 +249,7 @@ function EventoFila({
                 ? ` · ${evento.participantes.join(", ")}`
                 : ""}
               {evento.minuta ? " · Minuta" : ""}
+              {evento.googleEventId ? " · Google" : ""}
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -378,18 +383,37 @@ function CrearEventoForm({ proyectoId }: { proyectoId: string }) {
 }
 
 export function EventosProyecto({
-  proyectoId,
+  avisoCalendario,
+  calendarioConectado,
+  calendarioConfigurado,
+  calendarioEmail,
   eventos,
+  proyectoId,
+  reuniones,
 }: {
-  proyectoId: string;
+  avisoCalendario: string | null;
+  calendarioConectado: boolean;
+  calendarioConfigurado: boolean;
+  calendarioEmail: string | null;
   eventos: EventoDelProyecto[];
+  proyectoId: string;
+  reuniones: ReunionGoogle[];
 }) {
   return (
     <AdminSeccion
-      descripcion="Reuniones y otros hitos que el cliente ve en el calendario. Las fechas de cada fase se editan al abrirla y no aparecen en el calendario."
+      descripcion="Reuniones que el cliente ve en el calendario. Elige las de Google Calendar, o agrega una fecha a mano. Las fechas de cada fase se editan al abrirla y no aparecen aquí."
       resumen={eventos.length === 1 ? "1 fecha" : `${eventos.length} fechas`}
       titulo="Fechas relevantes"
     >
+      <CalendarioGoogle
+        aviso={avisoCalendario}
+        conectado={calendarioConectado}
+        configurado={calendarioConfigurado}
+        email={calendarioEmail}
+        eventos={reuniones}
+        proyectoId={proyectoId}
+      />
+
       {eventos.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           Todavía no hay reuniones ni eventos extra.

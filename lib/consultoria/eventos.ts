@@ -9,11 +9,13 @@ type EventoRow = {
   fecha: string;
   participantes: string[] | null;
   minuta: string | null;
+  google_event_id: string | null;
 };
 
 function toEvento(row: EventoRow): EventoDelProyecto {
   return {
     fecha: row.fecha,
+    googleEventId: row.google_event_id,
     id: row.id,
     minuta: row.minuta?.trim() || null,
     participantes: row.participantes ?? [],
@@ -55,7 +57,7 @@ export async function getEventosDelProyecto(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("evento")
-    .select("id, titulo, fecha, participantes, minuta")
+    .select("id, titulo, fecha, participantes, minuta, google_event_id")
     .eq("proyecto_id", proyectoId)
     .order("fecha")
     .order("titulo");
@@ -152,4 +154,88 @@ export async function eliminarEventoDelProyecto({
   }
 
   return { ok: true };
+}
+
+export type EventoGoogleParaPortal = {
+  fecha: string;
+  googleEventId: string;
+  participantes: string[];
+  titulo: string;
+};
+
+export async function agregarEventosDeGoogle({
+  proyectoId,
+  eventos,
+}: {
+  proyectoId: string;
+  eventos: EventoGoogleParaPortal[];
+}): Promise<{ message: string; ok: true } | { message: string; ok: false }> {
+  if (eventos.length === 0) {
+    return { message: "No hay reuniones para agregar.", ok: false };
+  }
+
+  const supabase = await createClient();
+  const ids = eventos.map((evento) => evento.googleEventId);
+  const { data: existentes, error: errorLectura } = await supabase
+    .from("evento")
+    .select("google_event_id, proyecto_id")
+    .in("google_event_id", ids);
+
+  if (errorLectura) {
+    return { message: errorLectura.message, ok: false };
+  }
+
+  const porId = new Map<string, string>();
+  for (const fila of (existentes ?? []) as Array<{
+    google_event_id: string;
+    proyecto_id: string;
+  }>) {
+    porId.set(fila.google_event_id, fila.proyecto_id);
+  }
+
+  const nuevos = eventos.filter((evento) => !porId.has(evento.googleEventId));
+  const enOtroPortal = eventos.filter((evento) => {
+    const proyecto = porId.get(evento.googleEventId);
+    return proyecto !== undefined && proyecto !== proyectoId;
+  }).length;
+
+  if (nuevos.length === 0) {
+    if (enOtroPortal > 0) {
+      return {
+        message: "Esas reuniones ya están en otro portal.",
+        ok: false,
+      };
+    }
+    return { message: "Esas reuniones ya están en el calendario.", ok: true };
+  }
+
+  const { error } = await supabase.from("evento").insert(
+    nuevos.map((evento) => ({
+      fecha: evento.fecha,
+      google_event_id: evento.googleEventId,
+      participantes: evento.participantes,
+      proyecto_id: proyectoId,
+      titulo: evento.titulo,
+    }))
+  );
+
+  if (error) {
+    return { message: error.message, ok: false };
+  }
+
+  if (enOtroPortal > 0) {
+    return {
+      message: `Se agregaron ${nuevos.length}. ${enOtroPortal} ya estaban en otro portal.`,
+      ok: true,
+    };
+  }
+
+  if (nuevos.length === 1) {
+    return { message: "Reunión agregada al calendario.", ok: true };
+  }
+
+  return {
+    message: `Se agregaron ${nuevos.length} reuniones al calendario.`,
+    ok: true,
+  };
 }

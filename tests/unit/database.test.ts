@@ -389,3 +389,39 @@ test("transcript rows stay visible to the owner and same-project client, not to 
     ).rows
   ).toHaveLength(0);
 });
+
+test("calendar tokens stay hidden from portal users", async () => {
+  await db.exec("RESET ROLE; SET ROLE service_role");
+  await db.query(
+    `INSERT INTO public.calendario_google (usuario_id, email, refresh_token)
+     VALUES ($1, 'admin@example.test', 'cifrado')`,
+    [ADMIN]
+  );
+  await actAs(db, USER, "participant@example.test");
+  expect(
+    (await db.query("SELECT usuario_id FROM public.calendario_google")).rows
+  ).toHaveLength(0);
+  await expect(
+    db.query(
+      `INSERT INTO public.calendario_google (usuario_id, email, refresh_token)
+       VALUES ($1, 'x@example.test', 'no')`,
+      [USER]
+    )
+  ).rejects.toThrow(/row-level security/);
+});
+
+test("a google event can belong to only one portal date", async () => {
+  await db.exec("RESET ROLE; SET ROLE service_role");
+  await db.query(
+    `INSERT INTO public.evento (proyecto_id, titulo, fecha, google_event_id)
+     VALUES ($1, 'Kickoff', '2026-09-22', 'evt-1')`,
+    [PROJECT]
+  );
+  await expect(
+    db.query(
+      `INSERT INTO public.evento (proyecto_id, titulo, fecha, google_event_id)
+       VALUES ($1, 'Otra', '2026-09-23', 'evt-1')`,
+      [PROJECT]
+    )
+  ).rejects.toThrow(/duplicate key|unique/i);
+});

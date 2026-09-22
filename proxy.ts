@@ -30,6 +30,10 @@ export async function proxy(request: NextRequest) {
   const { supabase, supabaseResponse, user } = await updateSession(request);
   const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
+  if (pathname === "/api/granola/webhook") {
+    return supabaseResponse;
+  }
+
   const isPublicAuth =
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||

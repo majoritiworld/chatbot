@@ -43,6 +43,8 @@ export type Evento = {
   fecha: string;
   participantes: string[];
   minuta: string | null;
+  google_event_id: string | null;
+  granola_note_id: string | null;
   created_at: string;
 };
 

@@ -4,4 +4,5 @@ export type EventoDelProyecto = {
   fecha: string;
   participantes: string[];
   minuta: string | null;
+  googleEventId: string | null;
 };

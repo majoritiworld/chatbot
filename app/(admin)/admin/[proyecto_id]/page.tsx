@@ -9,6 +9,8 @@ import { StakeholdersTable } from "@/components/admin/stakeholders-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdminUser } from "@/lib/consultoria/admin";
 import { getEventosDelProyecto } from "@/lib/consultoria/eventos";
+import { cargarCalendarioAdmin } from "@/lib/consultoria/google-calendar";
+import { avisoCalendario } from "@/lib/consultoria/google-evento";
 import {
   getProyectoAdmin,
   listFasesAdmin,
@@ -16,38 +18,55 @@ import {
 } from "@/lib/consultoria/stakeholders";
 
 type ProyectoParams = Promise<{ proyecto_id: string }>;
+type ProyectoSearch = Promise<{ calendario?: string }>;
 
 export default function AdminProyectoPage({
   params,
+  searchParams,
 }: {
   params: ProyectoParams;
+  searchParams: ProyectoSearch;
 }) {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10">
       <Suspense fallback={<ProyectoSkeleton />}>
-        <ProyectoContenido params={params} />
+        <ProyectoContenido params={params} searchParams={searchParams} />
       </Suspense>
     </main>
   );
 }
 
-async function ProyectoContenido({ params }: { params: ProyectoParams }) {
+async function ProyectoContenido({
+  params,
+  searchParams,
+}: {
+  params: ProyectoParams;
+  searchParams: ProyectoSearch;
+}) {
   const { proyecto_id: proyectoId } = await params;
-  await requireAdminUser();
+  const admin = await requireAdminUser();
   const proyecto = await getProyectoAdmin(proyectoId);
 
   if (!proyecto) {
     notFound();
   }
 
-  const [stakeholders, fases, eventos] = await Promise.all([
-    listStakeholdersAdmin(proyectoId),
-    listFasesAdmin(proyectoId),
-    getEventosDelProyecto(proyectoId),
-  ]);
+  const [stakeholders, fases, eventos, calendario, consulta] =
+    await Promise.all([
+      listStakeholdersAdmin(proyectoId),
+      listFasesAdmin(proyectoId),
+      getEventosDelProyecto(proyectoId),
+      cargarCalendarioAdmin(admin.id),
+      searchParams,
+    ]);
   const completadas = stakeholders.filter(
     (row) => row.estadoEntrevista === "completada"
   ).length;
+  const idsEnPortal = new Set(
+    eventos.flatMap((evento) =>
+      evento.googleEventId ? [evento.googleEventId] : []
+    )
+  );
 
   return (
     <>
@@ -69,7 +88,20 @@ async function ProyectoContenido({ params }: { params: ProyectoParams }) {
 
       <FasesProyecto fases={fases} proyectoId={proyectoId} />
 
-      <EventosProyecto eventos={eventos} proyectoId={proyectoId} />
+      <EventosProyecto
+        avisoCalendario={
+          avisoCalendario(consulta.calendario) ?? calendario.aviso
+        }
+        calendarioConectado={calendario.conectado}
+        calendarioConfigurado={calendario.configurado}
+        calendarioEmail={calendario.email}
+        eventos={eventos}
+        proyectoId={proyectoId}
+        reuniones={calendario.eventos.map((evento) => ({
+          ...evento,
+          enPortal: idsEnPortal.has(evento.id),
+        }))}
+      />
 
       <AdminSeccion
         defaultOpen
