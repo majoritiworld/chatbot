@@ -5,7 +5,7 @@ import {
   avisoEntregaAlFinalizar,
   avisoGuardadoRespuestas,
   consentimientoEntrevistaListo,
-  estadoVisibleEntrevistaPortal,
+  contextoOnboardingEntrevista,
   debeBloquearCorreoEntrevista,
   debeConfirmarCierrePorBorrador,
   decisionReintentoCorreo,
@@ -13,6 +13,7 @@ import {
   entrevistaAceptaChat,
   escribirBorradorEntrevista,
   estadoEntregaEntrevista,
+  estadoVisibleEntrevistaPortal,
   etiquetaAccionCierreAnticipado,
   etiquetaCierreAnticipado,
   etiquetaCierreTema,
@@ -26,6 +27,7 @@ import {
   muestraPantallaRevision,
   pantallaParticipanteEntrevista,
   puntosAyudaEntrevista,
+  puntosUsoRespuestasEntrevista,
   reiniciarBorradoresEntrevistaParaPruebas,
   salidaEntrevistaInsegura,
   siguienteTransicionInicial,
@@ -264,6 +266,24 @@ test.describe("Pilot interview helpers", () => {
     expect(minutosAproxEntrevista(6)).toBe(30);
     expect(textoDuracionEntrevista(6)).toBe(
       "Suele tomar alrededor de 30 minutos."
+    );
+  });
+
+  test("onboarding names the project company, not a hardcoded client", () => {
+    expect(contextoOnboardingEntrevista("Emprende Tu Mente (ETM)")).toContain(
+      "junto con Emprende Tu Mente (ETM)"
+    );
+    expect(contextoOnboardingEntrevista("ComplianceLatam")).toContain(
+      "junto con ComplianceLatam"
+    );
+    expect(contextoOnboardingEntrevista("  ")).toContain(
+      "junto con tu compañía"
+    );
+    expect(puntosUsoRespuestasEntrevista("Emprende Tu Mente (ETM)")[0]).toBe(
+      "Se guardan de forma exclusiva para Emprende Tu Mente (ETM)."
+    );
+    expect(puntosUsoRespuestasEntrevista(null)[0]).toBe(
+      "Se guardan de forma exclusiva para tu compañía."
     );
   });
 

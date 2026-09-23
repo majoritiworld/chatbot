@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { partirNombre } from "@/lib/consultoria/nombre";
+import type { RolPortal } from "@/lib/consultoria/roles";
 
 export const MAX_DESTINATARIOS = 50;
 
@@ -19,6 +20,8 @@ export type DestinatarioPlantilla = {
   nombre: string;
   apellido: string | null;
   firma: string | null;
+  /** Keeps the portal role of people already in the project. */
+  rol?: RolPortal;
 };
 
 export type DestinatariosParseados =
@@ -152,4 +155,41 @@ export function parseDestinatarios(
   }
 
   return { destinatarios, ok: true };
+}
+
+/** Same parser, but an empty paste is valid when the admin picked people. */
+export function parseDestinatariosOpcional(
+  raw: string,
+  firmaDefault: string | null
+): DestinatariosParseados {
+  const tieneLineas = raw
+    .split("\n")
+    .some(
+      (linea) => !(LINEA_VACIA.test(linea) || LINEA_COMENTARIO.test(linea))
+    );
+
+  if (!tieneLineas) {
+    return { destinatarios: [], ok: true };
+  }
+
+  return parseDestinatarios(raw, firmaDefault);
+}
+
+/** Existing people first; a pasted duplicate of the same email is dropped. */
+export function combinarDestinatarios(
+  existentes: DestinatarioPlantilla[],
+  pegados: DestinatarioPlantilla[]
+): DestinatarioPlantilla[] {
+  const vistos = new Set<string>();
+  const combinados: DestinatarioPlantilla[] = [];
+
+  for (const persona of [...existentes, ...pegados]) {
+    if (vistos.has(persona.email)) {
+      continue;
+    }
+    vistos.add(persona.email);
+    combinados.push(persona);
+  }
+
+  return combinados;
 }

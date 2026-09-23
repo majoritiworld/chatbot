@@ -136,7 +136,6 @@ function nombreDelResponsable(
   );
 }
 
-
 function toFaseDelPortal(
   row: FaseRow,
   viewerEmail: string | null
@@ -237,7 +236,7 @@ export async function getProyecto(proyectoId: string | null) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("proyecto")
-    .select("id, nombre, cliente, fecha_comite")
+    .select("id, nombre, cliente, fecha_comite, descripcion")
     .eq("id", proyectoId)
     .maybeSingle();
 

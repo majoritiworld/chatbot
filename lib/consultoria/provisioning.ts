@@ -175,6 +175,88 @@ export async function crearEntrevistaConTarea({
   return { entrevistaId: entrevista.id, ok: true };
 }
 
+/**
+ * Removes a sent interview from a phase. The person stays in the project so
+ * the same template can be sent again. Answers go with the interview row.
+ */
+export async function eliminarEntrevistaDeFase({
+  proyectoId,
+  faseId,
+  entrevistaId,
+}: {
+  proyectoId: string;
+  faseId: string;
+  entrevistaId: string;
+}): Promise<
+  { ok: true; stakeholderId: string } | { ok: false; message: string }
+> {
+  const fase = await getFaseDelProyecto(proyectoId, faseId);
+  if (!fase) {
+    return { message: "Esa fase no es de este proyecto", ok: false };
+  }
+
+  const supabase = await createClient();
+  const { data: tarea } = await supabase
+    .from("tarea")
+    .select("id")
+    .eq("fase_id", faseId)
+    .eq("tipo", "entrevista")
+    .eq("entrevista_id", entrevistaId)
+    .maybeSingle();
+
+  if (!tarea) {
+    return { message: "Esa entrevista no está en esta fase", ok: false };
+  }
+
+  const { data: entrevista } = await supabase
+    .from("entrevista")
+    .select("id, stakeholder_id")
+    .eq("id", entrevistaId)
+    .maybeSingle();
+
+  if (!entrevista) {
+    return { message: "No se encontró la entrevista", ok: false };
+  }
+
+  const { error: entrevistaError } = await supabase
+    .from("entrevista")
+    .delete()
+    .eq("id", entrevista.id);
+
+  if (entrevistaError) {
+    return { message: entrevistaError.message, ok: false };
+  }
+
+  const { error: tareaError } = await supabase
+    .from("tarea")
+    .delete()
+    .eq("id", tarea.id);
+
+  if (tareaError) {
+    return { message: tareaError.message, ok: false };
+  }
+
+  const { data: restante } = await supabase
+    .from("entrevista")
+    .select("id")
+    .eq("stakeholder_id", entrevista.stakeholder_id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!restante) {
+    const { error: estadoError } = await supabase
+      .from("stakeholder")
+      .update({ estado_entrevista: "pendiente" })
+      .eq("id", entrevista.stakeholder_id);
+
+    if (estadoError) {
+      return { message: estadoError.message, ok: false };
+    }
+  }
+
+  return { ok: true, stakeholderId: entrevista.stakeholder_id };
+}
+
 export type ResultadoProvisionPlantilla =
   | {
       ok: true;

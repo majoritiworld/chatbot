@@ -5,6 +5,7 @@ import {
   normalizarEmail,
   patronEmail,
 } from "@/lib/consultoria/auth";
+import type { DestinatarioPlantilla } from "@/lib/consultoria/destinatarios";
 import {
   parsePreguntas,
   parseResumen,
@@ -244,6 +245,36 @@ export async function listStakeholdersAdmin(
   }));
 }
 
+/** Turns checked people into send-list rows, scoped to this project. */
+export async function destinatariosDePersonas(
+  proyectoId: string,
+  ids: string[]
+): Promise<DestinatarioPlantilla[]> {
+  const pedidos = new Set(ids.filter((id) => esUuid(id)));
+  if (pedidos.size === 0) {
+    return [];
+  }
+
+  const personas = await listStakeholdersAdmin(proyectoId);
+  const destinatarios: DestinatarioPlantilla[] = [];
+
+  for (const persona of personas) {
+    if (!pedidos.has(persona.id)) {
+      continue;
+    }
+
+    destinatarios.push({
+      apellido: persona.apellido,
+      email: persona.email,
+      firma: persona.firma,
+      nombre: persona.nombre,
+      rol: persona.rolPortal ?? undefined,
+    });
+  }
+
+  return destinatarios;
+}
+
 export type ProyectoConProgreso = {
   id: string;
   nombre: string;
@@ -288,7 +319,16 @@ export async function listProyectosConProgresoAdmin(): Promise<
   });
 }
 
-export async function getProyectoAdmin(proyectoId: string) {
+export type ProyectoAdmin = {
+  id: string;
+  nombre: string;
+  cliente: string;
+  descripcion: string | null;
+};
+
+export async function getProyectoAdmin(
+  proyectoId: string
+): Promise<ProyectoAdmin | null> {
   if (!esUuid(proyectoId)) {
     return null;
   }
@@ -296,7 +336,7 @@ export async function getProyectoAdmin(proyectoId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("proyecto")
-    .select("id, nombre, cliente")
+    .select("id, nombre, cliente, descripcion")
     .eq("id", proyectoId)
     .maybeSingle();
 

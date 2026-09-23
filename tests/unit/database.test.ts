@@ -265,6 +265,59 @@ test("another user cannot append, advance or complete this interview", async () 
   ).rejects.toThrow();
 });
 
+test("Majoriti can delete an interview and its answers; participants cannot", async () => {
+  await db.exec("RESET ROLE");
+  await db.query(
+    "INSERT INTO public.respuesta (entrevista_id, pregunta, respuesta_texto) VALUES ($1, 'P', 'R')",
+    [INTERVIEW]
+  );
+
+  await actAs(db, USER, "participant@example.test");
+  expect(
+    (
+      await db.query(
+        "DELETE FROM public.entrevista WHERE id = $1 RETURNING id",
+        [INTERVIEW]
+      )
+    ).rows
+  ).toHaveLength(0);
+
+  await db.exec("RESET ROLE");
+  await actAs(db, ADMIN, "admin@example.test");
+  expect(
+    (
+      await db.query(
+        "DELETE FROM public.entrevista WHERE id = $1 RETURNING id",
+        [INTERVIEW]
+      )
+    ).rows
+  ).toHaveLength(1);
+
+  await db.exec("RESET ROLE");
+  expect(
+    (
+      await db.query("SELECT id FROM public.entrevista WHERE id = $1", [
+        INTERVIEW,
+      ])
+    ).rows
+  ).toHaveLength(0);
+  expect(
+    (
+      await db.query(
+        "SELECT id FROM public.respuesta WHERE entrevista_id = $1",
+        [INTERVIEW]
+      )
+    ).rows
+  ).toHaveLength(0);
+  expect(
+    (
+      await db.query("SELECT id FROM public.stakeholder WHERE id = $1", [
+        STAKEHOLDER,
+      ])
+    ).rows
+  ).toHaveLength(1);
+});
+
 test("participants cannot bypass the flow with a direct update or premature submit", async () => {
   await expect(
     db.query(

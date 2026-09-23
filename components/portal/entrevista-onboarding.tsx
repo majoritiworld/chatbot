@@ -15,16 +15,15 @@ import { EntrevistaBienvenida } from "@/components/portal/entrevista-bienvenida"
 import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { Button } from "@/components/ui/button";
-
-const PUNTOS_USO = [
-  "Se guardan de forma exclusiva para ComplianceLatam.",
-  "El equipo de Majoriti las revisa durante el proyecto para analizarlas, generar insights y apoyar a la organización.",
-  "No hace falta terminar de una: puedes guardar y continuar otro día.",
-] as const;
+import {
+  contextoOnboardingEntrevista,
+  puntosUsoRespuestasEntrevista,
+} from "@/lib/consultoria/entrevista-piloto";
 
 const initialState: OnboardingActionState = { status: "idle" };
 
 export function EntrevistaOnboarding({
+  cliente,
   correoUsuario,
   entrevistaId,
   mostrarPortal,
@@ -33,6 +32,7 @@ export function EntrevistaOnboarding({
   onAceptado,
   titulo,
 }: {
+  cliente?: string | null;
   correoUsuario?: string | null;
   entrevistaId: string;
   mostrarPortal: boolean;
@@ -84,8 +84,7 @@ export function EntrevistaOnboarding({
               preguntas y conversar contigo, en vez de un formulario fijo.
             </p>
             <p className="italic text-muted-foreground text-sm leading-relaxed">
-              La preparó el equipo de Majoriti junto con ComplianceLatam para
-              este proyecto de consultoría.
+              {contextoOnboardingEntrevista(cliente)}
             </p>
           </div>
 
@@ -93,7 +92,7 @@ export function EntrevistaOnboarding({
             <p className="font-medium text-lg">Cómo se usan tus respuestas</p>
             <div className="rounded-xl bg-muted px-5 py-5">
               <ul className="flex list-disc flex-col gap-2 pl-5 text-base leading-relaxed">
-                {PUNTOS_USO.map((punto) => (
+                {puntosUsoRespuestasEntrevista(cliente).map((punto) => (
                   <li key={punto}>{punto}</li>
                 ))}
               </ul>

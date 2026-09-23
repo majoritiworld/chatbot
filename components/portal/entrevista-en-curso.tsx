@@ -28,6 +28,7 @@ import type { ChatMessage } from "@/lib/types";
 const REDIRECT_POST_SUBMIT_MS = 2800;
 
 export function EntrevistaEnCurso({
+  cliente,
   consentimientoEn,
   correoAgradecimientoEn,
   correoUsuario,
@@ -41,6 +42,7 @@ export function EntrevistaEnCurso({
   stakeholderNombre,
   titulo,
 }: {
+  cliente?: string | null;
   consentimientoEn?: string | null;
   correoAgradecimientoEn?: string | null;
   correoUsuario?: string | null;
@@ -328,6 +330,7 @@ export function EntrevistaEnCurso({
   if (pantalla === "onboarding") {
     return (
       <EntrevistaOnboarding
+        cliente={cliente}
         correoUsuario={correoUsuario}
         entrevistaId={entrevistaId}
         mostrarPortal={mostrarPortal}

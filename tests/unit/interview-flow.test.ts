@@ -29,6 +29,10 @@ import {
   MENSAJE_FORZAR_CIERRE_SECCION,
 } from "@/lib/consultoria/finalizar-seccion";
 import {
+  GUION_CL_CORTO,
+  NOMBRE_PLANTILLA_CL_CORTO,
+} from "@/lib/consultoria/guiones/compliance-latam-corto";
+import {
   esProyectoComplianceLatam,
   GUION_CL_FASE_1,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
@@ -335,6 +339,8 @@ test.describe("Interview prompt context", () => {
     expect(prompt).toContain("No escribas síntesis");
     expect(prompt).toContain("UNA sola vez");
     expect(prompt).toContain(MENSAJE_FORZAR_CIERRE_SECCION);
+    expect(prompt).toContain("español neutro");
+    expect(prompt).toContain("No uses voseo rioplatense");
   });
 
   test("greets in a gender-neutral way when the interviewee has a name", () => {
@@ -594,6 +600,24 @@ test.describe("ComplianceLatam phase 1 guide", () => {
         nombre: "ComplianceLatam",
       })
     ).toBe(true);
+  });
+
+  test("short support-lawyer guide has three sections and nine questions", () => {
+    expect(NOMBRE_PLANTILLA_CL_CORTO).toBe(
+      "Diagnóstico corto — abogado de apoyo"
+    );
+    expect(GUION_CL_CORTO).toHaveLength(3);
+    expect(GUION_CL_CORTO.map((seccion) => seccion.titulo)).toEqual([
+      "Valor comercial",
+      "Cuellos de botella y rol de apoyo",
+      "Comité de noviembre",
+    ]);
+    expect(GUION_CL_CORTO.flatMap((seccion) => seccion.preguntas)).toHaveLength(
+      9
+    );
+    expect(GUION_CL_CORTO.flatMap((seccion) => seccion.preguntas).join(" ")).not.toMatch(
+      /redes sociales|vos |tenés|querés/i
+    );
   });
 });
 

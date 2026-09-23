@@ -3,9 +3,10 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AdminAlta, AdminSeccion } from "@/components/admin/admin-seccion";
 import { AgregarStakeholderForm } from "@/components/admin/agregar-stakeholder-form";
+import { EditarProyectoForm } from "@/components/admin/editar-proyecto-form";
 import { EventosProyecto } from "@/components/admin/eventos-proyecto";
 import { FasesProyecto } from "@/components/admin/fases-proyecto";
-import { StakeholdersTable } from "@/components/admin/stakeholders-table";
+import { PersonasPorAcceso } from "@/components/admin/stakeholders-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdminUser } from "@/lib/consultoria/admin";
 import { getEventosDelProyecto } from "@/lib/consultoria/eventos";
@@ -86,6 +87,17 @@ async function ProyectoContenido({
         </p>
       </header>
 
+      <AdminSeccion
+        defaultOpen={!proyecto.descripcion}
+        descripcion="El cliente la ve debajo del título en el portal."
+        titulo="Descripción"
+      >
+        <EditarProyectoForm
+          descripcion={proyecto.descripcion}
+          proyectoId={proyectoId}
+        />
+      </AdminSeccion>
+
       <FasesProyecto fases={fases} proyectoId={proyectoId} />
 
       <EventosProyecto
@@ -113,7 +125,7 @@ async function ProyectoContenido({
         }
         titulo="Personas"
       >
-        <StakeholdersTable
+        <PersonasPorAcceso
           proyectoId={proyectoId}
           stakeholders={stakeholders}
         />

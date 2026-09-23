@@ -4,10 +4,13 @@ import { EnviarPlantillaForm } from "@/components/admin/enviar-plantilla-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { PlantillaAdmin } from "@/lib/consultoria/plantillas";
+import type { StakeholderAdmin } from "@/lib/consultoria/stakeholders";
 
 export function PlantillaEntrevistaCard({
+  personas,
   plantilla,
 }: {
+  personas: StakeholderAdmin[];
   plantilla: PlantillaAdmin;
 }) {
   const href = `/admin/${plantilla.proyectoId}/fase/${plantilla.faseId}/plantilla/${plantilla.id}`;
@@ -34,6 +37,7 @@ export function PlantillaEntrevistaCard({
       <div className="border-border border-t px-4 py-3">
         <AdminAlta etiqueta="Enviar a destinatarios">
           <EnviarPlantillaForm
+            personas={personas}
             plantillaId={plantilla.id}
             proyectoId={plantilla.proyectoId}
           />

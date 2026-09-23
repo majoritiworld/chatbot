@@ -2,18 +2,23 @@ import { AdminAlta, AdminSeccion } from "@/components/admin/admin-seccion";
 import { CrearPlantillaForm } from "@/components/admin/crear-plantilla-form";
 import { PlantillaEntrevistaCard } from "@/components/admin/plantilla-entrevista-card";
 import type { PlantillaAdmin } from "@/lib/consultoria/plantillas";
-import type { FaseAdmin } from "@/lib/consultoria/stakeholders";
+import type {
+  FaseAdmin,
+  StakeholderAdmin,
+} from "@/lib/consultoria/stakeholders";
 
 export function PlantillasProyecto({
   proyectoId,
   fases,
   plantillas,
   faseId,
+  personas,
 }: {
   proyectoId: string;
   fases: FaseAdmin[];
   plantillas: PlantillaAdmin[];
   faseId?: string;
+  personas: StakeholderAdmin[];
 }) {
   return (
     <AdminSeccion
@@ -34,7 +39,11 @@ export function PlantillasProyecto({
       ) : (
         <div className="flex flex-col gap-3">
           {plantillas.map((plantilla) => (
-            <PlantillaEntrevistaCard key={plantilla.id} plantilla={plantilla} />
+            <PlantillaEntrevistaCard
+              key={plantilla.id}
+              personas={personas}
+              plantilla={plantilla}
+            />
           ))}
         </div>
       )}

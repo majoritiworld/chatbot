@@ -68,4 +68,5 @@ export type Entrevista = {
   stakeholder_nombre?: string | null;
   stakeholder_firma?: string | null;
   stakeholder_email?: string | null;
+  proyecto_cliente?: string | null;
 };

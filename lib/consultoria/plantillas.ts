@@ -9,6 +9,10 @@ import {
   type SeccionEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import {
+  NOMBRE_PLANTILLA_CL_CORTO,
+  seccionesDeGuionClCorto,
+} from "@/lib/consultoria/guiones/compliance-latam-corto";
+import {
   NOMBRE_PLANTILLA_CL_FASE_1,
   seccionesDeGuionClFase1,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
@@ -165,7 +169,7 @@ export async function getPlantillaDelProyecto(
 
 type ClienteSupabase = Awaited<ReturnType<typeof createClient>>;
 
-type PlantillaGuionClFase1 = {
+type PlantillaGuionCl = {
   id: string;
   secciones: unknown;
 };
@@ -193,17 +197,18 @@ function seccionesConIdsEstables(
   });
 }
 
-async function getPlantillaGuionClFase1(
+async function getPlantillaGuionPorNombre(
   supabase: ClienteSupabase,
   proyectoId: string,
-  faseId: string
-): Promise<PlantillaGuionClFase1 | null> {
+  faseId: string,
+  nombre: string
+): Promise<PlantillaGuionCl | null> {
   const { data, error } = await supabase
     .from("entrevista_plantilla")
     .select("id, secciones")
     .eq("proyecto_id", proyectoId)
     .eq("fase_id", faseId)
-    .eq("nombre", NOMBRE_PLANTILLA_CL_FASE_1)
+    .eq("nombre", nombre)
     .order("created_at")
     .limit(1)
     .maybeSingle();
@@ -215,10 +220,11 @@ async function getPlantillaGuionClFase1(
   return data;
 }
 
-async function borrarPlantillasGuionClFase1Duplicadas(
+async function borrarPlantillasGuionDuplicadas(
   supabase: ClienteSupabase,
   proyectoId: string,
   faseId: string,
+  nombre: string,
   keeperId: string
 ) {
   const { error } = await supabase
@@ -226,7 +232,7 @@ async function borrarPlantillasGuionClFase1Duplicadas(
     .delete()
     .eq("proyecto_id", proyectoId)
     .eq("fase_id", faseId)
-    .eq("nombre", NOMBRE_PLANTILLA_CL_FASE_1)
+    .eq("nombre", nombre)
     .neq("id", keeperId);
 
   if (error) {
@@ -234,20 +240,24 @@ async function borrarPlantillasGuionClFase1Duplicadas(
   }
 }
 
-export async function asegurarPlantillaGuionClFase1({
+async function asegurarPlantillaGuion({
   proyectoId,
   faseId,
+  nombre,
+  seccionesDeseadas,
 }: {
   proyectoId: string;
   faseId: string;
+  nombre: string;
+  seccionesDeseadas: SeccionEntrevista[];
 }) {
   const supabase = await createClient();
-  const existente = await getPlantillaGuionClFase1(
+  const existente = await getPlantillaGuionPorNombre(
     supabase,
     proyectoId,
-    faseId
+    faseId,
+    nombre
   );
-  const seccionesDeseadas = seccionesDeGuionClFase1();
   let secciones = seccionesDeseadas;
   if (existente) {
     secciones = seccionesConIdsEstables(existente.secciones, seccionesDeseadas);
@@ -264,10 +274,11 @@ export async function asegurarPlantillaGuionClFase1({
       throw error;
     }
 
-    await borrarPlantillasGuionClFase1Duplicadas(
+    await borrarPlantillasGuionDuplicadas(
       supabase,
       proyectoId,
       faseId,
+      nombre,
       existente.id
     );
     return existente.id;
@@ -277,7 +288,7 @@ export async function asegurarPlantillaGuionClFase1({
     .from("entrevista_plantilla")
     .insert({
       fase_id: faseId,
-      nombre: NOMBRE_PLANTILLA_CL_FASE_1,
+      nombre,
       preguntas,
       proyecto_id: proyectoId,
       secciones,
@@ -290,34 +301,67 @@ export async function asegurarPlantillaGuionClFase1({
       throw error;
     }
 
-    const deNuevo = await getPlantillaGuionClFase1(
+    const deNuevo = await getPlantillaGuionPorNombre(
       supabase,
       proyectoId,
-      faseId
+      faseId,
+      nombre
     );
     if (!deNuevo) {
       throw error;
     }
 
-    await borrarPlantillasGuionClFase1Duplicadas(
+    await borrarPlantillasGuionDuplicadas(
       supabase,
       proyectoId,
       faseId,
+      nombre,
       deNuevo.id
     );
     return deNuevo.id;
   }
 
   if (data?.id) {
-    await borrarPlantillasGuionClFase1Duplicadas(
+    await borrarPlantillasGuionDuplicadas(
       supabase,
       proyectoId,
       faseId,
+      nombre,
       data.id
     );
   }
 
   return data?.id ?? null;
+}
+
+export async function asegurarPlantillaGuionClFase1({
+  proyectoId,
+  faseId,
+}: {
+  proyectoId: string;
+  faseId: string;
+}) {
+  return asegurarPlantillaGuion({
+    faseId,
+    nombre: NOMBRE_PLANTILLA_CL_FASE_1,
+    proyectoId,
+    seccionesDeseadas: seccionesDeGuionClFase1(),
+  });
+}
+
+export async function asegurarPlantillaGuionClCorto({
+  proyectoId,
+  faseId,
+}: {
+  proyectoId: string;
+  faseId: string;
+}) {
+  return asegurarPlantillaGuion({
+    faseId,
+    nombre: NOMBRE_PLANTILLA_CL_CORTO,
+    proyectoId,
+    seccionesDeseadas: seccionesDeGuionClCorto(),
+  });
 }
 
 async function mapLotes<T, R>(
@@ -392,7 +436,7 @@ async function enviarADestinatario({
     email: destinatario.email,
     nombre: nombreVisible,
     proyectoId,
-    rol,
+    rol: destinatario.rol ?? rol,
   });
 
   if (!acceso.ok) {

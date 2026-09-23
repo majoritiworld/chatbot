@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdminUser } from "@/lib/consultoria/admin";
 import { getPlantillaDelProyecto } from "@/lib/consultoria/plantillas";
+import { listStakeholdersAdmin } from "@/lib/consultoria/stakeholders";
 
 type PlantillaParams = Promise<{
   proyecto_id: string;
@@ -35,7 +36,10 @@ async function PlantillaContenido({ params }: { params: PlantillaParams }) {
     plantilla_id: plantillaId,
   } = await params;
   await requireAdminUser();
-  const plantilla = await getPlantillaDelProyecto(proyectoId, plantillaId);
+  const [plantilla, personas] = await Promise.all([
+    getPlantillaDelProyecto(proyectoId, plantillaId),
+    listStakeholdersAdmin(proyectoId),
+  ]);
 
   if (!plantilla || plantilla.faseId !== faseId) {
     notFound();
@@ -91,6 +95,7 @@ async function PlantillaContenido({ params }: { params: PlantillaParams }) {
           </p>
         </div>
         <EnviarPlantillaForm
+          personas={personas}
           plantillaId={plantilla.id}
           proyectoId={plantilla.proyectoId}
         />

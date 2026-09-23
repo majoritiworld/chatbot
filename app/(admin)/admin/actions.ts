@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdminUser } from "@/lib/consultoria/admin";
 import { cambiarRolPortal, invitarAlPortal } from "@/lib/consultoria/auth";
-import { parseDestinatarios } from "@/lib/consultoria/destinatarios";
+import {
+  combinarDestinatarios,
+  MAX_DESTINATARIOS,
+  parseDestinatariosOpcional,
+} from "@/lib/consultoria/destinatarios";
 import {
   construirArchivoTranscripcion,
   parseResumen,
@@ -42,6 +46,7 @@ import {
   actualizarFaseEnProyecto,
   crearEntrevistaConTarea,
   crearFaseEnProyecto,
+  eliminarEntrevistaDeFase,
   getFaseDelProyecto,
   preguntasDesdeTexto,
 } from "@/lib/consultoria/provisioning";
@@ -53,6 +58,7 @@ import { ROLES_PORTAL } from "@/lib/consultoria/roles";
 import {
   actualizarStakeholderAdmin,
   crearStakeholderAdmin,
+  destinatariosDePersonas,
   getTranscripcionDescargable,
 } from "@/lib/consultoria/stakeholders";
 import {
@@ -93,8 +99,14 @@ function primerError(error: z.ZodError): ActionState {
 
 const proyectoSchema = z.object({
   cliente: z.string().trim().min(1, "Cliente requerido"),
+  descripcion: z.string().optional(),
   nombre: z.string().trim().min(1, "Nombre requerido"),
 });
+
+function descripcionOpcional(value: string | undefined) {
+  const texto = value?.trim();
+  return texto ? texto : null;
+}
 
 export async function crearProyecto(
   _prev: ActionState,
@@ -104,6 +116,7 @@ export async function crearProyecto(
 
   const parsed = proyectoSchema.safeParse({
     cliente: formData.get("cliente"),
+    descripcion: formData.get("descripcion") ?? "",
     nombre: formData.get("nombre"),
   });
 
@@ -114,7 +127,11 @@ export async function crearProyecto(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("proyecto")
-    .insert({ cliente: parsed.data.cliente, nombre: parsed.data.nombre })
+    .insert({
+      cliente: parsed.data.cliente,
+      descripcion: descripcionOpcional(parsed.data.descripcion),
+      nombre: parsed.data.nombre,
+    })
     .select("id")
     .single();
 
@@ -125,6 +142,40 @@ export async function crearProyecto(
   revalidatePath("/admin");
   // The project is empty, and the phases it needs live on its own page.
   redirect(`/admin/${data.id}`);
+}
+
+const actualizarProyectoSchema = z.object({
+  descripcion: z.string().optional(),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+});
+
+export async function actualizarProyecto(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = actualizarProyectoSchema.safeParse({
+    descripcion: formData.get("descripcion") ?? "",
+    proyectoId: formData.get("proyectoId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("proyecto")
+    .update({ descripcion: descripcionOpcional(parsed.data.descripcion) })
+    .eq("id", parsed.data.proyectoId);
+
+  if (error) {
+    return { message: error.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId);
+  return { message: "Descripción guardada.", status: "success" };
 }
 
 const faseSchema = z.object({
@@ -305,6 +356,45 @@ export async function eliminarTarea(
 
   revalidateProyecto(parsed.data.proyectoId, parsed.data.faseId);
   return { message: "Tarea eliminada.", status: "success" };
+}
+
+const eliminarEntrevistaSchema = z.object({
+  entrevistaId: z.string().uuid("Entrevista inválida"),
+  faseId: z.string().uuid("Fase inválida"),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+});
+
+export async function eliminarEntrevista(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = eliminarEntrevistaSchema.safeParse({
+    entrevistaId: formData.get("entrevistaId"),
+    faseId: formData.get("faseId"),
+    proyectoId: formData.get("proyectoId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const resultado = await eliminarEntrevistaDeFase({
+    entrevistaId: parsed.data.entrevistaId,
+    faseId: parsed.data.faseId,
+    proyectoId: parsed.data.proyectoId,
+  });
+
+  if (!resultado.ok) {
+    return { message: resultado.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId, parsed.data.faseId);
+  revalidatePath(
+    `/admin/${parsed.data.proyectoId}/stakeholder/${resultado.stakeholderId}`
+  );
+  return { message: "Entrevista eliminada.", status: "success" };
 }
 
 const eventoSchema = z.object({
@@ -685,7 +775,7 @@ export async function enviarPlantillaEntrevista(
   }
 
   const firmaDefault = parsed.data.firmaDefault || null;
-  const parsedDestinatarios = parseDestinatarios(
+  const parsedDestinatarios = parseDestinatariosOpcional(
     parsed.data.destinatarios,
     firmaDefault
   );
@@ -694,8 +784,31 @@ export async function enviarPlantillaEntrevista(
     return { message: parsedDestinatarios.message, status: "error" };
   }
 
+  const existentes = await destinatariosDePersonas(
+    parsed.data.proyectoId,
+    formData.getAll("personaId").map(String)
+  );
+  const destinatarios = combinarDestinatarios(
+    existentes,
+    parsedDestinatarios.destinatarios
+  );
+
+  if (destinatarios.length === 0) {
+    return {
+      message: "Elige a alguien del proyecto o pega al menos un correo",
+      status: "error",
+    };
+  }
+
+  if (destinatarios.length > MAX_DESTINATARIOS) {
+    return {
+      message: `Máximo ${MAX_DESTINATARIOS} destinatarios por envío`,
+      status: "error",
+    };
+  }
+
   const resultado = await enviarPlantillaALista({
-    destinatarios: parsedDestinatarios.destinatarios,
+    destinatarios,
     plantillaId: parsed.data.plantillaId,
     proyectoId: parsed.data.proyectoId,
     rol: parsed.data.rol,

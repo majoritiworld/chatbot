@@ -50,6 +50,11 @@ async function PortalContenido() {
         <h1 className="font-semibold text-2xl tracking-tight">
           Bienvenid@ al Portal de {proyecto?.cliente ?? "tu compañía"}
         </h1>
+        {proyecto?.descripcion ? (
+          <p className="max-w-3xl whitespace-pre-wrap text-muted-foreground text-sm">
+            {proyecto.descripcion}
+          </p>
+        ) : null}
       </header>
 
       {!portalUser.proyectoId ||

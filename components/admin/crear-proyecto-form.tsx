@@ -6,6 +6,7 @@ import { ActionMensaje } from "@/components/admin/action-mensaje";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 const initialState: ActionState = { status: "idle" };
 
@@ -43,6 +44,15 @@ export function CrearProyectoForm() {
             required
           />
         </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="proyecto-descripcion">Descripción</Label>
+        <Textarea
+          id="proyecto-descripcion"
+          name="descripcion"
+          placeholder="Opcional. El cliente la ve debajo del título en el portal."
+        />
       </div>
 
       <ActionMensaje state={state} />

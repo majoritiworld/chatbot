@@ -160,6 +160,27 @@ export function textoDuracionEntrevista(numeroSecciones: number) {
   return `Suele tomar alrededor de ${minutos} minutos.`;
 }
 
+export function nombreCompaniaOnboarding(cliente: string | null | undefined) {
+  const nombre = cliente?.trim();
+  return nombre ? nombre : "tu compañía";
+}
+
+export function contextoOnboardingEntrevista(
+  cliente: string | null | undefined
+) {
+  return `La preparó el equipo de Majoriti junto con ${nombreCompaniaOnboarding(cliente)} para este proyecto de consultoría.`;
+}
+
+export function puntosUsoRespuestasEntrevista(
+  cliente: string | null | undefined
+) {
+  return [
+    `Se guardan de forma exclusiva para ${nombreCompaniaOnboarding(cliente)}.`,
+    "El equipo de Majoriti las revisa durante el proyecto para analizarlas, generar insights y apoyar a la organización.",
+    "No hace falta terminar de una: puedes guardar y continuar otro día.",
+  ] as const;
+}
+
 export type PantallaParticipanteEntrevista =
   | "completada"
   | "onboarding"

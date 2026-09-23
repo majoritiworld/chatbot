@@ -1,10 +1,17 @@
 "use client";
 
+import { ChevronDownIcon } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { DescargarTranscripcionButton } from "@/components/admin/descargar-transcripcion-button";
 import { EntrarComoStakeholderButton } from "@/components/admin/entrar-como-stakeholder-button";
 import { EnviarNotionTranscripcionButton } from "@/components/admin/enviar-notion-transcripcion-button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Table,
   TableBody,
@@ -13,6 +20,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  agruparPersonasPorAcceso,
+  resumenCantidad,
+} from "@/lib/consultoria/personas-grupos";
 import type { StakeholderAdmin } from "@/lib/consultoria/stakeholders";
 import { cn } from "@/lib/utils";
 
@@ -54,18 +65,55 @@ function etiquetaAcceso(rol: StakeholderAdmin["rolPortal"]) {
   return "Sin cuenta";
 }
 
-export function StakeholdersTable({
-  stakeholders,
-  proyectoId,
+function PersonasGrupo({
+  children,
+  defaultOpen,
+  resumen,
+  titulo,
 }: {
-  stakeholders: StakeholderAdmin[];
+  children: ReactNode;
+  defaultOpen: boolean;
+  resumen: string;
+  titulo: string;
+}) {
+  return (
+    <Collapsible
+      className="flex flex-col overflow-hidden rounded-lg border border-border"
+      defaultOpen={defaultOpen}
+    >
+      <h3 className="m-0 font-medium text-sm">
+        <CollapsibleTrigger
+          className="group flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/40"
+          type="button"
+        >
+          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+          <span className="min-w-0 flex-1">{titulo}</span>
+          <span className="shrink-0 font-normal text-muted-foreground text-xs">
+            {resumen}
+          </span>
+        </CollapsibleTrigger>
+      </h3>
+      <CollapsibleContent className="border-border border-t">
+        <div className="px-1 py-1">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+export function StakeholdersTable({
+  emptyMessage,
+  proyectoId,
+  stakeholders,
+}: {
+  emptyMessage?: string;
   proyectoId: string;
+  stakeholders: StakeholderAdmin[];
 }) {
   if (stakeholders.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
-        Todavía no hay personas en este proyecto. Agrégalas abajo o envíales una
-        entrevista agéntica.
+      <p className="px-3 py-2 text-muted-foreground text-sm">
+        {emptyMessage ??
+          "Todavía no hay personas en este proyecto. Agrégalas abajo o envíales una entrevista agéntica."}
       </p>
     );
   }
@@ -140,5 +188,50 @@ export function StakeholdersTable({
         ))}
       </TableBody>
     </Table>
+  );
+}
+
+export function PersonasPorAcceso({
+  proyectoId,
+  stakeholders,
+}: {
+  proyectoId: string;
+  stakeholders: StakeholderAdmin[];
+}) {
+  if (stakeholders.length === 0) {
+    return <StakeholdersTable proyectoId={proyectoId} stakeholders={[]} />;
+  }
+
+  const grupos = agruparPersonasPorAcceso(stakeholders);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <PersonasGrupo
+        defaultOpen={grupos.clientes.length > 0}
+        resumen={resumenCantidad(grupos.clientes.length, "cliente", "clientes")}
+        titulo="Clientes"
+      >
+        <StakeholdersTable
+          emptyMessage="Todavía no hay clientes en este proyecto."
+          proyectoId={proyectoId}
+          stakeholders={grupos.clientes}
+        />
+      </PersonasGrupo>
+      <PersonasGrupo
+        defaultOpen={grupos.stakeholders.length > 0}
+        resumen={resumenCantidad(
+          grupos.stakeholders.length,
+          "stakeholder",
+          "stakeholders"
+        )}
+        titulo="Stakeholders"
+      >
+        <StakeholdersTable
+          emptyMessage="Todavía no hay stakeholders en este proyecto."
+          proyectoId={proyectoId}
+          stakeholders={grupos.stakeholders}
+        />
+      </PersonasGrupo>
+    </div>
   );
 }

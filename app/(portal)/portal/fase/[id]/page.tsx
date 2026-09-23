@@ -84,6 +84,7 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
 
   return (
     <EntrevistaEnCurso
+      cliente={entrevista.proyecto_cliente}
       consentimientoEn={entrevista.consentimiento_en}
       correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
       correoUsuario={portalUser.email}

@@ -17,11 +17,9 @@ import {
   getFaseAdmin,
   getProyectoAdmin,
   listEntrevistasDeFaseAdmin,
+  listStakeholdersAdmin,
 } from "@/lib/consultoria/stakeholders";
-import {
-  listPersonasDelProyecto,
-  listTareasDeFaseAdmin,
-} from "@/lib/consultoria/tareas";
+import { listTareasDeFaseAdmin } from "@/lib/consultoria/tareas";
 
 type FaseParams = Promise<{ proyecto_id: string; id: string }>;
 
@@ -54,12 +52,18 @@ async function FaseContenido({ params }: { params: FaseParams }) {
     });
   }
 
-  const [plantillas, entrevistas, tareas, personas] = await Promise.all([
+  const [plantillas, entrevistas, tareas, stakeholders] = await Promise.all([
     listPlantillasAdmin(proyectoId, faseId),
     listEntrevistasDeFaseAdmin(faseId),
     listTareasDeFaseAdmin(faseId),
-    listPersonasDelProyecto(proyectoId),
+    listStakeholdersAdmin(proyectoId),
   ]);
+  const personas = stakeholders.map((persona) => ({
+    apellido: persona.apellido,
+    id: persona.id,
+    nombre: persona.nombre,
+    nombreCompleto: persona.nombreCompleto,
+  }));
 
   return (
     <>
@@ -85,13 +89,17 @@ async function FaseContenido({ params }: { params: FaseParams }) {
 
       <AdminSeccion
         defaultOpen={entrevistas.length > 0}
-        descripcion="Personas que ya tienen esta entrevista. Ábrela para ver la transcripción."
+        descripcion="Personas que ya tienen esta entrevista. Ábrela para ver la transcripción. Quitar un envío no borra a la persona."
         resumen={
           entrevistas.length === 1 ? "1 envío" : `${entrevistas.length} envíos`
         }
         titulo="Entrevistas enviadas"
       >
-        <EntrevistasFase entrevistas={entrevistas} proyectoId={proyectoId} />
+        <EntrevistasFase
+          entrevistas={entrevistas}
+          faseId={fase.id}
+          proyectoId={proyectoId}
+        />
       </AdminSeccion>
 
       <AdminSeccion
@@ -111,6 +119,7 @@ async function FaseContenido({ params }: { params: FaseParams }) {
       <PlantillasProyecto
         faseId={fase.id}
         fases={[fase]}
+        personas={stakeholders}
         plantillas={plantillas}
         proyectoId={proyectoId}
       />
