@@ -6,9 +6,7 @@ test("portal login uses invited email access", async ({ page }) => {
     page.getByRole("heading", { name: "Portal de consultoría" })
   ).toBeVisible();
   await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Enviarme el código" })
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continuar" })).toBeVisible();
   await expect(page.locator('input[type="password"]')).toHaveCount(0);
   await expect(
     page.getByText("El acceso es solo para personas invitadas", {

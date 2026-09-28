@@ -178,6 +178,40 @@ export async function actualizarProyecto(
   return { message: "Descripción guardada.", status: "success" };
 }
 
+const accesoDirectoSchema = z.object({
+  accesoDirecto: z.boolean(),
+  proyectoId: z.string().uuid("Proyecto inválido"),
+});
+
+export async function actualizarAccesoDirecto(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await requireAdminUser();
+
+  const parsed = accesoDirectoSchema.safeParse({
+    accesoDirecto: formData.get("accesoDirecto") === "1",
+    proyectoId: formData.get("proyectoId"),
+  });
+
+  if (!parsed.success) {
+    return primerError(parsed.error);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("proyecto")
+    .update({ acceso_directo: parsed.data.accesoDirecto })
+    .eq("id", parsed.data.proyectoId);
+
+  if (error) {
+    return { message: error.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId);
+  return { message: "Entrada guardada.", status: "success" };
+}
+
 const faseSchema = z.object({
   fechaCierre: z.string().trim().optional(),
   fechaEstimada: z.string().trim().optional(),

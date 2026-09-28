@@ -324,6 +324,7 @@ export type ProyectoAdmin = {
   nombre: string;
   cliente: string;
   descripcion: string | null;
+  acceso_directo: boolean;
 };
 
 export async function getProyectoAdmin(
@@ -336,7 +337,7 @@ export async function getProyectoAdmin(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("proyecto")
-    .select("id, nombre, cliente, descripcion")
+    .select("id, nombre, cliente, descripcion, acceso_directo")
     .eq("id", proyectoId)
     .maybeSingle();
 

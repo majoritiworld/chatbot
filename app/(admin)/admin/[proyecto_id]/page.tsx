@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { AccesoDirectoForm } from "@/components/admin/acceso-directo-form";
 import { AdminAlta, AdminSeccion } from "@/components/admin/admin-seccion";
 import { AgregarStakeholderForm } from "@/components/admin/agregar-stakeholder-form";
 import { EditarProyectoForm } from "@/components/admin/editar-proyecto-form";
@@ -114,6 +115,17 @@ async function ProyectoContenido({
           enPortal: idsEnPortal.has(evento.id),
         }))}
       />
+
+      <AdminSeccion
+        descripcion="Quien conozca un correo invitado de este proyecto entra sin código. Si lo desactivas, vuelve el código de 8 dígitos."
+        resumen={proyecto.acceso_directo ? "Solo con el correo" : "Con código"}
+        titulo="Entrada al portal"
+      >
+        <AccesoDirectoForm
+          accesoDirecto={proyecto.acceso_directo}
+          proyectoId={proyectoId}
+        />
+      </AdminSeccion>
 
       <AdminSeccion
         defaultOpen

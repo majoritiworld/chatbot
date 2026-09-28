@@ -245,8 +245,8 @@ export function LoginForm({
             Portal de consultoría
           </h1>
           <p className="text-muted-foreground text-sm">
-            Escribe tu correo y te enviamos un código para entrar. Sin
-            contraseñas.
+            Escribe tu correo. Si el proyecto lo permite, entras directo. Si no,
+            te enviamos un código.
           </p>
         </div>
       </Cabecera>
@@ -281,7 +281,7 @@ export function LoginForm({
         {errorEmail ? <Aviso mensaje={errorEmail} tono="error" /> : null}
 
         <Button className="relative" disabled={solicitarPending} type="submit">
-          Enviarme el código
+          Continuar
           {solicitarPending ? (
             <span className="absolute right-4 animate-spin">
               <LoaderIcon />

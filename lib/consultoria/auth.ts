@@ -1,9 +1,11 @@
 import "server-only";
 
-import type { User } from "@supabase/supabase-js";
+import type { EmailOtpType, User } from "@supabase/supabase-js";
+import { z } from "zod";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import type { RolPortal } from "@/lib/consultoria/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 /** Auth flags a duplicate signup with a code; older releases only set a message. */
 const EMAIL_YA_EXISTE = /already (been )?registered|already exists/i;
@@ -26,6 +28,9 @@ function esEmailExistente(error: { code?: string; message: string }) {
 }
 
 export type Invitacion = {
+  /** Project allows email-only sign-in. Never true for Majoriti accounts. */
+  accesoDirecto: boolean;
+  esMajoriti: boolean;
   nombre: string | null;
   proyectoId: string | null;
 };
@@ -48,7 +53,7 @@ export async function buscarInvitacion(
   const [{ data: usuario }, { data: stakeholder }] = await Promise.all([
     admin
       .from("usuario")
-      .select("nombre, proyecto_id")
+      .select("nombre, proyecto_id, rol")
       .ilike("email", patron)
       .maybeSingle(),
     admin
@@ -62,12 +67,102 @@ export async function buscarInvitacion(
     return null;
   }
 
+  const proyectoId = usuario?.proyecto_id ?? stakeholder?.proyecto_id ?? null;
+  const esMajoriti = usuario?.rol === "majoriti";
+  let accesoDirecto = false;
+
+  if (!esMajoriti) {
+    accesoDirecto = await proyectoTieneAccesoDirecto(admin, proyectoId);
+  }
+
   return {
+    accesoDirecto,
+    esMajoriti,
     nombre:
       usuario?.nombre ??
       (nombreCompleto(stakeholder?.nombre, stakeholder?.apellido) || null),
-    proyectoId: usuario?.proyecto_id ?? stakeholder?.proyecto_id ?? null,
+    proyectoId,
   };
+}
+
+async function proyectoTieneAccesoDirecto(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  proyectoId: string | null
+) {
+  if (!proyectoId) {
+    return false;
+  }
+
+  const { data } = await admin
+    .from("proyecto")
+    .select("acceso_directo")
+    .eq("id", proyectoId)
+    .maybeSingle();
+
+  return data?.acceso_directo === true;
+}
+
+const propiedadesEnlace = z.object({
+  hashed_token: z.string().min(1).optional(),
+  hashedToken: z.string().min(1).optional(),
+  verification_type: z.string().optional(),
+  verificationType: z.string().optional(),
+});
+
+function tipoOtp(value: string | undefined): EmailOtpType {
+  switch (value) {
+    case "email":
+    case "email_change":
+    case "invite":
+    case "magiclink":
+    case "recovery":
+    case "signup":
+      return value;
+    default:
+      return "magiclink";
+  }
+}
+
+/**
+ * Opens a session for an invited email without mailing a code. The caller
+ * decides which projects may use this.
+ */
+export async function abrirSesionPorCorreo(
+  email: string
+): Promise<{ ok: true; user: User } | { ok: false }> {
+  const admin = createAdminClient();
+
+  if (!admin) {
+    return { ok: false };
+  }
+
+  const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+    email,
+    type: "magiclink",
+  });
+  const properties = propiedadesEnlace.safeParse(link?.properties);
+  const hashedToken = properties.success
+    ? (properties.data.hashed_token ?? properties.data.hashedToken)
+    : undefined;
+  const verificationType = properties.success
+    ? (properties.data.verification_type ?? properties.data.verificationType)
+    : undefined;
+
+  if (linkError || !hashedToken) {
+    return { ok: false };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.verifyOtp({
+    token_hash: hashedToken,
+    type: tipoOtp(verificationType),
+  });
+
+  if (error || !data.user) {
+    return { ok: false };
+  }
+
+  return { ok: true, user: data.user };
 }
 
 /** Password login is only for Majoriti. Clients keep using the email code. */

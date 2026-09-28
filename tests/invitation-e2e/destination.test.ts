@@ -11,7 +11,7 @@ async function requestCode(page: Page) {
   await page
     .getByLabel("Email", { exact: true })
     .fill("participant@example.test");
-  await page.getByRole("button", { name: "Enviarme el código" }).click();
+  await page.getByRole("button", { name: "Continuar" }).click();
   await expect(page.getByLabel("Código", { exact: true })).toBeVisible();
 }
 

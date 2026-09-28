@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
+  abrirSesionPorCorreo,
   buscarInvitacion,
   ensureAuthUser,
   ensureUsuarioPerfil,
@@ -104,6 +105,22 @@ export async function solicitarCodigo(
       next: next ?? undefined,
       status: "failed",
     };
+  }
+
+  if (invitacion.accesoDirecto) {
+    const sesion = await abrirSesionPorCorreo(email);
+
+    if (!sesion.ok) {
+      return {
+        email,
+        message: ERROR_GENERICO,
+        next: next ?? undefined,
+        status: "failed",
+      };
+    }
+
+    await ensureUsuarioPerfil(sesion.user);
+    redirect(await landingPathForCurrentUser(next));
   }
 
   const { error } = await admin.auth.signInWithOtp({
