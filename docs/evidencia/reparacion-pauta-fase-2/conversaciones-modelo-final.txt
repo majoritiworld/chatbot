@@ -1,0 +1,118 @@
+
+===== S6 Uso y barreras — no menciona herramientas
+AGENTE: Perfecto, pasemos ahora a explorar el uso actual de la membresía en Estudio Rivera.
+
+¿Cómo están aprovechando hoy la membresía y qué les dificulta sacarle más provecho?
+PERSONA: Poco, la verdad. Estamos con mucha carga.
+AGENTE: Entiendo, la carga de trabajo es un factor clave que limita el aprovechamiento.
+
+¿Qué medios o herramientas de ComplianceLatam utilizan para coordinar su participación? Cuénteme cómo los usaron la última vez.
+PERSONA: No sabría decirle.
+AGENTE: No hay problema, Ana.
+
+Pensemos en la última actividad u oportunidad en la que no participaron. ¿Qué pasó?
+PERSONA: Eso.
+AGENTE [botón]: Gracias, Ana, ya tengo lo necesario para esta sección sobre uso y barreras en Estudio Rivera. Para continuar con la siguiente, pulse exactamente "Cerrar y continuar".
+-- planes por turno: menú completo | ¿Qué medios o herramientas de ComplianceLatam utilizan para coordinar su participación? Cuénteme cómo los usaron la última vez. | Pensemos en la última actividad u oportunidad en la que no participaron. ¿Qué pasó? | cerrar
+-- seguimientos (preguntas tras la principal): 2; primer turno con botón: 3; tuteo: []; fugas: 0
+-- SÍNTESIS: {
+ "hallazgos": [
+  "Aprovechamiento bajo de la membresía debido a alta carga de trabajo.",
+  "No se conoce el uso de herramientas de ComplianceLatam para coordinar participación.",
+  "No se detalla participación en actividades u oportunidades específicas, ni razones concretas más allá de la carga."
+ ],
+ "respuestas": [
+  {
+   "pregunta": "¿Cómo están aprovechando hoy la membresía y qué les dificulta sacarle más provecho?",
+   "respuesta_texto": "Poco aprovechamiento debido a mucha carga de trabajo."
+  }
+ ],
+ "sintesis": "El aprovechamiento actual de la membresía es bajo, principalmente limitado por la alta carga de trabajo. No se conoce el uso de herramientas para coordinar participación ni detalles sobre la última actividad no participada."
+}
+
+===== S1 Valor de la red — respuestas breves
+AGENTE: Ana Rivera, gracias por hacerse este espacio. Nos gustaría entender cómo les ha ido con ComplianceLatam: qué les ha servido, qué les ha costado aprovechar y qué podríamos mejorar. La idea es conversar con franqueza, pensando sobre todo en lo que han vivido durante el último año. Si su firma dejara de pertenecer a ComplianceLatam mañana, ¿qué perdería en la práctica?
+PERSONA: Perderíamos mucho.
+AGENTE: Entiendo, es significativo. ¿Recuerda alguna situación del último año en la que estar en la red haya hecho una diferencia para Estudio Rivera?
+PERSONA: Contactos, sobre todo.
+AGENTE: Claro, los contactos son clave. ¿Podría contarme un ejemplo concreto de cómo surgió una oportunidad a través de esos contactos en ComplianceLatam?
+PERSONA: No sé bien.
+AGENTE [botón]: Ana Rivera, gracias por sus respuestas sobre el valor de la red de ComplianceLatam para Estudio Rivera. Ya tengo lo necesario para esta sección: pulse "Cerrar y continuar" para pasar a la siguiente.
+PERSONA: Ok.
+AGENTE [botón]: Perfecto, Ana Rivera. Pulse "Cerrar y continuar" cuando esté lista para la siguiente sección.
+-- planes por turno: menú completo | ¿Recuerda alguna situación del último año en la que estar en la red haya hecho una diferencia para la firma? | ¿En qué terminó esa oportunidad? ¿Llegó a convertirse en trabajo para la firma? | cerrar | cerrar
+-- seguimientos (preguntas tras la principal): 2; primer turno con botón: 3; tuteo: []; fugas: 0
+
+===== S2 Conocimiento — respuestas breves
+AGENTE: Perfecto, pasemos ahora a explorar el conocimiento y la participación en ComplianceLatam dentro de Estudio Rivera.
+
+¿Qué tanto se conoce ComplianceLatam dentro de su firma?
+PERSONA: Poco.
+AGENTE: Entiendo que el conocimiento es limitado. Además de los socios que representan a Estudio Rivera, ¿qué otros equipos participan en las actividades de la red y qué hacen concretamente?
+PERSONA: Solo los socios.
+AGENTE: Gracias por precisar eso. ¿Diría que conocen solo el nombre o también lo que ofrece la red y cómo pueden aprovecharla?
+PERSONA: No sabría decir.
+AGENTE [botón]: Muchas gracias, Ana, por compartir estos detalles sobre el conocimiento y la participación en ComplianceLatam dentro de Estudio Rivera. Ya tengo lo necesario para esta sección. Por favor, pulse **"Cerrar y continuar"** para avanzar.
+PERSONA: Gracias.
+AGENTE [botón]: Perfecto, Ana. Ya tiene disponible el botón **"Cerrar y continuar"** para pasar a la siguiente sección cuando esté lista.
+-- planes por turno: menú completo | Además de los socios que representan a la firma, ¿qué otros equipos participan en las actividades de la red y qué hacen concretamente? | ¿Diría que conocen solo el nombre o también lo que ofrece la red y cómo pueden aprovecharla? | cerrar | cerrar
+-- seguimientos (preguntas tras la principal): 2; primer turno con botón: 3; tuteo: []; fugas: 0
+-- SÍNTESIS: {
+ "hallazgos": [
+  "Conocimiento limitado de ComplianceLatam en la firma",
+  "Solo los socios participan en las actividades de la red",
+  "No se sabe si conocen más allá del nombre o lo que ofrece la red"
+ ],
+ "respuestas": [
+  {
+   "pregunta": "¿Qué tanto se conoce ComplianceLatam dentro de su firma?",
+   "respuesta_texto": "Poco. Solo los socios participan en las actividades de la red. No sabría decir si conocen solo el nombre o también lo que ofrece la red y cómo aprovecharla."
+  }
+ ],
+ "sintesis": "El conocimiento de ComplianceLatam en Estudio Rivera es poco, limitado aparentemente a los socios que representan a la firma en la red, sin otros equipos participando y sin detalles sobre la profundidad del conocimiento."
+}
+
+===== S3 Uso y barreras — respuesta que ya cubre el menú
+AGENTE: Perfecto, pasemos ahora a explorar el uso actual de la membresía en Estudio Rivera.
+
+¿Cómo están aprovechando hoy la membresía y qué les dificulta sacarle más provecho?
+PERSONA: La usamos bastante. Coordinamos por el grupo de WhatsApp de la red y la plataforma de eventos; la última vez fue hace dos semanas, para organizar con otras dos firmas un webinar sobre sanciones, y ahí repartimos quién presentaba. Lo que nos dificulta es el tiempo de los asociados: la última convocatoria a un comité la dejamos pasar porque coincidía con un cierre. Necesitaríamos que la red avise con más anticipación, y nosotros tendríamos que nombrar a una persona responsable de responder.
+AGENTE [botón]: Muchas gracias, Ana, por esa visión clara del uso práctico en Estudio Rivera y las barreras identificadas. Ya tengo lo necesario para esta sección.
+
+Por favor, pulse **Cerrar y continuar**.
+PERSONA: Gracias.
+AGENTE [botón]: Perfecto, Ana. Ya tiene disponible el botón **Cerrar y continuar** para pasar a la siguiente sección cuando esté lista.
+-- planes por turno: menú completo | cerrar | cerrar
+-- seguimientos (preguntas tras la principal): 0; primer turno con botón: 1; tuteo: []; fugas: 0
+
+===== S4 Compromiso — respuesta que ya cubre aportes de contenido
+AGENTE: Perfecto, Ana, pasemos ahora a hablar del compromiso que cabe esperar de una firma socia y de cómo se compara con lo que hacen hoy en Estudio Rivera.
+
+¿Qué compromiso sería razonable esperar de una firma que pertenece a ComplianceLatam y cómo se compara eso con lo que ustedes hacen hoy?
+PERSONA: Lo razonable es aportar al menos un contenido por trimestre y responder a los referidos. Este año compartimos dos artículos y un caso para el boletín de la red, y copatrocinamos el desayuno de Bogotá. Nos cuesta sostener el ritmo en temporada alta. En los próximos tres meses podríamos comprometer un artículo, y se encargaría Laura, del área de comunicaciones. Para los referidos, bastaría un correo breve al mes contando en qué quedaron.
+AGENTE [botón]: Muchas gracias, Ana, por detallar ese compromiso actual y las proyecciones en Estudio Rivera; ya tengo lo necesario para esta sección.  
+
+Por favor, pulse exactamente "Cerrar y continuar".
+PERSONA: Nada más.
+AGENTE [botón]: Perfect Ana, ya tengo toda la información clave sobre el compromiso en esta sección de Estudio Rivera.  
+
+Por favor, pulse exactamente "Cerrar y continuar".
+-- planes por turno: menú completo | cerrar | cerrar
+-- seguimientos (preguntas tras la principal): 0; primer turno con botón: 1; tuteo: []; fugas: 0
+
+===== S5 Renovación — breves hasta el límite
+AGENTE: Perfecto, Ana. Para terminar, conversemos sobre la renovación de la membresía y su precio en Estudio Rivera.
+
+Si hoy tuviera que defender el pago de la membresía frente a sus socios, ¿cuál sería su argumento más fuerte y dónde le costaría más convencerlos?
+PERSONA: Que nos da visibilidad.
+AGENTE: Entiendo, la visibilidad es un argumento clave. Siguiendo con eso, ¿quién tiene la última palabra sobre la renovación en Estudio Rivera y qué pesa más para esa persona?
+PERSONA: Decide el comité de socios.
+AGENTE: Gracias por aclarar el rol del comité de socios. ¿Qué le ayudaría a llegar mejor preparado a esa conversación: cifras, casos concretos, un resumen de resultados u otra cosa?
+PERSONA: Casos concretos.
+AGENTE [botón]: Gracias por compartir su experiencia con franqueza. Sus respuestas nos ayudarán a entender qué está aportando valor, qué dificulta la participación y qué cambios conviene priorizar para las firmas socias de ComplianceLatam.
+
+Ya tengo lo necesario de esta sección. Por favor, pulse **Finalizar entrevista**.
+PERSONA: Listo.
+AGENTE [botón]: Perfecto, Ana. Gracias por confirmar. Por favor, pulse **Finalizar entrevista** para cerrar.
+-- planes por turno: menú completo | ¿Quién tiene la última palabra sobre la renovación y qué pesa más para esa persona? | ¿Qué le ayudaría a llegar mejor preparado a esa conversación: cifras, casos concretos, un resumen de resultados u otra cosa? | cerrar | cerrar
+-- seguimientos (preguntas tras la principal): 2; primer turno con botón: 3; tuteo: []; fugas: 0
