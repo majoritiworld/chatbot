@@ -1,3 +1,5 @@
+import { slugValido } from "@/lib/consultoria/marca";
+
 /** Only same-origin interview URLs may travel in `next`. UUID version 1–8. */
 const ENTREVISTA_DESTINO =
   /^\/portal\/entrevista\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -38,15 +40,24 @@ export function destinoSesionEnLogin(next: string | null, home: string) {
   return rutaEntrevistaPermitida(next) ?? home;
 }
 
-export function emailRedirectToAuth(site: string, next: string | null) {
+export function emailRedirectToAuth(
+  site: string,
+  next: string | null,
+  proyecto?: string | null
+) {
   const origen = site.replace(/\/$/, "");
   const callback = `${origen}/auth/callback`;
+  const params = new URLSearchParams();
   const destino = rutaEntrevistaPermitida(next);
-  if (!destino) {
-    return callback;
+  const slug = slugValido(proyecto);
+  if (destino) {
+    params.set("next", destino);
   }
-
-  return `${callback}?next=${encodeURIComponent(destino)}`;
+  if (slug) {
+    params.set("proyecto", slug);
+  }
+  const consulta = params.toString();
+  return consulta.length > 0 ? `${callback}?${consulta}` : callback;
 }
 
 export function enlaceCallbackEntrevista({
@@ -94,18 +105,17 @@ export type AsignacionInvitacion = {
 };
 
 export type ResultadoInvitacionEntrevista =
-  | { creada: boolean; enviado: true; ok: true }
+  | { creada: boolean; ok: true }
   | { message: string; ok: false };
 
 /**
- * Sends access to an already assigned interview. Never creates another row or
- * changes portal role — those belong to account provisioning.
+ * Prepares the account for an assigned interview. Does not send mail and
+ * does not create another interview.
  */
 export async function ejecutarInvitacionEntrevista({
   entrevistaId,
   cargarAsignacion,
   asegurarCuenta,
-  enviarCorreo,
 }: {
   entrevistaId: string;
   cargarAsignacion: (id: string) => Promise<AsignacionInvitacion | null>;
@@ -113,11 +123,6 @@ export async function ejecutarInvitacionEntrevista({
     email: string;
     nombre: string | null;
   }) => Promise<{ creada: boolean; ok: true } | { ok: false }>;
-  enviarCorreo: (args: {
-    email: string;
-    entrevistaId: string;
-    nombre: string | null;
-  }) => Promise<void>;
 }): Promise<ResultadoInvitacionEntrevista> {
   const asignacion = await cargarAsignacion(entrevistaId);
   if (!asignacion) {
@@ -138,11 +143,5 @@ export async function ejecutarInvitacionEntrevista({
     };
   }
 
-  await enviarCorreo({
-    email: asignacion.email,
-    entrevistaId: asignacion.entrevistaId,
-    nombre: asignacion.nombre,
-  });
-
-  return { creada: cuenta.creada, enviado: true, ok: true };
+  return { creada: cuenta.creada, ok: true };
 }

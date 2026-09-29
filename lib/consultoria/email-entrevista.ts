@@ -1,80 +1,24 @@
 import "server-only";
 
 import { Resend } from "resend";
+import {
+  remitenteConNombre,
+  type TextosComunicacion,
+} from "@/lib/consultoria/comunicacion";
 import { debeBloquearCorreoEntrevista } from "@/lib/consultoria/entrevista-piloto";
-
-const HTML_ESPECIALES = /[&<>"']/g;
-const HTML_ESCAPE: Record<string, string> = {
-  "'": "&#39;",
-  '"': "&quot;",
-  "&": "&amp;",
-  "<": "&lt;",
-  ">": "&gt;",
-};
-
-function escapeHtml(value: string) {
-  return value.replace(
-    HTML_ESPECIALES,
-    (caracter) => HTML_ESCAPE[caracter] ?? caracter
-  );
-}
-
-function saludoCorreo(nombre?: string | null) {
-  return nombre?.trim() ? `Hola ${nombre.trim()},` : "Hola,";
-}
-
-function plantillaAgradecimiento(nombre?: string | null) {
-  const saludo = saludoCorreo(nombre);
-  const cuerpo =
-    "Gracias por completar la entrevista con Majoriti. Tus respuestas fueron enviadas correctamente y serán consideradas en el trabajo de consultoría.";
-
-  return {
-    html: `<p>${escapeHtml(saludo)}</p>
-<p>${cuerpo}</p>
-<p>No necesitas hacer nada más.</p>
-<p>Equipo Majoriti</p>`,
-    text: `${saludo}
-
-${cuerpo}
-
-No necesitas hacer nada más.
-
-Equipo Majoriti`,
-  };
-}
-
-function plantillaInvitacion({
-  nombre,
-  portal,
-}: {
-  nombre?: string | null;
-  portal: string;
-}) {
-  const saludo = saludoCorreo(nombre);
-  const entrada = portal.replace(/\/$/, "");
-  const cuerpo =
-    "Te invitamos a responder una entrevista con Majoriti. Entra al portal, escribe tu correo y te enviaremos un código de 8 dígitos. Si lo pierdes, puedes pedir otro.";
-
-  return {
-    html: `<p>${escapeHtml(saludo)}</p>
-<p>${cuerpo}</p>
-<p><a href="${escapeHtml(entrada)}">Entrar al portal</a></p>
-<p>Equipo Majoriti</p>`,
-    text: `${saludo}
-
-${cuerpo}
-
-${entrada}
-
-Equipo Majoriti`,
-  };
-}
+import {
+  claveIdempotenciaConfirmacion,
+  contenidoConfirmacionEntrevista,
+  type MarcaPublica,
+  marcaPredeterminada,
+} from "@/lib/consultoria/marca";
 
 async function enviarConResend({
   copiarEquipo = true,
   destinatario,
   html,
   idempotencyKey,
+  remitente,
   subject,
   text,
 }: {
@@ -82,6 +26,7 @@ async function enviarConResend({
   destinatario: string;
   html: string;
   idempotencyKey?: string;
+  remitente?: string | null;
   subject: string;
   text: string;
 }) {
@@ -104,10 +49,11 @@ async function enviarConResend({
     process.env.INTERVIEW_EMAIL_BCC?.trim() || "hello@majoriti.world";
   const mismaBandeja = destinatario.toLowerCase() === copiaEquipo.toLowerCase();
 
-  const resend = new Resend(apiKey);
+  const baseUrl = process.env.RESEND_BASE_URL?.trim();
+  const resend = baseUrl ? new Resend(apiKey, { baseUrl }) : new Resend(apiKey);
   const { data, error } = await resend.emails.send(
     {
-      from,
+      from: remitenteConNombre(from, remitente ?? null),
       html,
       subject,
       text,
@@ -125,39 +71,29 @@ async function enviarConResend({
 }
 
 export async function enviarCorreoAgradecimiento({
+  comunicacion,
   email,
   entrevistaId,
+  marca = marcaPredeterminada(),
   nombre,
 }: {
+  comunicacion?: TextosComunicacion | null;
   email: string;
   entrevistaId: string;
+  marca?: MarcaPublica;
   nombre?: string | null;
 }) {
-  const plantilla = plantillaAgradecimiento(nombre);
-  return await enviarConResend({
-    destinatario: email.trim(),
-    html: plantilla.html,
-    idempotencyKey: `entrevista-${entrevistaId}-agradecimiento`,
-    subject: "Gracias por participar en la entrevista",
-    text: plantilla.text,
+  const plantilla = contenidoConfirmacionEntrevista({
+    comunicacion,
+    marca,
+    nombre,
   });
-}
-
-export async function enviarCorreoInvitacionEntrevista({
-  email,
-  nombre,
-  portal,
-}: {
-  email: string;
-  nombre?: string | null;
-  portal: string;
-}) {
-  const plantilla = plantillaInvitacion({ nombre, portal });
   return await enviarConResend({
-    copiarEquipo: false,
     destinatario: email.trim(),
     html: plantilla.html,
-    subject: "Invitación a la entrevista de Majoriti",
+    idempotencyKey: claveIdempotenciaConfirmacion(entrevistaId),
+    remitente: plantilla.remitente,
+    subject: plantilla.subject,
     text: plantilla.text,
   });
 }

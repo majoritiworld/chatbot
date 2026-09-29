@@ -170,6 +170,13 @@ function EntrevistaFila({
           </Link>
         </Button>
       ) : null}
+      {entrevista.puedeConsultar ? (
+        <Button asChild className="rounded-full" size="sm" variant="outline">
+          <Link href={`/portal/entrevista/${entrevista.id}`}>
+            Ver respuestas
+          </Link>
+        </Button>
+      ) : null}
     </div>
   );
 }

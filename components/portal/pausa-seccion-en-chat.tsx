@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback } from "react";
+import { useMarcaParticipante } from "@/components/portal/marca-participante";
 import { Button } from "@/components/ui/button";
 import { useCerrarSeccionEntrevista } from "@/hooks/use-cerrar-seccion-entrevista";
+import { textoPausa } from "@/lib/consultoria/marca";
 
 export function PausaSeccionEnChat({ visible }: { visible: boolean }) {
+  const marca = useMarcaParticipante();
   const { busy, continuar, forzarCierre, guardarProgreso } =
     useCerrarSeccionEntrevista();
   const handleContinuar = useCallback(() => {
@@ -23,6 +26,7 @@ export function PausaSeccionEnChat({ visible }: { visible: boolean }) {
 
   return (
     <div className="flex flex-col items-start gap-2 pt-1">
+      <p className="text-muted-foreground text-sm">{textoPausa(marca)}</p>
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={busy}

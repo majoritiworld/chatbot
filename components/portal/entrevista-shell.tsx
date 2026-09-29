@@ -4,6 +4,10 @@ import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import type { MouseEvent, ReactNode } from "react";
 import { EntrevistaMenuSecundario } from "@/components/portal/entrevista-menu-secundario";
+import {
+  estiloMarca,
+  useMarcaParticipante,
+} from "@/components/portal/marca-participante";
 import { cn } from "@/lib/utils";
 
 export function EntrevistaShell({
@@ -18,7 +22,7 @@ export function EntrevistaShell({
   onIntentarCerrarSesion,
   progresoTema,
   seccion,
-  titulo = "Entrevista",
+  titulo,
   tituloTema,
 }: {
   acciones?: ReactNode;
@@ -35,6 +39,9 @@ export function EntrevistaShell({
   titulo?: ReactNode;
   tituloTema?: string;
 }) {
+  const marca = useMarcaParticipante();
+  const tituloVisible =
+    titulo ?? (marca.personalizada ? marca.titulo : "Entrevista");
   const menu = compactoMovil ? (
     <EntrevistaMenuSecundario
       correo={correoUsuario}
@@ -49,6 +56,7 @@ export function EntrevistaShell({
     <div
       className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-white text-neutral-900"
       data-entrevista-activa={compactoMovil ? "true" : undefined}
+      style={estiloMarca(marca)}
     >
       <header
         className={cn(
@@ -76,18 +84,24 @@ export function EntrevistaShell({
               <span className="text-border text-xs">/</span>
             </>
           ) : null}
-          <span className="text-foreground text-xs">{titulo}</span>
+          <span className="text-foreground text-xs">{tituloVisible}</span>
           {seccion ? (
             <>
               <span className="text-border text-xs">/</span>
               <span className="text-muted-foreground text-xs">{seccion}</span>
             </>
           ) : null}
-          {acciones ? (
+          {mostrarPortal && acciones ? (
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               {acciones}
             </div>
           ) : null}
+          {mostrarPortal ? null : (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              {acciones}
+              {menu}
+            </div>
+          )}
         </div>
 
         {compactoMovil ? (

@@ -30,7 +30,8 @@ export function AgregarStakeholderForm({ proyectoId }: { proyectoId: string }) {
       <div>
         <h3 className="font-medium text-sm">Nueva persona</h3>
         <p className="text-muted-foreground text-sm">
-          Nombre y apellido por separado. Le enviamos el acceso al portal.
+          Nombre y apellido por separado. Preparamos el acceso, sin enviar una
+          invitación. Comparte el enlace del proyecto.
         </p>
       </div>
 

@@ -4,6 +4,8 @@ import { PortalFasesRealtime } from "@/components/portal/portal-fases-realtime";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getEventosDelProyecto } from "@/lib/consultoria/eventos";
 import { getFasesDelProyecto, getProyecto } from "@/lib/consultoria/fases";
+import { textoSinEntrevista } from "@/lib/consultoria/marca";
+import { marcaPorProyectoId } from "@/lib/consultoria/marca-publica";
 import { requirePortalUser } from "@/lib/consultoria/portal";
 import { isClienteRole, isStakeholderRole } from "@/lib/consultoria/roles";
 
@@ -24,7 +26,7 @@ export default function PortalPage() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-8 py-12">
       <Suspense fallback={null}>
-        <PortalAvisoGuardado />
+        <AvisoDelProyecto />
       </Suspense>
       <Suspense fallback={<PortalSkeleton />}>
         <PortalContenido />
@@ -33,8 +35,15 @@ export default function PortalPage() {
   );
 }
 
+async function AvisoDelProyecto() {
+  const portalUser = await requirePortalUser();
+  const marca = await marcaPorProyectoId(portalUser.proyectoId);
+  return <PortalAvisoGuardado marca={marca} />;
+}
+
 async function PortalContenido() {
   const portalUser = await requirePortalUser();
+  const marca = await marcaPorProyectoId(portalUser.proyectoId);
   const [proyecto, fases, eventos] = await Promise.all([
     getProyecto(portalUser.proyectoId),
     getFasesDelProyecto(portalUser.proyectoId),
@@ -61,7 +70,7 @@ async function PortalContenido() {
       (fases.length === 0 && eventos.length === 0) ? (
         <p className="text-muted-foreground text-sm">
           {isStakeholderRole(portalUser.rol)
-            ? "Todavía no tienes una entrevista asignada. Cuando Majoriti la publique, entrarás directo a ella."
+            ? textoSinEntrevista(marca)
             : "Todavía no hay fases publicadas para tu proyecto."}
         </p>
       ) : (

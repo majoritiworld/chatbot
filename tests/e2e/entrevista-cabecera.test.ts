@@ -58,11 +58,28 @@ test.describe("Interview mobile header", () => {
       page.getByRole("link", { name: "Escríbenos por WhatsApp" })
     ).toHaveAttribute("href", "https://wa.me/972587623357");
     await expect(
-      page.getByText("Finalizar entrevista guarda y entrega tus respuestas")
+      page.getByText("tus respuestas se entregan y verás la confirmación")
     ).toBeVisible();
     await expect(
-      page.getByText("El texto que todavía no enviaste no se guarda")
+      page.getByText("el texto que aún no enviaste no queda guardado")
     ).toBeVisible();
+  });
+
+  test("hides phase navigation when the interview is not the home project", async ({
+    page,
+  }) => {
+    await abrirCabecera(
+      page,
+      "&rol=cliente&origen=proyecto-origen&proyecto=otro-proyecto"
+    );
+    await expect(page.getByRole("link", { name: "Fases" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Más opciones" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Cerrar sesión" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("menuitem", { name: "Volver al portal" })
+    ).toHaveCount(0);
   });
 
   test("does not offer the portal to a stakeholder", async ({ page }) => {
@@ -308,6 +325,23 @@ for (const width of [320, 430] as const) {
 
 test.describe("Interview desktop header", () => {
   test.use({ viewport: { height: 800, width: 1280 } });
+
+  test("offers sign out instead of phases when the home project differs", async ({
+    page,
+  }) => {
+    await abrirCabecera(
+      page,
+      "&rol=cliente&origen=proyecto-origen&proyecto=otro-proyecto"
+    );
+    await expect(page.getByRole("link", { name: "Fases" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Más opciones" }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Cerrar sesión" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("menuitem", { name: "Volver al portal" })
+    ).toHaveCount(0);
+  });
 
   test("keeps breadcrumb and how-it-works on desktop", async ({ page }) => {
     await abrirCabecera(page, "&rol=cliente");

@@ -15,12 +15,50 @@ import {
   emailRedirectToAuth,
   rutaEntrevistaPermitida,
 } from "@/lib/consultoria/destino-entrevista";
+import { slugValido } from "@/lib/consultoria/marca";
+import {
+  proyectoIdDeEntrevista,
+  proyectoIdDeSlug,
+} from "@/lib/consultoria/marca-publica";
 import { landingPathForCurrentUser } from "@/lib/consultoria/portal";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const ERROR_GENERICO =
-  "No pudimos enviarte el código. Intenta de nuevo o escribe a Majoriti.";
+  "No pudimos enviarte el código. Intenta de nuevo o escribe al contacto del proyecto.";
+
+function slugDelFormulario(value: FormDataEntryValue | null) {
+  return slugValido(typeof value === "string" ? value : null);
+}
+
+async function proyectoDelIntento(formData: FormData) {
+  const slug = slugDelFormulario(formData.get("proyecto"));
+  const next = rutaEntrevistaPermitida(String(formData.get("next") ?? ""));
+  if (
+    typeof formData.get("proyecto") === "string" &&
+    formData.get("proyecto")
+  ) {
+    if (!slug) {
+      return { error: "Ese enlace no es válido." as const };
+    }
+    const proyectoId = await proyectoIdDeSlug(slug);
+    if (!proyectoId) {
+      return { error: "Ese enlace no es válido." as const };
+    }
+    return { next, proyectoId, slug };
+  }
+
+  if (next) {
+    const entrevistaId = next.split("/").at(-1) ?? "";
+    const proyectoId = await proyectoIdDeEntrevista(entrevistaId);
+    if (!proyectoId) {
+      return { error: "Este correo no tiene acceso a este proyecto." as const };
+    }
+    return { next, proyectoId, slug: null };
+  }
+
+  return { next: null, proyectoId: null, slug: null };
+}
 
 const emailSchema = z.object({
   email: z.string().email(),
@@ -72,7 +110,11 @@ export async function solicitarCodigo(
   const parsed = emailSchema.safeParse({
     email: formData.get("email"),
   });
-  const next = rutaEntrevistaPermitida(String(formData.get("next") ?? ""));
+  const intento = await proyectoDelIntento(formData);
+  if ("error" in intento) {
+    return { message: intento.error, status: "failed" };
+  }
+  const { next, proyectoId, slug } = intento;
 
   if (!parsed.success) {
     return {
@@ -83,18 +125,29 @@ export async function solicitarCodigo(
   }
 
   const email = normalizarEmail(parsed.data.email);
-  const invitacion = await buscarInvitacion(email);
+  const busqueda = await buscarInvitacion(email, proyectoId);
 
-  if (!invitacion) {
+  if (busqueda.estado === "varios") {
     return {
       email,
-      message:
-        "Este correo no está en el portal. Escribe a Majoriti para que te den acceso.",
+      message: "Usa el enlace del proyecto para entrar.",
       next: next ?? undefined,
       status: "failed",
     };
   }
 
+  if (busqueda.estado === "ausente") {
+    return {
+      email,
+      message: proyectoId
+        ? "Este correo no tiene acceso a este proyecto."
+        : "Este correo no está en el portal. Escribe a Majoriti para que te den acceso.",
+      next: next ?? undefined,
+      status: "failed",
+    };
+  }
+
+  const { invitacion } = busqueda;
   const cuenta = await ensureAuthUser({ email, nombre: invitacion.nombre });
   const admin = createAdminClient();
 
@@ -120,13 +173,13 @@ export async function solicitarCodigo(
     }
 
     await ensureUsuarioPerfil(sesion.user);
-    redirect(await landingPathForCurrentUser(next));
+    redirect(await landingPathForCurrentUser(next, invitacion.proyectoId));
   }
 
   const { error } = await admin.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: emailRedirectToAuth(siteUrl(), next),
+      emailRedirectTo: emailRedirectToAuth(siteUrl(), next, slug),
       shouldCreateUser: false,
     },
   });
@@ -159,7 +212,11 @@ export async function verificarCodigo(
   formData: FormData
 ): Promise<AuthActionState> {
   const emailRaw = String(formData.get("email") ?? "");
-  const next = rutaEntrevistaPermitida(String(formData.get("next") ?? ""));
+  const intento = await proyectoDelIntento(formData);
+  if ("error" in intento) {
+    return { message: intento.error, status: "failed" };
+  }
+  const { next, proyectoId } = intento;
   const parsed = codigoSchema.safeParse({
     codigo: String(formData.get("codigo") ?? "").replace(/\D/g, ""),
     email: emailRaw,
@@ -192,8 +249,22 @@ export async function verificarCodigo(
   }
 
   await ensureUsuarioPerfil(data.user);
+  const busqueda = await buscarInvitacion(email, proyectoId);
+  if (busqueda.estado !== "encontrada") {
+    await supabase.auth.signOut();
+    return {
+      email,
+      message: proyectoId
+        ? "Este correo no tiene acceso a este proyecto."
+        : "Usa el enlace del proyecto para entrar.",
+      next: next ?? undefined,
+      status: "failed",
+    };
+  }
 
-  redirect(await landingPathForCurrentUser(next));
+  redirect(
+    await landingPathForCurrentUser(next, busqueda.invitacion.proyectoId)
+  );
 }
 
 /** Majoriti only. Clients cannot obtain a session through this form. */

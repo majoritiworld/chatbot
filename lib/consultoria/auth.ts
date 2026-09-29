@@ -2,6 +2,7 @@ import "server-only";
 
 import type { EmailOtpType, User } from "@supabase/supabase-js";
 import { z } from "zod";
+import { proyectoUnicoLegacy } from "@/lib/consultoria/acceso-proyecto";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import type { RolPortal } from "@/lib/consultoria/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -35,53 +36,141 @@ export type Invitacion = {
   proyectoId: string | null;
 };
 
+export type BusquedaInvitacion =
+  | { estado: "ausente" }
+  | { estado: "encontrada"; invitacion: Invitacion }
+  | { estado: "varios" };
+
 /**
- * Only emails Majoriti already added to a project (or existing portal users)
- * may request a sign-in code. Anyone else is told to contact Majoriti instead
- * of waiting for a mail that is never coming.
+ * A project link only matches that project. Without a link, one existing
+ * membership keeps the previous login. Several memberships do not choose one.
+ * Majoriti keeps the password login; a project link never treats that account
+ * as a participant.
  */
 export async function buscarInvitacion(
-  email: string
-): Promise<Invitacion | null> {
+  email: string,
+  proyectoId?: string | null
+): Promise<BusquedaInvitacion> {
   const admin = createAdminClient();
 
   if (!admin) {
-    return null;
+    return { estado: "ausente" };
   }
 
   const patron = patronEmail(email);
-  const [{ data: usuario }, { data: stakeholder }] = await Promise.all([
+  const { data: usuario } = await admin
+    .from("usuario")
+    .select("nombre, proyecto_id, rol")
+    .ilike("email", patron)
+    .maybeSingle();
+  const esMajoriti = usuario?.rol === "majoriti";
+
+  if (proyectoId) {
+    if (esMajoriti) {
+      return { estado: "ausente" };
+    }
+    return await invitacionEnProyecto(
+      admin,
+      email,
+      proyectoId,
+      usuario?.nombre ?? null
+    );
+  }
+
+  if (esMajoriti) {
+    return {
+      estado: "encontrada",
+      invitacion: {
+        accesoDirecto: false,
+        esMajoriti: true,
+        nombre: usuario?.nombre ?? null,
+        proyectoId: usuario?.proyecto_id ?? null,
+      },
+    };
+  }
+
+  const { data: accesos } = await admin
+    .from("proyecto_acceso")
+    .select("proyecto_id")
+    .eq("email", email);
+  const ids = (accesos ?? []).map((fila) => fila.proyecto_id);
+  const unico = proyectoUnicoLegacy(ids);
+  if (unico) {
+    return await invitacionEnProyecto(
+      admin,
+      email,
+      unico,
+      usuario?.nombre ?? null
+    );
+  }
+  if (ids.length > 1) {
+    return { estado: "varios" };
+  }
+
+  const { data: stakeholders } = await admin
+    .from("stakeholder")
+    .select("nombre, apellido, proyecto_id")
+    .ilike("email", patron);
+  const proyectos = (stakeholders ?? []).map((fila) => fila.proyecto_id);
+  if (usuario?.proyecto_id) {
+    proyectos.push(usuario.proyecto_id);
+  }
+  const legado = proyectoUnicoLegacy(proyectos);
+  if (!legado) {
+    return proyectos.length > 1 ? { estado: "varios" } : { estado: "ausente" };
+  }
+
+  const stakeholder = (stakeholders ?? []).find(
+    (fila) => fila.proyecto_id === legado
+  );
+  return {
+    estado: "encontrada",
+    invitacion: {
+      accesoDirecto: await proyectoTieneAccesoDirecto(admin, legado),
+      esMajoriti: false,
+      nombre:
+        usuario?.nombre ??
+        (nombreCompleto(stakeholder?.nombre, stakeholder?.apellido) || null),
+      proyectoId: legado,
+    },
+  };
+}
+
+async function invitacionEnProyecto(
+  admin: AdminClient,
+  email: string,
+  proyectoId: string,
+  nombreUsuario: string | null
+): Promise<BusquedaInvitacion> {
+  const [{ data: acceso }, { data: stakeholder }] = await Promise.all([
     admin
-      .from("usuario")
-      .select("nombre, proyecto_id, rol")
-      .ilike("email", patron)
+      .from("proyecto_acceso")
+      .select("proyecto_id")
+      .eq("proyecto_id", proyectoId)
+      .eq("email", email)
       .maybeSingle(),
     admin
       .from("stakeholder")
-      .select("nombre, apellido, proyecto_id")
-      .ilike("email", patron)
+      .select("nombre, apellido")
+      .eq("proyecto_id", proyectoId)
+      .ilike("email", patronEmail(email))
       .maybeSingle(),
   ]);
 
-  if (!(usuario || stakeholder)) {
-    return null;
-  }
-
-  const proyectoId = usuario?.proyecto_id ?? stakeholder?.proyecto_id ?? null;
-  const esMajoriti = usuario?.rol === "majoriti";
-  let accesoDirecto = false;
-
-  if (!esMajoriti) {
-    accesoDirecto = await proyectoTieneAccesoDirecto(admin, proyectoId);
+  if (!(acceso || stakeholder)) {
+    return { estado: "ausente" };
   }
 
   return {
-    accesoDirecto,
-    esMajoriti,
-    nombre:
-      usuario?.nombre ??
-      (nombreCompleto(stakeholder?.nombre, stakeholder?.apellido) || null),
-    proyectoId,
+    estado: "encontrada",
+    invitacion: {
+      accesoDirecto: await proyectoTieneAccesoDirecto(admin, proyectoId),
+      esMajoriti: false,
+      nombre:
+        nombreUsuario ??
+        (nombreCompleto(stakeholder?.nombre, stakeholder?.apellido) || null),
+      proyectoId,
+    },
   };
 }
 
@@ -276,18 +365,24 @@ export async function ensureUsuarioPerfil(user: User) {
     return;
   }
 
-  const [{ data: stakeholder }, { data: perfil }] = await Promise.all([
+  const [{ data: stakeholders }, { data: perfil }] = await Promise.all([
     admin
       .from("stakeholder")
       .select("nombre, apellido, proyecto_id")
-      .ilike("email", patronEmail(email))
-      .maybeSingle(),
+      .ilike("email", patronEmail(email)),
     admin
       .from("usuario")
       .select("id, nombre, proyecto_id")
       .eq("id", user.id)
       .maybeSingle(),
   ]);
+  const lista = stakeholders ?? [];
+  const proyectoUnico = proyectoUnicoLegacy(
+    lista.map((fila) => fila.proyecto_id)
+  );
+  const stakeholder =
+    lista.find((fila) => fila.proyecto_id === perfil?.proyecto_id) ??
+    (lista.length === 1 ? lista.at(0) : null);
 
   if (!perfil) {
     const metadata = user.user_metadata as { nombre?: string } | null;
@@ -299,7 +394,7 @@ export async function ensureUsuarioPerfil(user: User) {
       email,
       id: user.id,
       nombre: nombreStakeholder || metadata?.nombre || null,
-      proyecto_id: stakeholder?.proyecto_id ?? null,
+      proyecto_id: proyectoUnico,
     });
 
     if (error) {
@@ -311,18 +406,19 @@ export async function ensureUsuarioPerfil(user: User) {
 
   const parches: { nombre?: string; proyecto_id?: string } = {};
 
-  if (!perfil.nombre && stakeholder) {
+  if (!perfil.nombre && lista.length > 0) {
+    const conNombre = stakeholder ?? lista.at(0);
     const nombreStakeholder = nombreCompleto(
-      stakeholder.nombre,
-      stakeholder.apellido
+      conNombre?.nombre,
+      conNombre?.apellido
     );
     if (nombreStakeholder) {
       parches.nombre = nombreStakeholder;
     }
   }
 
-  if (!perfil.proyecto_id && stakeholder?.proyecto_id) {
-    parches.proyecto_id = stakeholder.proyecto_id;
+  if (!perfil.proyecto_id && proyectoUnico) {
+    parches.proyecto_id = proyectoUnico;
   }
 
   if (Object.keys(parches).length === 0) {
@@ -340,9 +436,8 @@ export async function ensureUsuarioPerfil(user: User) {
 }
 
 /**
- * Sets portal access (cliente vs stakeholder) on the `usuario` row. Never
- * touches Majoriti or comité accounts. `proyecto_id` is filled only when empty
- * so an invite cannot pull someone off another project.
+ * Records permission for this project. The profile keeps its home
+ * `proyecto_id` and role once set, so a second project cannot move them.
  */
 async function asignarAccesoPortal({
   email,
@@ -381,9 +476,28 @@ async function asignarAccesoPortal({
     return;
   }
 
-  const parches: { rol?: RolPortal; proyecto_id?: string } = {};
+  const { error: accesoError } = await admin.from("proyecto_acceso").upsert(
+    {
+      email: normalizarEmail(email),
+      proyecto_id: proyectoId,
+      rol,
+      usuario_id: perfil.id,
+    },
+    { onConflict: "proyecto_id,email" }
+  );
 
-  if (perfil.rol !== rol) {
+  if (accesoError) {
+    console.error(
+      "No se pudo registrar el acceso al proyecto",
+      accesoError.message
+    );
+  }
+
+  const parches: { rol?: RolPortal; proyecto_id?: string } = {};
+  const esProyectoDePerfil =
+    !perfil.proyecto_id || perfil.proyecto_id === proyectoId;
+
+  if (esProyectoDePerfil && perfil.rol !== rol) {
     parches.rol = rol;
   }
 
@@ -445,9 +559,11 @@ export type ResultadoRolPortal = { ok: true } | { ok: false; message: string };
  */
 export async function cambiarRolPortal({
   email,
+  proyectoId,
   rol,
 }: {
   email: string;
+  proyectoId?: string;
   rol: RolPortal;
 }): Promise<ResultadoRolPortal> {
   const admin = createAdminClient();
@@ -459,18 +575,40 @@ export async function cambiarRolPortal({
     };
   }
 
+  const emailNormalizado = normalizarEmail(email);
   const { data: perfil } = await admin
     .from("usuario")
-    .select("id, rol")
-    .ilike("email", patronEmail(normalizarEmail(email)))
+    .select("id, rol, proyecto_id")
+    .ilike("email", patronEmail(emailNormalizado))
     .maybeSingle();
 
   if (!perfil) {
     return {
       message:
-        "Todavía no tiene cuenta. Envíale la entrevista para darle acceso y luego cambia el rol.",
+        "Todavía no tiene cuenta. Prepara el acceso desde el proyecto y luego cambia el rol.",
       ok: false,
     };
+  }
+
+  if (proyectoId) {
+    const { error: accesoError } = await admin.from("proyecto_acceso").upsert(
+      {
+        email: emailNormalizado,
+        proyecto_id: proyectoId,
+        rol,
+        usuario_id: perfil.id,
+      },
+      { onConflict: "proyecto_id,email" }
+    );
+    if (accesoError) {
+      return { message: accesoError.message, ok: false };
+    }
+  }
+
+  const actualizarRolGlobal =
+    !proyectoId || !perfil.proyecto_id || perfil.proyecto_id === proyectoId;
+  if (!actualizarRolGlobal) {
+    return { ok: true };
   }
 
   if (perfil.rol === "majoriti" || perfil.rol === "comite") {
@@ -608,9 +746,8 @@ export type ResultadoInvitacion = {
 };
 
 /**
- * Sends the one-click invite mail and confirms the account so a later code
- * request uses Magic Link, not Confirm signup. Failing to mail never loses
- * the stakeholder: they can always ask for a code at /login.
+ * Prepares the portal account for this project and does not send mail.
+ * The client shares the project link from their own inbox.
  */
 export async function invitarAlPortal({
   email,
@@ -623,50 +760,24 @@ export async function invitarAlPortal({
   proyectoId: string;
   rol?: RolPortal;
 }): Promise<ResultadoInvitacion> {
-  const admin = createAdminClient();
+  const acceso = await asegurarAccesoPortal({
+    email,
+    nombre,
+    proyectoId,
+    rol,
+  });
 
-  if (!admin) {
-    console.error("Falta SUPABASE_SERVICE_ROLE_KEY para invitar al portal");
+  if (!acceso.ok) {
     return {
       enviado: false,
       message:
-        "Persona agregada. No pudimos enviar el correo de acceso: puede entrar pidiendo un código en el portal.",
+        "Persona agregada. No pudimos preparar el acceso: inténtalo de nuevo.",
     };
   }
 
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: nombre ? { nombre } : undefined,
-    redirectTo: `${siteUrl()}/auth/callback`,
-  });
-
-  if (!error && data.user) {
-    await confirmarAuthUser(admin, data.user.id);
-    await ensureUsuarioPerfil(data.user);
-    await asignarAccesoPortal({
-      email,
-      proyectoId,
-      rol,
-      userId: data.user.id,
-    });
-    return {
-      enviado: true,
-      message: `Invitado como ${rol}. Le enviamos un correo para entrar al portal.`,
-    };
-  }
-
-  if (error && esEmailExistente(error)) {
-    await ensureAuthUser({ email, nombre });
-    await asignarAccesoPortal({ email, proyectoId, rol });
-    return {
-      enviado: false,
-      message: `Agregado como ${rol}. Ya tenía cuenta: no sale correo nuevo. Avísale que entre al portal con su email.`,
-    };
-  }
-
-  console.error("No se pudo invitar al portal", error?.message);
   return {
     enviado: false,
     message:
-      "Agregado, pero el correo de invitación no salió. Puede entrar pidiendo un código en el portal.",
+      "Acceso preparado, sin correo de invitación. Comparte el enlace del proyecto.",
   };
 }

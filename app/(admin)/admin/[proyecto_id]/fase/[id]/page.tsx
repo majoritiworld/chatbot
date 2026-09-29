@@ -11,6 +11,7 @@ import { requireAdminUser } from "@/lib/consultoria/admin";
 import { esProyectoComplianceLatam } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
 import {
   asegurarPlantillaGuionClFase1,
+  asegurarPlantillaGuionClFase2,
   listPlantillasAdmin,
 } from "@/lib/consultoria/plantillas";
 import {
@@ -45,8 +46,14 @@ async function FaseContenido({ params }: { params: FaseParams }) {
     notFound();
   }
 
-  if (fase.orden === 1 && esProyectoComplianceLatam(proyecto)) {
+  if (esProyectoComplianceLatam(proyecto) && fase.orden === 1) {
     await asegurarPlantillaGuionClFase1({
+      faseId: fase.id,
+      proyectoId,
+    });
+  }
+  if (esProyectoComplianceLatam(proyecto) && fase.orden === 2) {
+    await asegurarPlantillaGuionClFase2({
       faseId: fase.id,
       proyectoId,
     });

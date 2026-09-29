@@ -10,6 +10,7 @@ import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pan
 import { EntrevistaPresentacionSeccion } from "@/components/portal/entrevista-presentacion-seccion";
 import { EntrevistaRevision } from "@/components/portal/entrevista-revision";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
+import { useMarcaParticipante } from "@/components/portal/marca-participante";
 import { Button } from "@/components/ui/button";
 import type {
   FlujoEntrevista,
@@ -22,6 +23,7 @@ import {
   siguienteTransicionInicial,
   textoFinalizandoEntrevista,
 } from "@/lib/consultoria/entrevista-piloto";
+import { textoContactoFallo } from "@/lib/consultoria/marca";
 import { createClient } from "@/lib/supabase/client";
 import type { ChatMessage } from "@/lib/types";
 
@@ -36,6 +38,7 @@ export function EntrevistaEnCurso({
   estadoInicial,
   flujoEstadoInicial,
   mensajesIniciales,
+  minutos = null,
   mostrarPortal = false,
   seccionActualInicial,
   secciones,
@@ -50,12 +53,14 @@ export function EntrevistaEnCurso({
   estadoInicial: string;
   flujoEstadoInicial: FlujoEntrevista;
   mensajesIniciales: ChatMessage[];
+  minutos?: number | null;
   mostrarPortal?: boolean;
   seccionActualInicial: number;
   secciones: SeccionEntrevista[];
   stakeholderNombre?: string | null;
   titulo?: string;
 }) {
+  const marca = useMarcaParticipante();
   const router = useRouter();
   const yaEstabaCompletada = estadoInicial === "completada";
   const llegoEnRevision = flujoEstadoInicial === "revision";
@@ -333,6 +338,7 @@ export function EntrevistaEnCurso({
         cliente={cliente}
         correoUsuario={correoUsuario}
         entrevistaId={entrevistaId}
+        minutos={minutos}
         mostrarPortal={mostrarPortal}
         nombre={stakeholderNombre}
         numeroSecciones={secciones.length}
@@ -421,7 +427,8 @@ export function EntrevistaEnCurso({
       >
         <EntrevistaPantallaTransicion>
           <p className="text-destructive text-sm" role="alert">
-            Esta entrevista no tiene una sección activa. Contacta a Majoriti.
+            Esta entrevista no tiene una sección activa.{" "}
+            {textoContactoFallo(marca)}
           </p>
         </EntrevistaPantallaTransicion>
       </EntrevistaShell>

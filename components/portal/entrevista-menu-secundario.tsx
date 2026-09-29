@@ -34,7 +34,7 @@ export function EntrevistaMenuSecundario({
     if (onIntentarCerrarSesion?.()) {
       return;
     }
-    const form = document.getElementById("entrevista-cerrar-sesion");
+    const form = document.querySelector("[data-entrevista-cerrar-sesion]");
     if (form instanceof HTMLFormElement) {
       form.requestSubmit();
     }
@@ -45,7 +45,7 @@ export function EntrevistaMenuSecundario({
       <form
         action={signOutAction}
         className="hidden"
-        id="entrevista-cerrar-sesion"
+        data-entrevista-cerrar-sesion=""
       >
         <button type="submit">Cerrar sesión</button>
       </form>
@@ -103,7 +103,7 @@ export function EntrevistaMenuSecundario({
 }
 
 export function enviarCierreSesionPendiente() {
-  const form = document.getElementById("entrevista-cerrar-sesion");
+  const form = document.querySelector("[data-entrevista-cerrar-sesion]");
   if (form instanceof HTMLFormElement) {
     form.requestSubmit();
     return true;

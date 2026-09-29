@@ -5,9 +5,21 @@ import {
 import { mismoEmail } from "@/lib/consultoria/roles";
 import type { Entrevista } from "@/lib/supabase/types";
 
+export type RespuestaConsulta = {
+  en: string;
+  pregunta: string;
+  texto: string;
+};
+
 export type EntrevistaPortalCarga =
   | { acceso: "ausente" }
   | { acceso: "ajena" }
+  | {
+      acceso: "lectura";
+      entrevista: Entrevista;
+      respuestas: RespuestaConsulta[];
+      turnos: TurnoEntrevista[];
+    }
   | { acceso: "propia"; entrevista: Entrevista; turnos: TurnoEntrevista[] };
 
 export type FasePortalVista = {
@@ -52,19 +64,28 @@ export function coincideFaseYViewer({
 }
 
 /**
- * Transcript JSON is parsed only after ownership. Denied results never carry
- * turns, interview fields, or the raw transcript payload.
+ * Transcript JSON is parsed only for the owner, or for a same-project client
+ * who may read and not answer. Every other denial stays empty.
  */
 export function accesoEntrevistaPortal(
   entrevista: Entrevista | null,
   viewerEmail: string | null,
-  transcripcion: unknown
+  transcripcion: unknown,
+  opciones?: { consultaCliente?: boolean }
 ): EntrevistaPortalCarga {
   if (!(viewerEmail && entrevista)) {
     return { acceso: "ausente" };
   }
 
   if (!mismoEmail(entrevista.stakeholder_email, viewerEmail)) {
+    if (opciones?.consultaCliente) {
+      return {
+        acceso: "lectura",
+        entrevista,
+        respuestas: [],
+        turnos: parseTranscripcion(transcripcion),
+      };
+    }
     return { acceso: "ajena" };
   }
 

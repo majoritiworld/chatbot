@@ -19,21 +19,36 @@ import { LoaderIcon } from "@/components/chat/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  type MarcaPublica,
+  marcaPredeterminada,
+  textoAccesoInvitacion,
+} from "@/lib/consultoria/marca";
 
 /** Must match Authentication → Settings → Mailer OTP Length in Supabase. */
 const CODIGO_LARGO = 8;
 const ESPERA_REENVIO_S = 60;
 const initialState: AuthActionState = { status: "idle" };
 
-function Cabecera({ children }: { children: React.ReactNode }) {
+function Cabecera({
+  children,
+  marca,
+}: {
+  children: React.ReactNode;
+  marca: MarcaPublica;
+}) {
   return (
     <div className="flex flex-col gap-6">
       <Image
-        alt="Majoriti"
-        className="h-auto w-full max-w-[280px] object-contain object-left dark:invert"
+        alt={marca.nombre}
+        className={
+          marca.personalizada
+            ? "h-auto w-full max-w-[280px] object-contain object-left"
+            : "h-auto w-full max-w-[280px] object-contain object-left dark:invert"
+        }
         height={156}
         priority
-        src="/images/majoriti-logo.png"
+        src={marca.logoSrc}
         width={1024}
       />
       {children}
@@ -58,10 +73,14 @@ function Aviso({ mensaje, tono }: { mensaje: string; tono: "error" | "info" }) {
 
 export function LoginForm({
   enlaceInvalido = false,
+  marca = marcaPredeterminada(),
   nextDestino = null,
+  proyectoSlug = null,
 }: {
   enlaceInvalido?: boolean;
+  marca?: MarcaPublica;
   nextDestino?: string | null;
+  proyectoSlug?: string | null;
 }) {
   const [solicitarState, solicitarAction, solicitarPending] = useActionState(
     solicitarCodigo,
@@ -134,7 +153,7 @@ export function LoginForm({
 
     return (
       <>
-        <Cabecera>
+        <Cabecera marca={marca}>
           <div className="flex flex-col gap-2">
             <h1 className="font-semibold text-2xl tracking-tight">
               Revisa tu correo
@@ -153,6 +172,9 @@ export function LoginForm({
           ref={codigoFormRef}
         >
           <input name="email" type="hidden" value={emailEnviado} />
+          {proyectoSlug ? (
+            <input name="proyecto" type="hidden" value={proyectoSlug} />
+          ) : null}
           {nextDestino ? (
             <input name="next" type="hidden" value={nextDestino} />
           ) : null}
@@ -199,6 +221,9 @@ export function LoginForm({
 
         <form action={solicitarAction} className="flex flex-col gap-3">
           <input name="email" type="hidden" value={emailEnviado} />
+          {proyectoSlug ? (
+            <input name="proyecto" type="hidden" value={proyectoSlug} />
+          ) : null}
           {nextDestino ? (
             <input name="next" type="hidden" value={nextDestino} />
           ) : null}
@@ -239,10 +264,10 @@ export function LoginForm({
 
   return (
     <>
-      <Cabecera>
+      <Cabecera marca={marca}>
         <div className="flex flex-col gap-2">
           <h1 className="font-semibold text-2xl tracking-tight">
-            Portal de consultoría
+            {marca.personalizada ? marca.titulo : "Portal de consultoría"}
           </h1>
           <p className="text-muted-foreground text-sm">
             Escribe tu correo. Si el proyecto lo permite, entras directo. Si no,
@@ -259,6 +284,9 @@ export function LoginForm({
       ) : null}
 
       <form action={solicitarAction} className="flex flex-col gap-4">
+        {proyectoSlug ? (
+          <input name="proyecto" type="hidden" value={proyectoSlug} />
+        ) : null}
         {nextDestino ? (
           <input name="next" type="hidden" value={nextDestino} />
         ) : null}
@@ -291,16 +319,17 @@ export function LoginForm({
       </form>
 
       <p className="text-[13px] text-muted-foreground">
-        El acceso es solo para personas invitadas por Majoriti. Si tu correo no
-        está, escríbenos y lo agregamos.
+        {textoAccesoInvitacion(marca)}
       </p>
 
-      <Link
-        className="text-[13px] text-muted-foreground underline-offset-4 hover:underline"
-        href="/login/admin"
-      >
-        Equipo Majoriti
-      </Link>
+      {marca.personalizada ? null : (
+        <Link
+          className="text-[13px] text-muted-foreground underline-offset-4 hover:underline"
+          href="/login/admin"
+        >
+          Equipo Majoriti
+        </Link>
+      )}
     </>
   );
 }

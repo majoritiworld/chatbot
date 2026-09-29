@@ -1,3 +1,8 @@
+import {
+  parseSintesisConsulta,
+  type SintesisConsulta,
+} from "@/lib/consultoria/sintesis-consulta";
+
 /**
  * Shape of what an interview leaves behind: the turn-by-turn transcript and
  * the structured summary the agent writes when it closes. Both live on
@@ -78,6 +83,8 @@ export type ResumenEntrevista = {
   sintesis: string;
   hallazgos: string[];
   respuestas: RespuestaResumen[];
+  /** Client consultation summary. Absent until it is saved after submit. */
+  consulta?: SintesisConsulta;
 };
 
 export const RESUMEN_VACIO: ResumenEntrevista = {
@@ -357,9 +364,14 @@ export function parseResumen(value: unknown): ResumenEntrevista | null {
     return null;
   }
 
-  const { sintesis, hallazgos, respuestas } = value as Record<string, unknown>;
+  const { consulta, sintesis, hallazgos, respuestas } = value as Record<
+    string,
+    unknown
+  >;
+  const consultaGuardada = parseSintesisConsulta(consulta);
 
   return {
+    ...(consultaGuardada ? { consulta: consultaGuardada } : {}),
     hallazgos: Array.isArray(hallazgos)
       ? hallazgos.filter((item): item is string => typeof item === "string")
       : [],

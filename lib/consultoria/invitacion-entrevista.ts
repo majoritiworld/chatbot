@@ -1,14 +1,12 @@
 import "server-only";
 
 import { requireAdminUser } from "@/lib/consultoria/admin";
-import { ensureAuthUser, siteUrl } from "@/lib/consultoria/auth";
+import { ensureAuthUser } from "@/lib/consultoria/auth";
 import {
   type AsignacionInvitacion,
   ejecutarInvitacionEntrevista,
-  enlacePortal,
   type ResultadoInvitacionEntrevista,
 } from "@/lib/consultoria/destino-entrevista";
-import { enviarCorreoInvitacionEntrevista } from "@/lib/consultoria/email-entrevista";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -85,12 +83,5 @@ export async function enviarInvitacionEntrevista(
     },
     cargarAsignacion: cargarAsignacionInvitacion,
     entrevistaId,
-    enviarCorreo: async ({ email, nombre }) => {
-      await enviarCorreoInvitacionEntrevista({
-        email,
-        nombre,
-        portal: enlacePortal(siteUrl()),
-      });
-    },
   });
 }

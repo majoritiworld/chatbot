@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdminUser } from "@/lib/consultoria/admin";
 import { cambiarRolPortal, invitarAlPortal } from "@/lib/consultoria/auth";
+import { urlHttps } from "@/lib/consultoria/comunicacion";
 import {
   combinarDestinatarios,
   MAX_DESTINATARIOS,
@@ -34,7 +35,12 @@ import {
   impersonarStakeholder,
   restaurarSesionMajoriti,
 } from "@/lib/consultoria/impersonar";
-import { enviarInvitacionEntrevista } from "@/lib/consultoria/invitacion-entrevista";
+import {
+  interpretarColor,
+  mensajeSlugInvalido,
+  slugNormalizado,
+  slugValido,
+} from "@/lib/consultoria/marca";
 import { sincronizarTranscripcionNotion } from "@/lib/consultoria/notion-transcripcion";
 import {
   enviarPlantillaALista,
@@ -265,12 +271,22 @@ export async function crearFase(
 }
 
 const actualizarFaseSchema = z.object({
+  avisoRespuestas: z.string().trim().max(2000),
+  bloqueComercial: z.string().trim().max(2000),
+  bloqueComercialEtiqueta: z.string().trim().max(80),
+  bloqueComercialUrl: z.string().trim().max(500),
+  correoAsunto: z.string().trim().max(200),
+  correoCuerpo: z.string().trim().max(2000),
+  correoFirma: z.string().trim().max(160),
+  correoRemitente: z.string().trim().max(120),
   descripcion: z.string().optional(),
   faseId: z.string().uuid("Fase inválida"),
   fechaCierre: z.string().trim().optional(),
   fechaEstimada: z.string().trim().optional(),
+  minutos: z.string().trim().max(3),
   nombre: z.string().trim().min(1, "Nombre requerido"),
   proyectoId: z.string().uuid("Proyecto inválido"),
+  textoBienvenida: z.string().trim().max(2000),
 });
 
 export async function actualizarFase(
@@ -280,12 +296,22 @@ export async function actualizarFase(
   await requireAdminUser();
 
   const parsed = actualizarFaseSchema.safeParse({
+    avisoRespuestas: formData.get("avisoRespuestas") ?? "",
+    bloqueComercial: formData.get("bloqueComercial") ?? "",
+    bloqueComercialEtiqueta: formData.get("bloqueComercialEtiqueta") ?? "",
+    bloqueComercialUrl: formData.get("bloqueComercialUrl") ?? "",
+    correoAsunto: formData.get("correoAsunto") ?? "",
+    correoCuerpo: formData.get("correoCuerpo") ?? "",
+    correoFirma: formData.get("correoFirma") ?? "",
+    correoRemitente: formData.get("correoRemitente") ?? "",
     descripcion: formData.get("descripcion") ?? "",
     faseId: formData.get("faseId"),
     fechaCierre: formData.get("fechaCierre") || undefined,
     fechaEstimada: formData.get("fechaEstimada") || undefined,
+    minutos: formData.get("minutos") ?? "",
     nombre: formData.get("nombre"),
     proyectoId: formData.get("proyectoId"),
+    textoBienvenida: formData.get("textoBienvenida") ?? "",
   });
 
   if (!parsed.success) {
@@ -300,6 +326,17 @@ export async function actualizarFase(
   }
 
   const descripcion = parsed.data.descripcion?.trim() || null;
+  const minutos = minutosDeFormulario(parsed.data.minutos);
+  if (!minutos.ok) {
+    return { message: minutos.message, status: "error" };
+  }
+  const bloqueUrl = vacioONull(parsed.data.bloqueComercialUrl);
+  if (bloqueUrl && !urlHttps(bloqueUrl)) {
+    return {
+      message: "El enlace del bloque comercial tiene que empezar por https://.",
+      status: "error",
+    };
+  }
   const resultado = await actualizarFaseEnProyecto({
     descripcion,
     faseId: parsed.data.faseId,
@@ -307,6 +344,18 @@ export async function actualizarFase(
     fechaEstimada,
     nombre: parsed.data.nombre,
     proyectoId: parsed.data.proyectoId,
+    textos: {
+      avisoRespuestas: vacioONull(parsed.data.avisoRespuestas),
+      bloqueComercial: vacioONull(parsed.data.bloqueComercial),
+      bloqueComercialEtiqueta: vacioONull(parsed.data.bloqueComercialEtiqueta),
+      bloqueComercialUrl: bloqueUrl,
+      correoAsunto: vacioONull(parsed.data.correoAsunto),
+      correoCuerpo: vacioONull(parsed.data.correoCuerpo),
+      correoFirma: vacioONull(parsed.data.correoFirma),
+      correoRemitente: vacioONull(parsed.data.correoRemitente),
+      minutos: minutos.minutos,
+      textoBienvenida: vacioONull(parsed.data.textoBienvenida),
+    },
   });
 
   if (!resultado.ok) {
@@ -1108,71 +1157,166 @@ export async function asignarEntrevista(
   };
 }
 
-const invitarEntrevistaSchema = z.object({
-  entrevistaId: z.string().uuid("Entrevista inválida"),
+const marcaSchema = z.object({
+  avisoRespuestas: z.string().trim().max(2000),
+  color: z.string().trim().max(16),
+  contactoEmail: z.string().trim().max(200),
+  contactoNombre: z.string().trim().max(120),
+  correoAsunto: z.string().trim().max(200),
+  correoCuerpo: z.string().trim().max(2000),
+  correoFirma: z.string().trim().max(160),
+  correoRemitente: z.string().trim().max(120),
+  nombrePublico: z.string().trim().max(120),
   proyectoId: z.string().uuid("Proyecto inválido"),
-  stakeholderId: z.string().uuid("Stakeholder inválido"),
+  slug: z.string().trim().max(64),
+  textoBienvenida: z.string().trim().max(2000),
+  titulo: z.string().trim().max(160),
 });
 
-/** Mail the assignment URL. Does not create another interview or change role. */
-export async function invitarEntrevistaAsignada(
+const TIPOS_LOGO = new Set([
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+const LOGO_MAX_BYTES = 2_000_000;
+
+function vacioONull(value: string) {
+  return value.length > 0 ? value : null;
+}
+
+function minutosDeFormulario(value: string) {
+  if (!value) {
+    return { minutos: null, ok: true as const };
+  }
+  const minutos = Number(value);
+  if (!Number.isInteger(minutos) || minutos < 1 || minutos > 240) {
+    return {
+      message: "La duración tiene que ser un número de minutos entre 1 y 240.",
+      ok: false as const,
+    };
+  }
+  return { minutos, ok: true as const };
+}
+
+export async function guardarMarca(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
   await requireAdminUser();
 
-  const parsed = invitarEntrevistaSchema.safeParse({
-    entrevistaId: formData.get("entrevistaId"),
+  const parsed = marcaSchema.safeParse({
+    avisoRespuestas: formData.get("avisoRespuestas") ?? "",
+    color: formData.get("color") ?? "",
+    contactoEmail: formData.get("contactoEmail") ?? "",
+    contactoNombre: formData.get("contactoNombre") ?? "",
+    correoAsunto: formData.get("correoAsunto") ?? "",
+    correoCuerpo: formData.get("correoCuerpo") ?? "",
+    correoFirma: formData.get("correoFirma") ?? "",
+    correoRemitente: formData.get("correoRemitente") ?? "",
+    nombrePublico: formData.get("nombrePublico") ?? "",
     proyectoId: formData.get("proyectoId"),
-    stakeholderId: formData.get("stakeholderId"),
+    slug: formData.get("slug") ?? "",
+    textoBienvenida: formData.get("textoBienvenida") ?? "",
+    titulo: formData.get("titulo") ?? "",
   });
 
   if (!parsed.success) {
     return primerError(parsed.error);
   }
 
-  const supabase = await createClient();
-  const { data: entrevista } = await supabase
-    .from("entrevista")
-    .select("id, stakeholder:stakeholder_id ( id, proyecto_id )")
-    .eq("id", parsed.data.entrevistaId)
-    .maybeSingle();
+  const slugPedido = slugNormalizado(parsed.data.slug);
+  const slug = slugPedido ? slugValido(slugPedido) : null;
+  if (slugPedido && !slug) {
+    return { message: mensajeSlugInvalido(slugPedido), status: "error" };
+  }
 
-  const stakeholder = entrevista?.stakeholder;
-  const fila = Array.isArray(stakeholder) ? stakeholder.at(0) : stakeholder;
+  const color = interpretarColor(parsed.data.color);
+  if (!color.ok) {
+    return {
+      message: "El color principal tiene que ser un hexadecimal, como #1f4b3a.",
+      status: "error",
+    };
+  }
 
   if (
-    !(
-      entrevista &&
-      fila?.id === parsed.data.stakeholderId &&
-      fila.proyecto_id === parsed.data.proyectoId
-    )
+    parsed.data.contactoEmail &&
+    !z.string().email().safeParse(parsed.data.contactoEmail).success
   ) {
-    return {
-      message: "Esa entrevista no pertenece a esta persona.",
-      status: "error",
-    };
+    return { message: "El correo de contacto no es válido.", status: "error" };
   }
 
-  let invitacion: Awaited<ReturnType<typeof enviarInvitacionEntrevista>>;
-  try {
-    invitacion = await enviarInvitacionEntrevista(parsed.data.entrevistaId);
-  } catch {
-    return {
-      message: "No se pudo enviar la invitación. Inténtalo de nuevo.",
-      status: "error",
-    };
-  }
-  if (!invitacion.ok) {
-    return { message: invitacion.message, status: "error" };
+  const archivo = formData.get("logo");
+  const tieneLogo = archivo instanceof File && archivo.size > 0;
+  if (tieneLogo && archivo instanceof File) {
+    if (!TIPOS_LOGO.has(archivo.type)) {
+      return {
+        message: "El logo tiene que ser PNG, JPEG, WebP o GIF.",
+        status: "error",
+      };
+    }
+    if (archivo.size > LOGO_MAX_BYTES) {
+      return { message: "El logo supera 2 MB.", status: "error" };
+    }
+    if (!slug) {
+      return {
+        message: "Guarda un identificador de enlace antes de subir el logo.",
+        status: "error",
+      };
+    }
   }
 
-  return {
-    message: invitacion.creada
-      ? "Invitación enviada. Le preparamos el acceso: entra al portal con su correo y un código."
-      : "Invitación enviada. Entra al portal con su correo y un código.",
-    status: "success",
-  };
+  const supabase = await createClient();
+  let logoPath: string | undefined;
+  if (tieneLogo && archivo instanceof File && slug) {
+    const extension = archivo.type.split("/").at(1) ?? "png";
+    const path = `${parsed.data.proyectoId}/logo.${extension}`;
+    const { error: uploadError } = await supabase.storage
+      .from("marcas")
+      .upload(path, archivo, {
+        contentType: archivo.type,
+        upsert: true,
+      });
+    if (uploadError) {
+      return { message: uploadError.message, status: "error" };
+    }
+    logoPath = path;
+  }
+
+  const { error } = await supabase
+    .from("proyecto")
+    .update({
+      aviso_respuestas: vacioONull(parsed.data.avisoRespuestas),
+      color_principal: color.color,
+      contacto_email: vacioONull(parsed.data.contactoEmail.toLowerCase()),
+      contacto_nombre: vacioONull(parsed.data.contactoNombre),
+      correo_asunto: vacioONull(parsed.data.correoAsunto),
+      correo_cuerpo: vacioONull(parsed.data.correoCuerpo),
+      correo_firma: vacioONull(parsed.data.correoFirma),
+      correo_remitente: vacioONull(parsed.data.correoRemitente),
+      nombre_publico: vacioONull(parsed.data.nombrePublico),
+      slug,
+      texto_bienvenida: vacioONull(parsed.data.textoBienvenida),
+      titulo_iniciativa: vacioONull(parsed.data.titulo),
+      ...(logoPath ? { logo_path: logoPath } : {}),
+    })
+    .eq("id", parsed.data.proyectoId);
+
+  if (error) {
+    if (error.code === "23505") {
+      return {
+        message: "Ese identificador ya lo usa otro proyecto.",
+        status: "error",
+      };
+    }
+    return { message: error.message, status: "error" };
+  }
+
+  revalidateProyecto(parsed.data.proyectoId);
+  if (slug) {
+    revalidatePath(`/${slug}`);
+  }
+  return { message: "Marca guardada.", status: "success" };
 }
 
 const preguntasSchema = z.object({

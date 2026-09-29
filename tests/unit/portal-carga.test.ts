@@ -99,6 +99,17 @@ test.describe("Portal phase and interview load access", () => {
     ]);
 
     expect(ajena).toEqual({ acceso: "ajena" });
+    const lectura = accesoEntrevistaPortal(
+      entrevista,
+      "cliente@example.test",
+      [turnoSecreto],
+      { consultaCliente: true }
+    );
+    expect(lectura.acceso).toBe("lectura");
+    if (lectura.acceso === "lectura") {
+      expect(lectura.turnos[0]?.texto).toBe(SECRETO);
+      expect(lectura.respuestas).toEqual([]);
+    }
     expect(ausente).toEqual({ acceso: "ausente" });
     expect(sinEmail).toEqual({ acceso: "ausente" });
     expect(serializado(ajena)).not.toContain(SECRETO);

@@ -29,6 +29,10 @@ import {
   MENSAJE_FORZAR_CIERRE_SECCION,
 } from "@/lib/consultoria/finalizar-seccion";
 import {
+  accionAlAbrirPlantillaGuion,
+  decisionAsignacionNuevaFase,
+} from "@/lib/consultoria/guion-apertura";
+import {
   GUION_CL_CORTO,
   NOMBRE_PLANTILLA_CL_CORTO,
 } from "@/lib/consultoria/guiones/compliance-latam-corto";
@@ -36,6 +40,10 @@ import {
   esProyectoComplianceLatam,
   GUION_CL_FASE_1,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
+import {
+  GUION_CL_FASE_2,
+  minutosSiEsGuionClFase2,
+} from "@/lib/consultoria/guiones/compliance-latam-fase-2";
 import {
   mensajesATurnos,
   turnosAMensajes,
@@ -615,9 +623,45 @@ test.describe("ComplianceLatam phase 1 guide", () => {
     expect(GUION_CL_CORTO.flatMap((seccion) => seccion.preguntas)).toHaveLength(
       9
     );
-    expect(GUION_CL_CORTO.flatMap((seccion) => seccion.preguntas).join(" ")).not.toMatch(
-      /redes sociales|vos |tenés|querés/i
+    expect(
+      GUION_CL_CORTO.flatMap((seccion) => seccion.preguntas).join(" ")
+    ).not.toMatch(/redes sociales|vos |tenés|querés/i);
+  });
+});
+
+test.describe("ComplianceLatam phase 2 guide", () => {
+  test("has five sections, one main question each, and follow-ups only as a menu", () => {
+    expect(GUION_CL_FASE_2).toHaveLength(5);
+    expect(GUION_CL_FASE_2.map((seccion) => seccion.titulo)).toEqual([
+      "Valor de la red",
+      "Conocimiento y participación dentro de la firma",
+      "Uso y barreras",
+      "Responsabilidades y compromiso",
+      "Renovación y precio",
+    ]);
+    expect(
+      GUION_CL_FASE_2.every((seccion) => seccion.preguntas.length === 1)
+    ).toBe(true);
+    const texto = GUION_CL_FASE_2.map((seccion) => seccion.descripcion).join(
+      "\n"
     );
+    expect(texto).toContain("no explorado");
+    expect(texto).toContain("como máximo dos");
+    expect(
+      GUION_CL_FASE_2.flatMap((seccion) => seccion.preguntas).join(" ")
+    ).not.toContain("como máximo dos");
+    expect(GUION_CL_FASE_1).toHaveLength(6);
+    expect(
+      minutosSiEsGuionClFase2(GUION_CL_FASE_2.map((seccion) => seccion.titulo))
+    ).toBe(30);
+    expect(minutosSiEsGuionClFase2(["General"])).toBeNull();
+  });
+
+  test("opening a page keeps an existing guide and a later phase does not rewrite the earlier interview", () => {
+    expect(accionAlAbrirPlantillaGuion(true)).toBe("conservar");
+    expect(accionAlAbrirPlantillaGuion(false)).toBe("crear");
+    expect(decisionAsignacionNuevaFase(true)).toBe("omitir");
+    expect(decisionAsignacionNuevaFase(false)).toBe("crear");
   });
 });
 
@@ -660,6 +704,68 @@ test.describe("Auth landing", () => {
     expect(stakeholderPathNeedsLandingInterview("/api/entrevista/flujo")).toBe(
       false
     );
+  });
+
+  test("home interview ignores a later phase that is not enabled", () => {
+    expect(
+      elegirEntrevistaLanding([
+        {
+          estado: "completada",
+          faseDisponible: true,
+          flujo_estado: "revision",
+          id: "11111111-1111-4111-8111-111111111111",
+          ordenFase: 1,
+          ultima_actividad: "2026-09-20T12:00:00.000Z",
+        },
+        {
+          estado: "abierta",
+          faseDisponible: true,
+          flujo_estado: "bienvenida",
+          id: "22222222-2222-4222-8222-222222222222",
+          ordenFase: 2,
+          ultima_actividad: null,
+        },
+        {
+          estado: "abierta",
+          faseDisponible: false,
+          flujo_estado: "bienvenida",
+          id: "33333333-3333-4333-8333-333333333333",
+          ordenFase: 3,
+          ultima_actividad: "2026-09-29T12:00:00.000Z",
+        },
+      ])
+    ).toBe("22222222-2222-4222-8222-222222222222");
+    expect(
+      elegirEntrevistaLanding([
+        {
+          estado: "abierta",
+          faseDisponible: false,
+          id: "33333333-3333-4333-8333-333333333333",
+          ordenFase: 3,
+        },
+      ])
+    ).toBeNull();
+  });
+
+  test("home interview prefers the later phase over a more recent earlier interview", () => {
+    expect(
+      elegirEntrevistaLanding([
+        {
+          estado: "completada",
+          flujo_estado: "revision",
+          id: "11111111-1111-4111-8111-111111111111",
+          ordenFase: 1,
+          ultima_actividad: "2026-09-28T18:00:00.000Z",
+        },
+        {
+          estado: "abierta",
+          flujo_estado: "bienvenida",
+          id: "22222222-2222-4222-8222-222222222222",
+          ordenFase: 2,
+          ultima_actividad: null,
+        },
+      ])
+    ).toBe("22222222-2222-4222-8222-222222222222");
   });
 
   test("home interview prefers in-progress chat over an earlier UUID still in review", () => {

@@ -49,6 +49,12 @@ test.describe("Interview invitation destination", () => {
     expect(emailRedirectToAuth(site, DESTINO_NUEVA)).toBe(
       emailRedirectToAuth(site, `${DESTINO_NUEVA}?injected=1`)
     );
+    expect(emailRedirectToAuth(site, DESTINO_NUEVA, "cliente-2026")).toBe(
+      `https://portal.majoriti.world/auth/callback?next=${encodeURIComponent(DESTINO_NUEVA)}&proyecto=cliente-2026`
+    );
+    expect(emailRedirectToAuth(site, null, "admin")).toBe(
+      "https://portal.majoriti.world/auth/callback"
+    );
     expect(
       enlaceCallbackEntrevista({
         entrevistaId: NUEVA,
@@ -93,7 +99,7 @@ test.describe("Interview invitation destination", () => {
     );
   });
 
-  test("sends to a new account without creating another interview", async () => {
+  test("prepares a new account and does not send an invitation", async () => {
     const llamadas: string[] = [];
     const resultado = await ejecutarInvitacionEntrevista({
       asegurarCuenta: () => {
@@ -107,19 +113,13 @@ test.describe("Interview invitation destination", () => {
           nombre: "Nuevo",
         }),
       entrevistaId: NUEVA,
-      enviarCorreo: ({ entrevistaId }) => {
-        llamadas.push("enviar");
-        expect(entrevistaId).toBe(NUEVA);
-        return Promise.resolve();
-      },
     });
 
-    expect(resultado).toEqual({ creada: true, enviado: true, ok: true });
-    expect(llamadas).toEqual(["asegurar", "enviar"]);
+    expect(resultado).toEqual({ creada: true, ok: true });
+    expect(llamadas).toEqual(["asegurar"]);
   });
 
-  test("sends to an existing account without changing role or duplicating", async () => {
-    let envios = 0;
+  test("prepares an existing account without changing role", async () => {
     const deps = {
       asegurarCuenta: () =>
         Promise.resolve({ creada: false, ok: true as const }),
@@ -129,10 +129,6 @@ test.describe("Interview invitation destination", () => {
           entrevistaId: id,
           nombre: "QA",
         }),
-      enviarCorreo: () => {
-        envios += 1;
-        return Promise.resolve();
-      },
     };
 
     const primero = await ejecutarInvitacionEntrevista({
@@ -144,26 +140,22 @@ test.describe("Interview invitation destination", () => {
       entrevistaId: NUEVA,
     });
 
-    expect(primero).toEqual({ creada: false, enviado: true, ok: true });
-    expect(reintento).toEqual({ creada: false, enviado: true, ok: true });
-    expect(envios).toBe(2);
+    expect(primero).toEqual({ creada: false, ok: true });
+    expect(reintento).toEqual({ creada: false, ok: true });
   });
 
-  test("missing interview is rejected and does not send mail", async () => {
-    let envios = 0;
+  test("missing interview does not create an account", async () => {
+    let cuentas = 0;
     const resultado = await ejecutarInvitacionEntrevista({
       asegurarCuenta: () => {
-        throw new Error("no debe crear cuenta");
+        cuentas += 1;
+        return Promise.resolve({ creada: true, ok: true });
       },
       cargarAsignacion: () => Promise.resolve(null),
       entrevistaId: NUEVA,
-      enviarCorreo: () => {
-        envios += 1;
-        return Promise.resolve();
-      },
     });
 
     expect(resultado.ok).toBe(false);
-    expect(envios).toBe(0);
+    expect(cuentas).toBe(0);
   });
 });

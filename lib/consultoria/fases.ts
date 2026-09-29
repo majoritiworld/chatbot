@@ -18,6 +18,8 @@ export type EntrevistaDelPortal = {
   esPropia: boolean;
   /** Whether the current user may open/respond to this interview. */
   puedeResponder: boolean;
+  /** Client read-only opening. Never true together with puedeResponder. */
+  puedeConsultar: boolean;
 };
 
 export type TareaDelPortal = {
@@ -138,9 +140,11 @@ function nombreDelResponsable(
 
 function toFaseDelPortal(
   row: FaseRow,
-  viewerEmail: string | null
+  viewerEmail: string | null,
+  viewerRol: string | null
 ): FaseDelPortal {
   const email = viewerEmail?.toLowerCase() ?? null;
+  const esCliente = viewerRol === "cliente";
   const entrevistas: EntrevistaDelPortal[] = [];
   const tareas: TareaDelPortal[] = [];
 
@@ -191,6 +195,7 @@ function toFaseDelPortal(
         stakeholderEstado: stakeholder.estado_entrevista,
       }),
       id: entrevista.id,
+      puedeConsultar: esCliente && !esPropia,
       puedeResponder: esPropia,
       stakeholderId: stakeholder.id,
       stakeholderNombre: nombreCompleto(
@@ -225,6 +230,7 @@ async function viewerContext() {
   const context = await getUsuarioPerfil();
   return {
     email: context?.user.email ?? null,
+    rol: context?.rol ?? null,
   };
 }
 
@@ -250,7 +256,7 @@ export async function getFasesDelProyecto(
     return [];
   }
 
-  const [{ email }, supabase] = await Promise.all([
+  const [{ email, rol }, supabase] = await Promise.all([
     viewerContext(),
     createClient(),
   ]);
@@ -265,21 +271,24 @@ export async function getFasesDelProyecto(
     throw error;
   }
 
-  return ((data ?? []) as FaseRow[]).map((row) => toFaseDelPortal(row, email));
+  return ((data ?? []) as FaseRow[]).map((row) =>
+    toFaseDelPortal(row, email, rol)
+  );
 }
 
 export async function getFase(
   proyectoId: string | null,
   faseId: string,
-  viewerEmail?: string | null
+  viewer?: { email?: string | null; rol?: string | null }
 ): Promise<FaseDelPortal | null> {
   if (!proyectoId) {
     return null;
   }
 
   const supabase = await createClient();
-  const email =
-    viewerEmail === undefined ? (await viewerContext()).email : viewerEmail;
+  const contexto = viewer ? null : await viewerContext();
+  const email = viewer ? (viewer.email ?? null) : (contexto?.email ?? null);
+  const rol = viewer ? (viewer.rol ?? null) : (contexto?.rol ?? null);
 
   const { data, error } = await supabase
     .from("fase")
@@ -292,5 +301,5 @@ export async function getFase(
     throw error;
   }
 
-  return data ? toFaseDelPortal(data as FaseRow, email) : null;
+  return data ? toFaseDelPortal(data as FaseRow, email, rol) : null;
 }

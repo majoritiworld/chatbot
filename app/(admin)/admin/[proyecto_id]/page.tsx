@@ -4,15 +4,19 @@ import { Suspense } from "react";
 import { AccesoDirectoForm } from "@/components/admin/acceso-directo-form";
 import { AdminAlta, AdminSeccion } from "@/components/admin/admin-seccion";
 import { AgregarStakeholderForm } from "@/components/admin/agregar-stakeholder-form";
+import { CopiarEnlaceProyecto } from "@/components/admin/copiar-enlace-proyecto";
 import { EditarProyectoForm } from "@/components/admin/editar-proyecto-form";
 import { EventosProyecto } from "@/components/admin/eventos-proyecto";
 import { FasesProyecto } from "@/components/admin/fases-proyecto";
+import { MarcaProyectoForm } from "@/components/admin/marca-proyecto-form";
 import { PersonasPorAcceso } from "@/components/admin/stakeholders-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdminUser } from "@/lib/consultoria/admin";
+import { siteUrl } from "@/lib/consultoria/auth";
 import { getEventosDelProyecto } from "@/lib/consultoria/eventos";
 import { cargarCalendarioAdmin } from "@/lib/consultoria/google-calendar";
 import { avisoCalendario } from "@/lib/consultoria/google-evento";
+import { enlaceDeProyecto, slugValido } from "@/lib/consultoria/marca";
 import {
   getProyectoAdmin,
   listFasesAdmin,
@@ -61,6 +65,7 @@ async function ProyectoContenido({
       cargarCalendarioAdmin(admin.id),
       searchParams,
     ]);
+  const slug = slugValido(proyecto.slug);
   const completadas = stakeholders.filter(
     (row) => row.estadoEntrevista === "completada"
   ).length;
@@ -117,6 +122,33 @@ async function ProyectoContenido({
       />
 
       <AdminSeccion
+        descripcion="El enlace público muestra esta identidad. Quien no esté autorizado en el proyecto no entra."
+        resumen={slug ? `/${slug}` : "Sin enlace"}
+        titulo="Marca del proyecto"
+      >
+        <div className="flex flex-col gap-4">
+          <CopiarEnlaceProyecto
+            enlace={slug ? enlaceDeProyecto(siteUrl(), slug) : null}
+          />
+          <MarcaProyectoForm
+            avisoRespuestas={proyecto.aviso_respuestas}
+            color={proyecto.color_principal}
+            contactoEmail={proyecto.contacto_email}
+            contactoNombre={proyecto.contacto_nombre}
+            correoAsunto={proyecto.correo_asunto}
+            correoCuerpo={proyecto.correo_cuerpo}
+            correoFirma={proyecto.correo_firma}
+            correoRemitente={proyecto.correo_remitente}
+            nombrePublico={proyecto.nombre_publico}
+            proyectoId={proyectoId}
+            slug={proyecto.slug}
+            textoBienvenida={proyecto.texto_bienvenida}
+            titulo={proyecto.titulo_iniciativa}
+          />
+        </div>
+      </AdminSeccion>
+
+      <AdminSeccion
         descripcion="Quien conozca un correo invitado de este proyecto entra sin código. Si lo desactivas, vuelve el código de 8 dígitos."
         resumen={proyecto.acceso_directo ? "Solo con el correo" : "Con código"}
         titulo="Entrada al portal"
@@ -129,7 +161,7 @@ async function ProyectoContenido({
 
       <AdminSeccion
         defaultOpen
-        descripcion="Quienes entran al portal de este proyecto. Ábrelos para editar datos, invitaciones o la transcripción."
+        descripcion="Quienes entran al portal de este proyecto. Ábrelos para editar datos o la transcripción. El cliente comparte el enlace; esta plataforma no envía la invitación."
         resumen={
           stakeholders.length === 1
             ? "1 persona"

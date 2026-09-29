@@ -75,6 +75,22 @@ test.describe("Pilot interview helpers", () => {
         stakeholderEstado: "pendiente",
       })
     ).toBe("en_curso");
+    expect(
+      estadoVisibleEntrevistaPortal({
+        consentimientoEn: null,
+        entrevistaEstado: "abierta",
+        flujoEstado: "bienvenida",
+        stakeholderEstado: "completada",
+      })
+    ).toBe("pendiente");
+    expect(
+      estadoVisibleEntrevistaPortal({
+        consentimientoEn: "2026-09-21T12:00:00Z",
+        entrevistaEstado: "completada",
+        flujoEstado: "revision",
+        stakeholderEstado: "completada",
+      })
+    ).toBe("completada");
   });
 
   test("does not treat a transcript as consent", () => {

@@ -1,14 +1,23 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { EntrevistaEnCurso } from "@/components/portal/entrevista-en-curso";
+import { EntrevistaLectura } from "@/components/portal/entrevista-lectura";
 import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
+import { MarcaParticipanteProvider } from "@/components/portal/marca-participante";
 import { Skeleton } from "@/components/ui/skeleton";
+import { mostrarPortalFases } from "@/lib/consultoria/acceso-proyecto";
 import { turnosDeSeccion } from "@/lib/consultoria/entrevista-contenido";
 import { getEntrevistaPortalCarga } from "@/lib/consultoria/entrevistas";
+import {
+  comunicacionDeEntrevista,
+  marcaConTextos,
+  marcaPorProyectoId,
+  proyectoIdDeEntrevista,
+} from "@/lib/consultoria/marca-publica";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
-import { isClienteRole } from "@/lib/consultoria/roles";
+import { sintesisConsultaGuardada } from "@/lib/consultoria/sintesis-consulta";
 
 export default function EntrevistaPage({
   params,
@@ -25,8 +34,35 @@ export default function EntrevistaPage({
 async function EntrevistaContenido({ id }: { id: Promise<string> }) {
   const entrevistaId = await id;
   const portalUser = await requirePortalUser({ conProyecto: false });
-  const mostrarPortal = isClienteRole(portalUser.rol);
-  const carga = await getEntrevistaPortalCarga(entrevistaId, portalUser.email);
+  const carga = await getEntrevistaPortalCarga(entrevistaId, portalUser.email, {
+    proyectoId: portalUser.proyectoId,
+    rol: portalUser.rol,
+  });
+  const proyectoEntrevista =
+    carga.acceso === "propia"
+      ? carga.entrevista.proyecto_id
+      : await proyectoIdDeEntrevista(entrevistaId);
+  const mostrarPortal = mostrarPortalFases({
+    proyectoEntrevistaId: proyectoEntrevista,
+    proyectoOrigenId: portalUser.proyectoId,
+    rol: portalUser.rol,
+  });
+
+  const presentacion =
+    carga.acceso === "propia" || carga.acceso === "lectura"
+      ? await comunicacionDeEntrevista(entrevistaId)
+      : null;
+  const marca = marcaConTextos(
+    await marcaPorProyectoId(
+      carga.acceso === "propia" || carga.acceso === "lectura"
+        ? carga.entrevista.proyecto_id
+        : null
+    ),
+    presentacion?.textos ?? {
+      avisoRespuestas: null,
+      textoBienvenida: null,
+    }
+  );
 
   if (carga.acceso === "ausente") {
     return (
@@ -40,6 +76,27 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
           mostrarPortal={mostrarPortal}
         />
       </EntrevistaShell>
+    );
+  }
+
+  if (carga.acceso === "lectura") {
+    return (
+      <MarcaParticipanteProvider marca={marca}>
+        <EntrevistaShell
+          compactoMovil
+          correoUsuario={portalUser.email}
+          mostrarPortal={mostrarPortal}
+          titulo={carga.entrevista.stakeholder_nombre}
+        >
+          <EntrevistaLectura
+            consulta={sintesisConsultaGuardada(carga.entrevista.resumen)}
+            entrevistaId={carga.entrevista.id}
+            enviada={carga.entrevista.estado === "completada"}
+            nombre={carga.entrevista.stakeholder_nombre ?? null}
+            turnos={carga.turnos}
+          />
+        </EntrevistaShell>
+      </MarcaParticipanteProvider>
     );
   }
 
@@ -69,20 +126,23 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
     : [];
 
   return (
-    <EntrevistaEnCurso
-      cliente={entrevista.proyecto_cliente}
-      consentimientoEn={entrevista.consentimiento_en}
-      correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
-      correoUsuario={portalUser.email}
-      entrevistaId={entrevista.id}
-      estadoInicial={entrevista.estado}
-      flujoEstadoInicial={entrevista.flujo_estado}
-      mensajesIniciales={turnosAMensajes(turnosActivos)}
-      mostrarPortal={mostrarPortal}
-      seccionActualInicial={entrevista.seccion_actual}
-      secciones={entrevista.secciones}
-      stakeholderNombre={entrevista.stakeholder_nombre}
-    />
+    <MarcaParticipanteProvider marca={marca}>
+      <EntrevistaEnCurso
+        cliente={entrevista.proyecto_cliente}
+        consentimientoEn={entrevista.consentimiento_en}
+        correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
+        correoUsuario={portalUser.email}
+        entrevistaId={entrevista.id}
+        estadoInicial={entrevista.estado}
+        flujoEstadoInicial={entrevista.flujo_estado}
+        mensajesIniciales={turnosAMensajes(turnosActivos)}
+        minutos={presentacion?.minutos ?? null}
+        mostrarPortal={mostrarPortal}
+        seccionActualInicial={entrevista.seccion_actual}
+        secciones={entrevista.secciones}
+        stakeholderNombre={entrevista.stakeholder_nombre}
+      />
+    </MarcaParticipanteProvider>
   );
 }
 

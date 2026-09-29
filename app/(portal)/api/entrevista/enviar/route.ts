@@ -4,9 +4,16 @@ import { enviarCorreoAgradecimiento } from "@/lib/consultoria/email-entrevista";
 import {
   entrevistaParaReintentoCorreo,
   enviarEntrevista,
+  intentarSintesisConsulta,
   marcarCorreoAgradecimientoEnviado,
 } from "@/lib/consultoria/entrevistas";
+import {
+  comunicacionDeEntrevista,
+  marcaPorProyectoId,
+} from "@/lib/consultoria/marca-publica";
 import { sincronizarTranscripcionNotion } from "@/lib/consultoria/notion-transcripcion";
+
+const ESPERA_SINTESIS_AL_ENVIAR_MS = 15_000;
 
 const bodySchema = z.object({
   entrevistaId: z.guid(),
@@ -20,8 +27,10 @@ async function enviarNotificacion(entrevistaId: string) {
   }
 
   await enviarCorreoAgradecimiento({
+    comunicacion: (await comunicacionDeEntrevista(entrevistaId)).textos,
     email: destino.email,
     entrevistaId,
+    marca: await marcaPorProyectoId(destino.proyectoId),
     nombre: destino.nombre,
   });
   await marcarCorreoAgradecimientoEnviado(entrevistaId);
@@ -65,6 +74,12 @@ export async function POST(request: Request) {
     }
 
     const result = await enviarEntrevista(parsed.data.entrevistaId);
+    if (!result.alreadyDone) {
+      await intentarSintesisConsulta(
+        parsed.data.entrevistaId,
+        ESPERA_SINTESIS_AL_ENVIAR_MS
+      );
+    }
     const warningNotion = await publicarNotion(parsed.data.entrevistaId);
 
     if (!result.email) {
@@ -85,8 +100,11 @@ export async function POST(request: Request) {
 
     try {
       await enviarCorreoAgradecimiento({
+        comunicacion: (await comunicacionDeEntrevista(parsed.data.entrevistaId))
+          .textos,
         email: result.email,
         entrevistaId: parsed.data.entrevistaId,
+        marca: await marcaPorProyectoId(result.proyectoId),
         nombre: result.nombre,
       });
       await marcarCorreoAgradecimientoEnviado(parsed.data.entrevistaId);

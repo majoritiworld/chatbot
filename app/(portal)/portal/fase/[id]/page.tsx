@@ -2,14 +2,20 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { EntrevistaEnCurso } from "@/components/portal/entrevista-en-curso";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
+import { MarcaParticipanteProvider } from "@/components/portal/marca-participante";
 import { Skeleton } from "@/components/ui/skeleton";
+import { mostrarPortalFases } from "@/lib/consultoria/acceso-proyecto";
 import { turnosDeSeccion } from "@/lib/consultoria/entrevista-contenido";
 import { getEntrevistaPropiaEnFaseDelProyecto } from "@/lib/consultoria/entrevistas";
 import { getFase } from "@/lib/consultoria/fases";
+import {
+  comunicacionDeEntrevista,
+  marcaConTextos,
+  marcaPorProyectoId,
+} from "@/lib/consultoria/marca-publica";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
 import { resolverVistaFasePortal } from "@/lib/consultoria/portal-carga-acceso";
-import { isClienteRole } from "@/lib/consultoria/roles";
 
 const AVISO_FASE = {
   bloqueada: "Esta fase todavía está bloqueada.",
@@ -32,10 +38,17 @@ export default function FasePage({
 
 async function FaseContenido({ id }: { id: Promise<string> }) {
   const portalUser = await requirePortalUser();
-  const mostrarPortal = isClienteRole(portalUser.rol);
+  const mostrarPortal = mostrarPortalFases({
+    proyectoEntrevistaId: portalUser.proyectoId,
+    proyectoOrigenId: portalUser.proyectoId,
+    rol: portalUser.rol,
+  });
   const faseId = await id;
   const [fase, propia] = await Promise.all([
-    getFase(portalUser.proyectoId, faseId, portalUser.email),
+    getFase(portalUser.proyectoId, faseId, {
+      email: portalUser.email,
+      rol: portalUser.rol,
+    }),
     getEntrevistaPropiaEnFaseDelProyecto({
       faseId,
       proyectoId: portalUser.proyectoId,
@@ -82,22 +95,36 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
     ? turnosDeSeccion(turnos, seccionActiva.id, entrevista.seccion_actual === 0)
     : [];
 
+  const presentacion = await comunicacionDeEntrevista(entrevista.id);
+  const marca = marcaConTextos(
+    await marcaPorProyectoId(entrevista.proyecto_id),
+    presentacion.textos
+  );
+  const mostrarFases = mostrarPortalFases({
+    proyectoEntrevistaId: entrevista.proyecto_id,
+    proyectoOrigenId: portalUser.proyectoId,
+    rol: portalUser.rol,
+  });
+
   return (
-    <EntrevistaEnCurso
-      cliente={entrevista.proyecto_cliente}
-      consentimientoEn={entrevista.consentimiento_en}
-      correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
-      correoUsuario={portalUser.email}
-      entrevistaId={entrevista.id}
-      estadoInicial={entrevista.estado}
-      flujoEstadoInicial={entrevista.flujo_estado}
-      mensajesIniciales={turnosAMensajes(turnosActivos)}
-      mostrarPortal={mostrarPortal}
-      seccionActualInicial={entrevista.seccion_actual}
-      secciones={entrevista.secciones}
-      stakeholderNombre={entrevista.stakeholder_nombre}
-      titulo={nombre}
-    />
+    <MarcaParticipanteProvider marca={marca}>
+      <EntrevistaEnCurso
+        cliente={entrevista.proyecto_cliente}
+        consentimientoEn={entrevista.consentimiento_en}
+        correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
+        correoUsuario={portalUser.email}
+        entrevistaId={entrevista.id}
+        estadoInicial={entrevista.estado}
+        flujoEstadoInicial={entrevista.flujo_estado}
+        mensajesIniciales={turnosAMensajes(turnosActivos)}
+        minutos={presentacion.minutos}
+        mostrarPortal={mostrarFases}
+        seccionActualInicial={entrevista.seccion_actual}
+        secciones={entrevista.secciones}
+        stakeholderNombre={entrevista.stakeholder_nombre}
+        titulo={nombre}
+      />
+    </MarcaParticipanteProvider>
   );
 }
 

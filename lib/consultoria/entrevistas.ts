@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { operacionEntrevistaPermitida } from "@/lib/consultoria/acceso-proyecto";
 import { autorizarCierreDirecto } from "@/lib/consultoria/cierre-seccion";
 import {
   consolidarRespuestasEntrevista,
@@ -27,6 +28,11 @@ import {
 } from "@/lib/consultoria/portal-carga-acceso";
 import { mismoEmail } from "@/lib/consultoria/roles";
 import { generarResumenCierreSeccion } from "@/lib/consultoria/sintesis-cierre";
+import {
+  citasLiteralesDelParticipante,
+  parseSintesisConsulta,
+} from "@/lib/consultoria/sintesis-consulta";
+import { generarSintesisConsulta } from "@/lib/consultoria/sintesis-consulta-modelo";
 import { createClient } from "@/lib/supabase/server";
 import type { Entrevista, UserRole } from "@/lib/supabase/types";
 
@@ -43,7 +49,8 @@ const ENTREVISTA_SELECT = `
   consentimiento_en,
   correo_agradecimiento_en,
   notion_transcripcion_id,
-  stakeholder:stakeholder_id ( id, nombre, apellido, firma, email, proyecto:proyecto_id ( cliente ) )
+  resumen,
+  stakeholder:stakeholder_id ( id, nombre, apellido, firma, email, proyecto_id, proyecto:proyecto_id ( cliente ) )
 `;
 
 type ProyectoEmbed = {
@@ -56,6 +63,7 @@ type StakeholderEmbed = {
   apellido: string | null;
   firma: string | null;
   email: string;
+  proyecto_id?: string | null;
   proyecto?: ProyectoEmbed | ProyectoEmbed[];
 } | null;
 
@@ -72,6 +80,7 @@ type EntrevistaRow = {
   consentimiento_en: string | null;
   correo_agradecimiento_en: string | null;
   notion_transcripcion_id: string | null;
+  resumen?: unknown;
   transcripcion?: unknown;
   stakeholder?: StakeholderEmbed | StakeholderEmbed[];
 };
@@ -155,6 +164,8 @@ function toEntrevista(row: EntrevistaRow): Entrevista {
     preguntas:
       secciones.length > 0 ? preguntasDeSecciones(secciones) : preguntas,
     proyecto_cliente: asOne(stakeholder?.proyecto)?.cliente ?? null,
+    proyecto_id: stakeholder?.proyecto_id ?? null,
+    resumen: row.resumen,
     seccion_actual: row.seccion_actual,
     secciones,
     secciones_completadas: parseSeccionesCompletadas(row.secciones_completadas),
@@ -222,9 +233,33 @@ export async function resolveEntrevista(
   return entrevistaPorId(entrevistaId);
 }
 
+async function membresiaConfirmada(
+  email: string | null | undefined,
+  proyectoId: string | null | undefined
+) {
+  if (!(email && proyectoId)) {
+    return false;
+  }
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("proyecto_acceso")
+    .select("proyecto_id")
+    .eq("proyecto_id", proyectoId)
+    .eq("email", email.trim().toLowerCase())
+    .maybeSingle();
+
+  return operacionEntrevistaPermitida({
+    emailSesion: email,
+    emailStakeholder: email,
+    membresias: data ? [{ proyectoId: data.proyecto_id }] : [],
+    proyectoId,
+  });
+}
+
 /**
- * Loads the requested interview and confirms the caller owns it.
- * Does not fall back to another interview assigned to the same email.
+ * Loads the requested interview and confirms the caller owns it in that
+ * project. A session from another project does not pass.
  */
 export async function getEntrevistaEscribible(
   entrevistaId?: string | null
@@ -242,7 +277,8 @@ export async function getEntrevistaEscribible(
 
   if (
     !entrevista ||
-    !mismoEmail(entrevista.stakeholder_email, context.user.email)
+    !mismoEmail(entrevista.stakeholder_email, context.user.email) ||
+    !(await membresiaConfirmada(context.user.email, entrevista.proyecto_id))
   ) {
     return null;
   }
@@ -308,7 +344,8 @@ export function entrevistaPropiaEnFilasDeFase(
  */
 export async function getEntrevistaPortalCarga(
   entrevistaId: string,
-  viewerEmail: string | null
+  viewerEmail: string | null,
+  lector?: { proyectoId: string | null; rol: UserRole | string | null }
 ): Promise<EntrevistaPortalCarga> {
   if (!viewerEmail) {
     return { acceso: "ausente" };
@@ -326,11 +363,41 @@ export async function getEntrevistaPortalCarga(
   }
 
   const row = data as EntrevistaRow;
-  return accesoEntrevistaPortal(
-    toEntrevista(row),
-    viewerEmail,
-    row.transcripcion
+  const entrevista = toEntrevista(row);
+  const consultaCliente = Boolean(
+    lector?.rol === "cliente" &&
+      lector.proyectoId &&
+      entrevista.proyecto_id === lector.proyectoId &&
+      !mismoEmail(entrevista.stakeholder_email, viewerEmail)
   );
+  const acceso = accesoEntrevistaPortal(
+    entrevista,
+    viewerEmail,
+    row.transcripcion,
+    { consultaCliente }
+  );
+  if (acceso.acceso === "ajena" || acceso.acceso === "ausente") {
+    return acceso;
+  }
+  if (acceso.acceso === "lectura") {
+    const { data: respuestas } = await supabase
+      .from("respuesta")
+      .select("pregunta, respuesta_texto, timestamp")
+      .eq("entrevista_id", entrevista.id)
+      .order("timestamp");
+    return {
+      ...acceso,
+      respuestas: (respuestas ?? []).map((respuesta) => ({
+        en: respuesta.timestamp,
+        pregunta: respuesta.pregunta,
+        texto: respuesta.respuesta_texto,
+      })),
+    };
+  }
+  if (!(await membresiaConfirmada(viewerEmail, entrevista.proyecto_id))) {
+    return { acceso: "ausente" };
+  }
+  return acceso;
 }
 
 /**
@@ -664,6 +731,7 @@ export async function enviarEntrevista(entrevistaId: string) {
       correoEnviado: Boolean(entrevista.correo_agradecimiento_en),
       email: entrevista.stakeholder_email,
       nombre: entrevista.stakeholder_nombre,
+      proyectoId: entrevista.proyecto_id ?? null,
     };
   }
 
@@ -683,6 +751,8 @@ export async function enviarEntrevista(entrevistaId: string) {
     throw new Error("Todavía hay secciones pendientes");
   }
 
+  // Section syntheses are already on the interview. The client summary is
+  // written after submit, so a slow model cannot block delivery or the email.
   const resumen = consolidarRespuestasEntrevista(
     entrevista.secciones,
     entrevista.secciones_completadas
@@ -700,6 +770,7 @@ export async function enviarEntrevista(entrevistaId: string) {
     correoEnviado: false,
     email: entrevista.stakeholder_email,
     nombre: entrevista.stakeholder_nombre,
+    proyectoId: entrevista.proyecto_id ?? null,
   };
 }
 
@@ -725,6 +796,7 @@ export async function entrevistaParaReintentoCorreo(entrevistaId: string) {
       alreadyDone: true as const,
       email: entrevista.stakeholder_email,
       nombre: entrevista.stakeholder_nombre,
+      proyectoId: entrevista.proyecto_id ?? null,
     };
   }
 
@@ -736,6 +808,7 @@ export async function entrevistaParaReintentoCorreo(entrevistaId: string) {
     alreadyDone: false as const,
     email: entrevista.stakeholder_email,
     nombre: entrevista.stakeholder_nombre,
+    proyectoId: entrevista.proyecto_id ?? null,
   };
 }
 
@@ -781,4 +854,97 @@ export async function aceptarConsentimientoEntrevista(entrevistaId: string) {
   }
 
   return { alreadyDone: false as const };
+}
+
+const MENSAJE_SIN_LECTURA = "No puedes leer esta entrevista";
+const MENSAJE_SIN_ENVIO = "La entrevista todavía no está enviada";
+
+function consultaDeResumen(resumen: unknown) {
+  if (
+    typeof resumen !== "object" ||
+    resumen === null ||
+    Array.isArray(resumen)
+  ) {
+    return null;
+  }
+  return parseSintesisConsulta((resumen as Record<string, unknown>).consulta);
+}
+
+/**
+ * Writes the consultation summary once. A saved summary is returned as-is.
+ * Quotes that are not literal participant speech are omitted before save.
+ */
+export async function guardarSintesisConsultaEntrevista(
+  entrevistaId: string,
+  signal?: AbortSignal
+) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("entrevista")
+    .select("estado, resumen, transcripcion")
+    .eq("id", entrevistaId)
+    .maybeSingle();
+
+  if (!data) {
+    throw new Error(MENSAJE_SIN_LECTURA);
+  }
+  if (data.estado !== "completada") {
+    throw new Error(MENSAJE_SIN_ENVIO);
+  }
+
+  const guardada = consultaDeResumen(data.resumen);
+  if (guardada) {
+    return { estado: "lista" as const, ...guardada };
+  }
+
+  const turnos = parseTranscripcion(data.transcripcion);
+  const generada = await generarSintesisConsulta({ signal, turnos });
+  const citas = citasLiteralesDelParticipante(generada.citas, turnos);
+  const sintesis = generada.sintesis.trim();
+  const { data: guardado, error } = await supabase.rpc(
+    "guardar_sintesis_consulta",
+    {
+      p_consulta: { citas, sintesis },
+      p_entrevista_id: entrevistaId,
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  const alreadyDone =
+    typeof guardado === "object" &&
+    guardado !== null &&
+    !Array.isArray(guardado) &&
+    (guardado as Record<string, unknown>).alreadyDone === true;
+
+  if (!alreadyDone) {
+    return { citas, estado: "lista" as const, sintesis };
+  }
+
+  const { data: actual } = await supabase
+    .from("entrevista")
+    .select("resumen")
+    .eq("id", entrevistaId)
+    .maybeSingle();
+  const previa = consultaDeResumen(actual?.resumen);
+  if (!previa) {
+    return { citas, estado: "lista" as const, sintesis };
+  }
+  return { estado: "lista" as const, ...previa };
+}
+
+export async function intentarSintesisConsulta(
+  entrevistaId: string,
+  timeoutMs: number
+) {
+  try {
+    return await guardarSintesisConsultaEntrevista(
+      entrevistaId,
+      AbortSignal.timeout(timeoutMs)
+    );
+  } catch {
+    return { estado: "pendiente" as const };
+  }
 }

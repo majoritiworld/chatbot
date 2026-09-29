@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Toaster } from "sonner";
 import { VolverAdminButton } from "@/components/auth/volver-admin-button";
 import { EntrevistaChat } from "@/components/portal/entrevista-chat";
+import { mostrarPortalFases } from "@/lib/consultoria/acceso-proyecto";
 import {
   mensajesDemoEntrevista,
   seccionDemoEntrevista,
@@ -52,7 +53,17 @@ function parseDemoVoz(valor: string | null): DemoVozEntrevista {
 export function VistaPreviaEntrevistaCliente() {
   const searchParams = useSearchParams();
   const demoVoz = parseDemoVoz(searchParams.get("voz"));
-  const mostrarPortal = searchParams.get("rol") === "cliente";
+  const rol = searchParams.get("rol");
+  const origen = searchParams.get("origen");
+  const proyecto = searchParams.get("proyecto");
+  const mostrarPortal =
+    origen || proyecto
+      ? mostrarPortalFases({
+          proyectoEntrevistaId: proyecto,
+          proyectoOrigenId: origen,
+          rol,
+        })
+      : rol === "cliente";
   const impersonar = searchParams.get("impersonar") === "1";
   const mostrarLab = searchParams.get("cabecera") !== "1";
   const correo = searchParams.get("email") || CORREO_LARGO;

@@ -17,13 +17,21 @@ export function estadoVisibleEntrevistaPortal({
   flujoEstado: string;
   stakeholderEstado: string;
 }) {
-  if (entrevistaEstado === "completada" || stakeholderEstado === "completada") {
+  if (entrevistaEstado === "completada") {
     return "completada";
   }
 
   const empezo =
     consentimientoEntrevistaListo(consentimientoEn) ||
     (flujoEstado !== "bienvenida" && flujoEstado !== "");
+
+  if (stakeholderEstado === "completada" && entrevistaEstado === "abierta") {
+    return empezo ? "en_curso" : "pendiente";
+  }
+
+  if (stakeholderEstado === "completada") {
+    return "completada";
+  }
 
   if (empezo || stakeholderEstado === "en_curso") {
     return "en_curso";
@@ -155,9 +163,12 @@ export function minutosAproxEntrevista(numeroSecciones: number) {
   return Math.max(8, numeroSecciones * 5);
 }
 
-export function textoDuracionEntrevista(numeroSecciones: number) {
-  const minutos = minutosAproxEntrevista(numeroSecciones);
-  return `Suele tomar alrededor de ${minutos} minutos.`;
+export function textoDuracionEntrevista(
+  numeroSecciones: number,
+  minutos?: number | null
+) {
+  const valor = minutos ?? minutosAproxEntrevista(numeroSecciones);
+  return `Suele tomar alrededor de ${valor} minutos.`;
 }
 
 export function nombreCompaniaOnboarding(cliente: string | null | undefined) {

@@ -6,6 +6,7 @@ import {
   type SeccionEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import { normalizarEstado } from "@/lib/consultoria/fase-estado";
+import { decisionAsignacionNuevaFase } from "@/lib/consultoria/guion-apertura";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { createClient } from "@/lib/supabase/server";
 import { generateUUID } from "@/lib/utils";
@@ -88,16 +89,33 @@ export async function buscarStakeholderEnProyecto(
   return data ?? null;
 }
 
-async function stakeholderTieneEntrevista(stakeholderId: string) {
+async function stakeholderTieneEntrevistaEnFase(
+  stakeholderId: string,
+  faseId: string
+) {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data: entrevistas, error } = await supabase
     .from("entrevista")
     .select("id")
-    .eq("stakeholder_id", stakeholderId)
-    .limit(1)
-    .maybeSingle();
-
-  return data !== null;
+    .eq("stakeholder_id", stakeholderId);
+  if (error) {
+    return true;
+  }
+  const ids = (entrevistas ?? []).map((fila) => fila.id);
+  if (ids.length === 0) {
+    return false;
+  }
+  const { data: tareas, error: errorTarea } = await supabase
+    .from("tarea")
+    .select("id")
+    .eq("fase_id", faseId)
+    .eq("tipo", "entrevista")
+    .in("entrevista_id", ids)
+    .limit(1);
+  if (errorTarea) {
+    return true;
+  }
+  return (tareas ?? []).length > 0;
 }
 
 export type ResultadoEntrevista =
@@ -267,9 +285,9 @@ export type ResultadoProvisionPlantilla =
   | { ok: false; status: "omitido" | "error"; message: string };
 
 /**
- * Creates the person if needed, then clones the template into their own
- * interview. People who already have one are skipped: the portal still shows
- * a single entrevista per stakeholder.
+ * Creates the person if needed, then clones the template into a new
+ * interview for this phase. An interview already in the same phase is
+ * skipped and not rewritten. An earlier phase stays untouched.
  */
 export async function provisionarDestinatarioPlantilla({
   proyectoId,
@@ -295,9 +313,13 @@ export async function provisionarDestinatarioPlantilla({
   const existente = await buscarStakeholderEnProyecto(proyectoId, email);
 
   if (existente) {
-    if (await stakeholderTieneEntrevista(existente.id)) {
+    const tieneEnEstaFase = await stakeholderTieneEntrevistaEnFase(
+      existente.id,
+      fase.id
+    );
+    if (decisionAsignacionNuevaFase(tieneEnEstaFase) === "omitir") {
       return {
-        message: "Ya tiene una entrevista en este proyecto",
+        message: "Ya tiene una entrevista en esta fase",
         ok: false,
         status: "omitido",
       };
@@ -427,6 +449,7 @@ export async function actualizarFaseEnProyecto({
   descripcion,
   fechaEstimada,
   fechaCierre,
+  textos,
 }: {
   proyectoId: string;
   faseId: string;
@@ -434,6 +457,18 @@ export async function actualizarFaseEnProyecto({
   descripcion: string | null;
   fechaEstimada: string | null;
   fechaCierre: string | null;
+  textos: {
+    avisoRespuestas: string | null;
+    bloqueComercial: string | null;
+    bloqueComercialEtiqueta: string | null;
+    bloqueComercialUrl: string | null;
+    correoAsunto: string | null;
+    correoCuerpo: string | null;
+    correoFirma: string | null;
+    correoRemitente: string | null;
+    minutos: number | null;
+    textoBienvenida: string | null;
+  };
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   const fase = await getFaseDelProyecto(proyectoId, faseId);
   if (!fase) {
@@ -444,10 +479,20 @@ export async function actualizarFaseEnProyecto({
   const { error } = await supabase
     .from("fase")
     .update({
+      aviso_respuestas: textos.avisoRespuestas,
+      bloque_comercial: textos.bloqueComercial,
+      bloque_comercial_etiqueta: textos.bloqueComercialEtiqueta,
+      bloque_comercial_url: textos.bloqueComercialUrl,
+      correo_asunto: textos.correoAsunto,
+      correo_cuerpo: textos.correoCuerpo,
+      correo_firma: textos.correoFirma,
+      correo_remitente: textos.correoRemitente,
       descripcion,
       fecha_cierre: fechaCierre,
       fecha_estimada: fechaEstimada,
+      minutos: textos.minutos,
       nombre,
+      texto_bienvenida: textos.textoBienvenida,
     })
     .eq("id", faseId)
     .eq("proyecto_id", proyectoId);

@@ -8,6 +8,7 @@ import {
   preguntasDeSecciones,
   type SeccionEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
+import { accionAlAbrirPlantillaGuion } from "@/lib/consultoria/guion-apertura";
 import {
   NOMBRE_PLANTILLA_CL_CORTO,
   seccionesDeGuionClCorto,
@@ -16,7 +17,10 @@ import {
   NOMBRE_PLANTILLA_CL_FASE_1,
   seccionesDeGuionClFase1,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
-import { enviarInvitacionEntrevista } from "@/lib/consultoria/invitacion-entrevista";
+import {
+  NOMBRE_PLANTILLA_CL_FASE_2,
+  seccionesDeGuionClFase2,
+} from "@/lib/consultoria/guiones/compliance-latam-fase-2";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import {
   type FaseObjetivo,
@@ -174,29 +178,6 @@ type PlantillaGuionCl = {
   secciones: unknown;
 };
 
-function seccionesConIdsEstables(
-  actuales: unknown,
-  deseadas: SeccionEntrevista[]
-): SeccionEntrevista[] {
-  const idsPorTitulo = new Map(
-    parseSecciones(actuales).map((seccion) => [seccion.titulo, seccion.id])
-  );
-
-  return deseadas.map((seccion) => {
-    const idActual = idsPorTitulo.get(seccion.titulo);
-    if (!idActual) {
-      return seccion;
-    }
-
-    return {
-      descripcion: seccion.descripcion,
-      id: idActual,
-      preguntas: seccion.preguntas,
-      titulo: seccion.titulo,
-    };
-  });
-}
-
 async function getPlantillaGuionPorNombre(
   supabase: ClienteSupabase,
   proyectoId: string,
@@ -258,31 +239,11 @@ async function asegurarPlantillaGuion({
     faseId,
     nombre
   );
-  let secciones = seccionesDeseadas;
-  if (existente) {
-    secciones = seccionesConIdsEstables(existente.secciones, seccionesDeseadas);
+  if (accionAlAbrirPlantillaGuion(existente !== null) === "conservar") {
+    return existente?.id ?? null;
   }
+  const secciones = seccionesDeseadas;
   const preguntas = preguntasDeSecciones(secciones);
-
-  if (existente) {
-    const { error } = await supabase
-      .from("entrevista_plantilla")
-      .update({ preguntas, secciones })
-      .eq("id", existente.id);
-
-    if (error) {
-      throw error;
-    }
-
-    await borrarPlantillasGuionDuplicadas(
-      supabase,
-      proyectoId,
-      faseId,
-      nombre,
-      existente.id
-    );
-    return existente.id;
-  }
 
   const { data, error } = await supabase
     .from("entrevista_plantilla")
@@ -341,11 +302,26 @@ export async function asegurarPlantillaGuionClFase1({
   proyectoId: string;
   faseId: string;
 }) {
-  return asegurarPlantillaGuion({
+  return await asegurarPlantillaGuion({
     faseId,
     nombre: NOMBRE_PLANTILLA_CL_FASE_1,
     proyectoId,
     seccionesDeseadas: seccionesDeGuionClFase1(),
+  });
+}
+
+export async function asegurarPlantillaGuionClFase2({
+  proyectoId,
+  faseId,
+}: {
+  proyectoId: string;
+  faseId: string;
+}) {
+  return await asegurarPlantillaGuion({
+    faseId,
+    nombre: NOMBRE_PLANTILLA_CL_FASE_2,
+    proyectoId,
+    seccionesDeseadas: seccionesDeGuionClFase2(),
   });
 }
 
@@ -356,7 +332,7 @@ export async function asegurarPlantillaGuionClCorto({
   proyectoId: string;
   faseId: string;
 }) {
-  return asegurarPlantillaGuion({
+  return await asegurarPlantillaGuion({
     faseId,
     nombre: NOMBRE_PLANTILLA_CL_CORTO,
     proyectoId,
@@ -447,13 +423,9 @@ async function enviarADestinatario({
     };
   }
 
-  const invitacion = await enviarInvitacionEntrevista(resultado.entrevistaId);
-
   return {
-    correoEnviado: invitacion.ok,
-    detalle: invitacion.ok
-      ? `${nombreVisible} <${destinatario.email}>: Invitado a la entrevista.`
-      : `${nombreVisible} <${destinatario.email}>: ${invitacion.message}`,
+    correoEnviado: false,
+    detalle: `${nombreVisible} <${destinatario.email}>: Acceso preparado. Comparte el enlace del proyecto; no enviamos invitación.`,
     status: resultado.status,
   };
 }
@@ -516,24 +488,20 @@ export async function enviarPlantillaALista({
 
 export function mensajeResumenEnvio(resumen: ResultadoEnvioPlantilla) {
   const hechos = resumen.enviados + resumen.asignados;
-  const sinCorreo = Math.max(0, hechos - resumen.correosEnviados);
   const partes = [
-    resumen.enviados > 0 ? `${resumen.enviados} invitados` : null,
+    resumen.enviados > 0 ? `${resumen.enviados} personas preparadas` : null,
     resumen.asignados > 0
       ? `${resumen.asignados} con entrevista asignada`
       : null,
-    resumen.correosEnviados > 0
-      ? `${resumen.correosEnviados} correos de acceso al portal salieron`
-      : null,
-    sinCorreo > 0
-      ? `${sinCorreo} no recibieron correo nuevo (ya tenían cuenta o el invite falló): avísales que entren al portal`
+    hechos > 0
+      ? "sin correo de invitación: comparte el enlace del proyecto"
       : null,
     resumen.omitidos > 0 ? `${resumen.omitidos} omitidos` : null,
     resumen.errores > 0 ? `${resumen.errores} con error` : null,
   ].filter(Boolean);
 
   if (partes.length === 0) {
-    return "No se envió a nadie.";
+    return "No se preparó a nadie.";
   }
 
   return `${partes.join(". ")}.`;

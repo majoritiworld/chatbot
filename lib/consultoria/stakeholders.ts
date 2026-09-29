@@ -59,6 +59,16 @@ export type FaseAdmin = {
   fechaEstimada: string | null;
   fechaCierre: string | null;
   descripcion: string | null;
+  textoBienvenida: string | null;
+  avisoRespuestas: string | null;
+  correoAsunto: string | null;
+  correoRemitente: string | null;
+  correoCuerpo: string | null;
+  correoFirma: string | null;
+  bloqueComercial: string | null;
+  bloqueComercialUrl: string | null;
+  bloqueComercialEtiqueta: string | null;
+  minutos: number | null;
 };
 
 export type EntrevistaDeFaseAdmin = {
@@ -325,6 +335,19 @@ export type ProyectoAdmin = {
   cliente: string;
   descripcion: string | null;
   acceso_directo: boolean;
+  slug: string | null;
+  nombre_publico: string | null;
+  logo_path: string | null;
+  color_principal: string | null;
+  titulo_iniciativa: string | null;
+  texto_bienvenida: string | null;
+  aviso_respuestas: string | null;
+  correo_asunto: string | null;
+  correo_remitente: string | null;
+  correo_cuerpo: string | null;
+  correo_firma: string | null;
+  contacto_nombre: string | null;
+  contacto_email: string | null;
 };
 
 export async function getProyectoAdmin(
@@ -337,7 +360,9 @@ export async function getProyectoAdmin(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("proyecto")
-    .select("id, nombre, cliente, descripcion, acceso_directo")
+    .select(
+      "id, nombre, cliente, descripcion, acceso_directo, slug, nombre_publico, logo_path, color_principal, titulo_iniciativa, texto_bienvenida, aviso_respuestas, correo_asunto, correo_remitente, correo_cuerpo, correo_firma, contacto_nombre, contacto_email"
+    )
     .eq("id", proyectoId)
     .maybeSingle();
 
@@ -356,22 +381,42 @@ type FaseRow = {
   fecha_estimada: string | null;
   fecha_cierre: string | null;
   descripcion: string | null;
+  texto_bienvenida: string | null;
+  aviso_respuestas: string | null;
+  correo_asunto: string | null;
+  correo_remitente: string | null;
+  correo_cuerpo: string | null;
+  correo_firma: string | null;
+  bloque_comercial: string | null;
+  bloque_comercial_url: string | null;
+  bloque_comercial_etiqueta: string | null;
+  minutos: number | null;
 };
 
 function toFaseAdmin(row: FaseRow): FaseAdmin {
   return {
+    avisoRespuestas: row.aviso_respuestas,
+    bloqueComercial: row.bloque_comercial,
+    bloqueComercialEtiqueta: row.bloque_comercial_etiqueta,
+    bloqueComercialUrl: row.bloque_comercial_url,
+    correoAsunto: row.correo_asunto,
+    correoCuerpo: row.correo_cuerpo,
+    correoFirma: row.correo_firma,
+    correoRemitente: row.correo_remitente,
     descripcion: row.descripcion,
     estado: row.estado,
     fechaCierre: row.fecha_cierre,
     fechaEstimada: row.fecha_estimada,
     id: row.id,
+    minutos: row.minutos,
     nombre: row.nombre,
     orden: row.orden,
+    textoBienvenida: row.texto_bienvenida,
   };
 }
 
 const FASE_ADMIN_SELECT =
-  "id, nombre, orden, estado, fecha_estimada, fecha_cierre, descripcion";
+  "id, nombre, orden, estado, fecha_estimada, fecha_cierre, descripcion, texto_bienvenida, aviso_respuestas, correo_asunto, correo_remitente, correo_cuerpo, correo_firma, bloque_comercial, bloque_comercial_url, bloque_comercial_etiqueta, minutos";
 
 export async function listFasesAdmin(proyectoId: string): Promise<FaseAdmin[]> {
   if (!esUuid(proyectoId)) {
@@ -640,6 +685,7 @@ export async function actualizarStakeholderAdmin({
       supabase
         .from("stakeholder")
         .select("id")
+        .eq("proyecto_id", proyectoId)
         .ilike("email", patronEmail(email))
         .neq("id", stakeholderId)
         .maybeSingle(),
@@ -798,6 +844,7 @@ export async function crearStakeholderAdmin({
     supabase
       .from("stakeholder")
       .select("id")
+      .eq("proyecto_id", proyectoId)
       .ilike("email", patronEmail(email))
       .maybeSingle(),
     supabase

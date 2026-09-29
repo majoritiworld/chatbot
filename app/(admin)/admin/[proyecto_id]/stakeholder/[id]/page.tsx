@@ -10,13 +10,11 @@ import { EditarStakeholderForm } from "@/components/admin/editar-stakeholder-for
 import { EntrarComoStakeholderButton } from "@/components/admin/entrar-como-stakeholder-button";
 import { EntrevistaEditor } from "@/components/admin/entrevista-editor";
 import { EnviarNotionTranscripcionButton } from "@/components/admin/enviar-notion-transcripcion-button";
-import { InvitarEntrevistaForm } from "@/components/admin/invitar-entrevista-form";
 import { MarcarFaseForm } from "@/components/admin/marcar-fase-form";
 import { PreguntasEntrevistaForm } from "@/components/admin/preguntas-entrevista-form";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdminUser } from "@/lib/consultoria/admin";
-import { listarEntrevistasInvitables } from "@/lib/consultoria/invitacion-entrevista";
 import { listPlantillasAdmin } from "@/lib/consultoria/plantillas";
 import { getStakeholderDetalle } from "@/lib/consultoria/stakeholders";
 
@@ -50,10 +48,6 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
   const plantillas = detalle.entrevistaId
     ? []
     : await listPlantillasAdmin(proyectoId);
-  const entrevistasInvitables = await listarEntrevistasInvitables(
-    proyectoId,
-    id
-  );
 
   return (
     <>
@@ -115,7 +109,7 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
         descripcion={
           detalle.rolPortal
             ? "Cambia cómo entra esta persona la próxima vez que abra el portal."
-            : "Todavía no tiene cuenta. Si ya le enviaste la entrevista, elige el acceso y guarda."
+            : "Todavía no tiene cuenta. Prepara el acceso y luego cambia el rol. La invitación la envía el cliente."
         }
         resumen={etiquetaAccesoAdmin(detalle.rolPortal)}
         titulo="Acceso al portal"
@@ -126,19 +120,6 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
           stakeholderId={detalle.id}
         />
       </AdminSeccion>
-
-      {entrevistasInvitables.length > 0 ? (
-        <AdminSeccion
-          descripcion="Envía el portal: entra con su correo y un código. Si ya tiene cuenta, no se crea otra ni se cambia su rol."
-          titulo="Invitar a esta entrevista"
-        >
-          <InvitarEntrevistaForm
-            entrevistas={entrevistasInvitables}
-            proyectoId={proyectoId}
-            stakeholderId={detalle.id}
-          />
-        </AdminSeccion>
-      ) : null}
 
       {detalle.entrevistaId ? (
         <>

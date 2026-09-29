@@ -144,6 +144,97 @@ export function EditarFaseForm({
           />
         </div>
 
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-minutos">Duración sugerida, en minutos</Label>
+          <Input
+            defaultValue={fase.minutos ?? ""}
+            id="fase-minutos"
+            inputMode="numeric"
+            name="minutos"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-bienvenida">Bienvenida de esta fase</Label>
+          <Textarea
+            defaultValue={fase.textoBienvenida ?? ""}
+            id="fase-bienvenida"
+            name="textoBienvenida"
+            placeholder="Vacío: se usa la del proyecto."
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-aviso">Aviso de esta fase</Label>
+          <Textarea
+            defaultValue={fase.avisoRespuestas ?? ""}
+            id="fase-aviso"
+            name="avisoRespuestas"
+            placeholder="Vacío: se usa el del proyecto. Una línea por punto."
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-asunto">Asunto del correo</Label>
+          <Input
+            defaultValue={fase.correoAsunto ?? ""}
+            id="fase-asunto"
+            name="correoAsunto"
+            placeholder="Vacío: se usa el del proyecto."
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-remitente">Nombre visible del remitente</Label>
+          <Input
+            defaultValue={fase.correoRemitente ?? ""}
+            id="fase-remitente"
+            name="correoRemitente"
+            placeholder="Vacío: se usa el del proyecto."
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-cuerpo">Cuerpo del correo</Label>
+          <Textarea
+            defaultValue={fase.correoCuerpo ?? ""}
+            id="fase-cuerpo"
+            name="correoCuerpo"
+            placeholder="Vacío: se usa el del proyecto."
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-firma">Firma del correo</Label>
+          <Input
+            defaultValue={fase.correoFirma ?? ""}
+            id="fase-firma"
+            name="correoFirma"
+            placeholder="Vacío: se usa la del proyecto."
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-bloque">Bloque comercial</Label>
+          <Textarea
+            defaultValue={fase.bloqueComercial ?? ""}
+            id="fase-bloque"
+            name="bloqueComercial"
+            placeholder="Vacío: esta fase no incluye bloque comercial."
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-bloque-etiqueta">Texto del enlace</Label>
+          <Input
+            defaultValue={fase.bloqueComercialEtiqueta ?? ""}
+            id="fase-bloque-etiqueta"
+            name="bloqueComercialEtiqueta"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-bloque-url">Enlace del bloque</Label>
+          <Input
+            defaultValue={fase.bloqueComercialUrl ?? ""}
+            id="fase-bloque-url"
+            name="bloqueComercialUrl"
+            placeholder="https://"
+            type="url"
+          />
+        </div>
+
         <ActionMensaje state={state} />
 
         <Button className="w-fit" disabled={pending} type="submit">

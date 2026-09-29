@@ -3,8 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { type MarcaPublica, textoAvisoEnviada } from "@/lib/consultoria/marca";
 
-export function PortalAvisoGuardado() {
+export function PortalAvisoGuardado({ marca }: { marca: MarcaPublica }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const shown = useRef(false);
@@ -16,9 +17,7 @@ export function PortalAvisoGuardado() {
 
     if (searchParams.get("listo") === "1") {
       shown.current = true;
-      toast.success(
-        "Entrevista enviada. Majoriti te contactará para continuar."
-      );
+      toast.success(textoAvisoEnviada(marca));
       router.replace("/portal", { scroll: false });
       return;
     }
@@ -32,7 +31,7 @@ export function PortalAvisoGuardado() {
       "Progreso guardado. Puedes retomar la entrevista cuando quieras."
     );
     router.replace("/portal", { scroll: false });
-  }, [router, searchParams]);
+  }, [marca, router, searchParams]);
 
   return null;
 }

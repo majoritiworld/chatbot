@@ -3,6 +3,7 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { ensureUsuarioPerfil } from "@/lib/consultoria/auth";
 import { rutaEntrevistaPermitida } from "@/lib/consultoria/destino-entrevista";
+import { slugValido } from "@/lib/consultoria/marca";
 import {
   getEntrevistaIdByEmail,
   homePathForRol,
@@ -30,13 +31,53 @@ async function landingForUser(
   supabase: ReturnType<typeof createServerClient>,
   userId: string,
   email: string | null | undefined,
-  next: string | null
+  next: string | null,
+  proyectoSlug: string | null
 ) {
   const { data: perfil } = await supabase
     .from("usuario")
     .select("rol")
     .eq("id", userId)
     .maybeSingle();
+
+  let proyectoId: string | null = null;
+  if (proyectoSlug) {
+    const { data: proyecto } = await supabase
+      .from("proyecto")
+      .select("id")
+      .eq("slug", proyectoSlug)
+      .maybeSingle();
+    proyectoId = proyecto?.id ?? null;
+    if (!proyectoId) {
+      return "/sin-acceso";
+    }
+    const explicito = rutaEntrevistaPermitida(next);
+    const destinoId = explicito?.split("/").at(-1);
+    if (destinoId && email) {
+      const { data: stakeholders } = await supabase
+        .from("stakeholder")
+        .select("id")
+        .eq("proyecto_id", proyectoId)
+        .ilike("email", email);
+      const stakeholderId = stakeholders?.at(0)?.id;
+      if (stakeholderId) {
+        const { data: fila } = await supabase
+          .from("entrevista")
+          .select("id")
+          .eq("id", destinoId)
+          .eq("stakeholder_id", stakeholderId)
+          .maybeSingle();
+        if (fila) {
+          return `/portal/entrevista/${fila.id}`;
+        }
+      }
+    }
+    const propia = await getEntrevistaIdByEmail(supabase, email, proyectoId);
+    if (propia) {
+      return `/portal/entrevista/${propia}`;
+    }
+    return homePathForRol(perfil?.rol, null);
+  }
 
   const explicito = rutaEntrevistaPermitida(next);
   const entrevistaId =
@@ -58,13 +99,16 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const type = tipoEmail(searchParams.get("type"));
   const next = rutaEntrevistaPermitida(searchParams.get("next"));
+  const proyectoSlug = slugValido(searchParams.get("proyecto"));
 
   const destino = (path: string) => new URL(`${base}${path}`, origin);
 
   // Whatever happens, the user lands on a screen that can get them in: the
   // login form asks for a code instead of telling them to create an account.
-  const loginErrorUrl = destino("/login?error=auth");
-  if (next) {
+  const loginErrorUrl = destino(
+    proyectoSlug ? `/${proyectoSlug}?error=auth` : "/login?error=auth"
+  );
+  if (next && !proyectoSlug) {
     loginErrorUrl.searchParams.set("next", next);
   }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -107,7 +151,13 @@ export async function GET(request: NextRequest) {
     // profile carries the project before we decide where they belong.
     await ensureUsuarioPerfil(user);
 
-    const landing = await landingForUser(supabase, user.id, user.email, next);
+    const landing = await landingForUser(
+      supabase,
+      user.id,
+      user.email,
+      next,
+      proyectoSlug
+    );
     const redirected = NextResponse.redirect(destino(landing));
 
     for (const cookie of response.cookies.getAll()) {

@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { test } from "@playwright/test";
 
-test("personal invitation is not copied to the team; thank-you policy remains", () => {
+test("completion mail is branded, copied to the team, and idempotent", () => {
   execFileSync(
     process.execPath,
     [

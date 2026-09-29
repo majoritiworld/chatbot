@@ -39,17 +39,22 @@ async function resolveProyectoId(
   }
 
   const supabase = await createClient();
-  const { data: stakeholder } = await supabase
+  const { data: stakeholders } = await supabase
     .from("stakeholder")
     .select("proyecto_id")
-    .ilike("email", email)
-    .maybeSingle();
-
-  return stakeholder?.proyecto_id ?? null;
+    .ilike("email", email);
+  const filas = stakeholders ?? [];
+  if (filas.length === 1) {
+    return filas.at(0)?.proyecto_id ?? null;
+  }
+  return null;
 }
 
-/** Where a signed-in user belongs right after auth, based on their role. */
-export async function landingPathForCurrentUser(next?: string | null) {
+/** Where a signed-in user belongs. A project link stays inside that project. */
+export async function landingPathForCurrentUser(
+  next?: string | null,
+  proyectoId?: string | null
+) {
   const context = await getUsuarioPerfil();
 
   if (!context?.user) {
@@ -58,11 +63,45 @@ export async function landingPathForCurrentUser(next?: string | null) {
 
   const { rol } = context;
   const explicito = rutaEntrevistaPermitida(next);
+  const supabase = await createClient();
+
+  if (proyectoId) {
+    if (explicito && context.user.email) {
+      const destinoId = explicito.split("/").at(-1);
+      const { data: stakeholders } = await supabase
+        .from("stakeholder")
+        .select("id")
+        .eq("proyecto_id", proyectoId)
+        .ilike("email", context.user.email);
+      const stakeholderId = stakeholders?.at(0)?.id;
+      if (destinoId && stakeholderId) {
+        const { data: propia } = await supabase
+          .from("entrevista")
+          .select("id")
+          .eq("id", destinoId)
+          .eq("stakeholder_id", stakeholderId)
+          .maybeSingle();
+        if (propia) {
+          return explicito;
+        }
+      }
+    }
+
+    const entrevistaId = await getEntrevistaIdByEmail(
+      supabase,
+      context.user.email,
+      proyectoId
+    );
+    if (entrevistaId) {
+      return `/portal/entrevista/${entrevistaId}`;
+    }
+    return homePathForRol(rol, null);
+  }
+
   if (explicito) {
     return explicito;
   }
 
-  const supabase = await createClient();
   const entrevistaId = isStakeholderRole(rol)
     ? await getEntrevistaIdByEmail(supabase, context.user.email)
     : null;

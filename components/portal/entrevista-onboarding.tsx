@@ -14,11 +14,10 @@ import {
 import { EntrevistaBienvenida } from "@/components/portal/entrevista-bienvenida";
 import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
+import { useMarcaParticipante } from "@/components/portal/marca-participante";
 import { Button } from "@/components/ui/button";
-import {
-  contextoOnboardingEntrevista,
-  puntosUsoRespuestasEntrevista,
-} from "@/lib/consultoria/entrevista-piloto";
+import { lineasAviso } from "@/lib/consultoria/comunicacion";
+import { contextoConMarca, puntosUsoConMarca } from "@/lib/consultoria/marca";
 
 const initialState: OnboardingActionState = { status: "idle" };
 
@@ -26,6 +25,7 @@ export function EntrevistaOnboarding({
   cliente,
   correoUsuario,
   entrevistaId,
+  minutos,
   mostrarPortal,
   nombre,
   numeroSecciones,
@@ -35,12 +35,14 @@ export function EntrevistaOnboarding({
   cliente?: string | null;
   correoUsuario?: string | null;
   entrevistaId: string;
+  minutos?: number | null;
   mostrarPortal: boolean;
   nombre?: string | null;
   numeroSecciones: number;
   onAceptado: () => void;
   titulo?: string;
 }) {
+  const marca = useMarcaParticipante();
   const [paso, setPaso] = useState<"saludo" | "disclaimer">("saludo");
   const [state, formAction, pending] = useActionState(
     aceptarOnboardingEntrevista,
@@ -69,6 +71,7 @@ export function EntrevistaOnboarding({
     >
       {paso === "saludo" ? (
         <EntrevistaBienvenida
+          minutos={minutos}
           nombre={nombre}
           numeroSecciones={numeroSecciones}
           onContinuar={irAlDisclaimer}
@@ -84,7 +87,7 @@ export function EntrevistaOnboarding({
               preguntas y conversar contigo, en vez de un formulario fijo.
             </p>
             <p className="italic text-muted-foreground text-sm leading-relaxed">
-              {contextoOnboardingEntrevista(cliente)}
+              {contextoConMarca(marca, cliente ?? null)}
             </p>
           </div>
 
@@ -92,7 +95,10 @@ export function EntrevistaOnboarding({
             <p className="font-medium text-lg">Cómo se usan tus respuestas</p>
             <div className="rounded-xl bg-muted px-5 py-5">
               <ul className="flex list-disc flex-col gap-2 pl-5 text-base leading-relaxed">
-                {puntosUsoRespuestasEntrevista(cliente).map((punto) => (
+                {(marca.avisoRespuestas
+                  ? lineasAviso(marca.avisoRespuestas)
+                  : [...puntosUsoConMarca(marca, cliente ?? null)]
+                ).map((punto) => (
                   <li key={punto}>{punto}</li>
                 ))}
               </ul>
