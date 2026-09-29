@@ -12,6 +12,7 @@ import {
   contenidoConfirmacionEntrevista,
   enlaceDeProyecto,
   marcaPredeterminada,
+  medidasImagen,
   mensajeSlugInvalido,
   presentacionPublica,
   puntosUsoConMarca,
@@ -19,11 +20,28 @@ import {
   textoAccesoInvitacion,
   textoBienvenidaParticipante,
   textoContactoFallo,
+  textoInstruccionCorreo,
   textoPausa,
 } from "@/lib/consultoria/marca";
 
 const PROYECTO_A = "20000000-0000-4000-8000-000000000001";
 const PROYECTO_B = "20000000-0000-4000-8000-000000000002";
+
+test("png and jpeg logos report their real pixel size", () => {
+  const png = new Uint8Array(24);
+  png.set([137, 80, 78, 71, 13, 10, 26, 10], 0);
+  png.set([73, 72, 68, 82], 12);
+  const pngVista = new DataView(png.buffer);
+  pngVista.setUint32(16, 445);
+  pngVista.setUint32(20, 367);
+  expect(medidasImagen(png)).toEqual({ alto: 367, ancho: 445 });
+
+  const jpeg = new Uint8Array([
+    255, 216, 255, 192, 0, 11, 8, 1, 111, 1, 189, 1, 0, 17, 0,
+  ]);
+  expect(medidasImagen(jpeg)).toEqual({ alto: 367, ancho: 445 });
+  expect(medidasImagen(new Uint8Array([0, 1, 2]))).toBeNull();
+});
 
 test("reserved and invalid slugs never become a project link", () => {
   expect(slugValido("admin")).toBeNull();
@@ -72,6 +90,13 @@ test("a configured project uses the client identity on every participant line", 
   expect(marca.color).toBe("#1f4b3a");
   expect(textoAccesoInvitacion(marca)).toMatch(/ComplianceLatam/);
   expect(textoAccesoInvitacion(marca)).not.toMatch(/Majoriti/);
+  expect(textoInstruccionCorreo(marca, false)).toBe(
+    "Escribe tu correo y te enviaremos un código para entrar."
+  );
+  expect(textoInstruccionCorreo(marca, true)).toMatch(/entras directo/);
+  expect(textoInstruccionCorreo(marcaPredeterminada(), false)).toMatch(
+    /entras directo/
+  );
   expect(textoBienvenidaParticipante(marca, "un tema")).toBe(
     "Bienvenida del cliente."
   );

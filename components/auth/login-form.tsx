@@ -23,6 +23,7 @@ import {
   type MarcaPublica,
   marcaPredeterminada,
   textoAccesoInvitacion,
+  textoInstruccionCorreo,
 } from "@/lib/consultoria/marca";
 
 /** Must match Authentication → Settings → Mailer OTP Length in Supabase. */
@@ -47,11 +48,11 @@ function Cabecera({
               ? "h-auto w-full max-w-[200px] object-contain object-left"
               : "h-auto w-full max-w-[280px] object-contain object-left dark:invert"
           }
-          height={156}
+          height={marca.logoAlto ?? 156}
           priority
           src={marca.logoSrc}
           unoptimized={marca.personalizada}
-          width={1024}
+          width={marca.logoAncho ?? 1024}
         />
       ) : (
         <p className="font-semibold text-2xl tracking-tight">{marca.nombre}</p>
@@ -77,11 +78,13 @@ function Aviso({ mensaje, tono }: { mensaje: string; tono: "error" | "info" }) {
 }
 
 export function LoginForm({
+  accesoDirecto = false,
   enlaceInvalido = false,
   marca = marcaPredeterminada(),
   nextDestino = null,
   proyectoSlug = null,
 }: {
+  accesoDirecto?: boolean;
   enlaceInvalido?: boolean;
   marca?: MarcaPublica;
   nextDestino?: string | null;
@@ -275,8 +278,7 @@ export function LoginForm({
             {marca.personalizada ? marca.titulo : "Portal de consultoría"}
           </h1>
           <p className="text-muted-foreground text-sm">
-            Escribe tu correo. Si el proyecto lo permite, entras directo. Si no,
-            te enviamos un código.
+            {textoInstruccionCorreo(marca, accesoDirecto)}
           </p>
         </div>
       </Cabecera>

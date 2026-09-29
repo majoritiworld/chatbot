@@ -11,6 +11,7 @@ import {
 import {
   type MarcaPublica,
   marcaPredeterminada,
+  medidasImagen,
   presentacionPublica,
   slugValido,
 } from "@/lib/consultoria/marca";
@@ -24,6 +25,7 @@ const COLUMNAS_FASE_COMUNICACION =
   "aviso_respuestas, bloque_comercial, bloque_comercial_etiqueta, bloque_comercial_url, correo_asunto, correo_cuerpo, correo_firma, correo_remitente, minutos, texto_bienvenida, proyecto:proyecto_id(aviso_respuestas, correo_asunto, correo_cuerpo, correo_firma, correo_remitente, texto_bienvenida)";
 
 export type MarcaDeProyecto = {
+  accesoDirecto: boolean;
   marca: MarcaPublica;
   proyectoId: string;
 };
@@ -39,7 +41,7 @@ export async function marcaPorSlug(
 
   const { data } = await admin
     .from("proyecto")
-    .select(`id, ${COLUMNAS_MARCA}`)
+    .select(`id, acceso_directo, ${COLUMNAS_MARCA}`)
     .eq("slug", slug)
     .maybeSingle();
 
@@ -47,10 +49,33 @@ export async function marcaPorSlug(
     return null;
   }
 
+  const marca = presentacionPublica(data);
+  const medidas = data.logo_path
+    ? await medidasDeLogo(admin, data.logo_path)
+    : null;
+
   return {
-    marca: presentacionPublica(data),
+    accesoDirecto: data.acceso_directo === true,
+    marca: medidas
+      ? { ...marca, logoAlto: medidas.alto, logoAncho: medidas.ancho }
+      : marca,
     proyectoId: data.id,
   };
+}
+
+async function medidasDeLogo(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  logoPath: string
+) {
+  try {
+    const archivo = await admin.storage.from("marcas").download(logoPath);
+    if (archivo.error || !archivo.data) {
+      return null;
+    }
+    return medidasImagen(new Uint8Array(await archivo.data.arrayBuffer()));
+  } catch {
+    return null;
+  }
 }
 
 export async function marcaPorProyectoId(

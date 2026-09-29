@@ -51,6 +51,9 @@ export type MarcaPublica = {
   contactoNombre: string | null;
   /** Null for a client brand without its own logo: never fall back to Majoriti. */
   logoSrc: string | null;
+  /** Intrinsic pixels, so the access form reserves the real logo before it loads. */
+  logoAlto?: number;
+  logoAncho?: number;
   nombre: string;
   personalizada: boolean;
   slug: string | null;
@@ -126,6 +129,96 @@ export function textoSobreColor(hex: string) {
   return luminancia > 0.62 ? "#141414" : "#fafafa";
 }
 
+const PNG_FIRMA = [137, 80, 78, 71, 13, 10, 26, 10] as const;
+const JPEG_INICIO = [255, 216] as const;
+const MARCADORES_SIN_LONGITUD = new Set([1, 216, 217]);
+
+function coincide(bytes: Uint8Array, firma: readonly number[]) {
+  if (bytes.byteLength < firma.length) {
+    return false;
+  }
+  for (const [indice, valor] of firma.entries()) {
+    if (bytes.at(indice) !== valor) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function medidasPng(bytes: Uint8Array) {
+  if (!(coincide(bytes, PNG_FIRMA) && bytes.byteLength >= 24)) {
+    return null;
+  }
+  if (
+    bytes.at(12) !== 73 ||
+    bytes.at(13) !== 72 ||
+    bytes.at(14) !== 68 ||
+    bytes.at(15) !== 82
+  ) {
+    return null;
+  }
+  const vista = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const ancho = vista.getUint32(16);
+  const alto = vista.getUint32(20);
+  if (ancho < 1 || alto < 1) {
+    return null;
+  }
+  return { alto, ancho };
+}
+
+function marcadorSinLongitud(marcador: number) {
+  return (
+    MARCADORES_SIN_LONGITUD.has(marcador) ||
+    (marcador >= 208 && marcador <= 215)
+  );
+}
+
+function medidasJpeg(bytes: Uint8Array) {
+  if (!coincide(bytes, JPEG_INICIO)) {
+    return null;
+  }
+  const vista = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let offset = 2;
+  while (offset + 3 < bytes.byteLength) {
+    if (bytes.at(offset) !== 255) {
+      return null;
+    }
+    const marcador = bytes.at(offset + 1);
+    if (marcador === undefined) {
+      return null;
+    }
+    if (marcadorSinLongitud(marcador)) {
+      offset += 2;
+      continue;
+    }
+    if (offset + 4 > bytes.byteLength) {
+      return null;
+    }
+    const longitud = vista.getUint16(offset + 2);
+    if (
+      (marcador === 192 || marcador === 193 || marcador === 194) &&
+      offset + 9 <= bytes.byteLength
+    ) {
+      const alto = vista.getUint16(offset + 5);
+      const ancho = vista.getUint16(offset + 7);
+      if (ancho > 0 && alto > 0) {
+        return { alto, ancho };
+      }
+      return null;
+    }
+    if (longitud < 2) {
+      return null;
+    }
+    offset += 2 + longitud;
+  }
+  return null;
+}
+
+/** Width and height of a PNG or JPEG. Unknown formats reserve nothing. */
+export function medidasImagen(bytes: Uint8Array) {
+  return medidasPng(bytes) ?? medidasJpeg(bytes);
+}
+
 function logoDeMarca(
   logoPath: string | null | undefined,
   slug: string | null,
@@ -181,6 +274,22 @@ export function presentacionPublica(fila: FilaMarca): MarcaPublica {
 
 export function enlaceDeProyecto(site: string, slug: string) {
   return `${site.replace(/\/$/, "")}/${slug}`;
+}
+
+const INSTRUCCION_CODIGO =
+  "Escribe tu correo y te enviaremos un código para entrar.";
+const INSTRUCCION_GENERAL =
+  "Escribe tu correo. Si el proyecto lo permite, entras directo. Si no, te enviamos un código.";
+
+/** Copy for the email step. A branded project that always mails a code says so. */
+export function textoInstruccionCorreo(
+  marca: MarcaPublica,
+  accesoDirecto = false
+) {
+  if (marca.personalizada && !accesoDirecto) {
+    return INSTRUCCION_CODIGO;
+  }
+  return INSTRUCCION_GENERAL;
 }
 
 export function textoAccesoInvitacion(marca: MarcaPublica) {
