@@ -1054,12 +1054,12 @@ function PureMultimodalInput({
                       : "bg-muted text-muted-foreground/25 cursor-not-allowed"
                 )}
                 data-testid="send-button"
-                size={esEntrevista ? "sm" : "icon-sm"}
                 disabled={
                   !input.trim() ||
                   uploadQueue.length > 0 ||
                   (Boolean(esEntrevista) && vozEntrevista.estado !== "idle")
                 }
+                size={esEntrevista ? "sm" : "icon-sm"}
                 status={status}
                 variant={esEntrevista ? "default" : "secondary"}
               >
