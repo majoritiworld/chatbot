@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import type { CSSProperties } from "react";
+import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { decidirEntradaProyecto } from "@/lib/consultoria/acceso-proyecto";
 import {
@@ -12,7 +13,21 @@ import { createClient } from "@/lib/supabase/server";
 type SlugParams = Promise<{ slug: string }>;
 type SlugSearch = Promise<{ error?: string }>;
 
-export default async function AccesoProyectoPage({
+export default function AccesoProyectoPage({
+  params,
+  searchParams,
+}: {
+  params: SlugParams;
+  searchParams: SlugSearch;
+}) {
+  return (
+    <Suspense fallback={<LoginForm />}>
+      <AccesoProyecto params={params} searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function AccesoProyecto({
   params,
   searchParams,
 }: {
