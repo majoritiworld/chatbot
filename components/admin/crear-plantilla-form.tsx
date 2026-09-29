@@ -7,6 +7,7 @@ import {
 } from "@/app/(admin)/admin/actions";
 import { ActionMensaje } from "@/components/admin/action-mensaje";
 import {
+  ConduccionField,
   FaseSelect,
   SeccionesField,
 } from "@/components/admin/entrevista-campos";
@@ -70,6 +71,8 @@ export function CrearPlantillaForm({
         </div>
         {faseFija ? null : <FaseSelect fases={fases} id="plantilla-faseId" />}
       </div>
+
+      <ConduccionField />
 
       <SeccionesField />
 

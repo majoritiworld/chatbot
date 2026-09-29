@@ -79,6 +79,7 @@ async function PlantillaContenido({ params }: { params: PlantillaParams }) {
           </p>
         </div>
         <PreguntasPlantillaForm
+          conduccion={plantilla.conduccion}
           plantillaId={plantilla.id}
           proyectoId={plantilla.proyectoId}
           secciones={plantilla.secciones}

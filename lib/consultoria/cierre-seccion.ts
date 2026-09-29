@@ -1,9 +1,11 @@
 import { z } from "zod";
 import {
+  MAX_SEGUIMIENTOS,
   ofertaCierreVigenteEnTurnos,
   type TurnoEntrevista,
   textoHabladoTurno,
 } from "@/lib/consultoria/entrevista-contenido";
+import { etiquetaCierreTema } from "@/lib/consultoria/entrevista-piloto";
 import {
   MENSAJE_CONTINUAR_SECCION,
   MENSAJE_FINALIZAR_SECCION,
@@ -141,10 +143,12 @@ export function autorizarCierreDirecto({
 
 export function instruccionesSintesisCierre({
   forzar,
+  instruccionesEntrevista,
   preguntas,
   tituloSeccion,
 }: {
   forzar: boolean;
+  instruccionesEntrevista?: string;
   preguntas: string[];
   tituloSeccion: string;
 }) {
@@ -160,7 +164,7 @@ ${cobertura}
 No inventes hechos. Basa síntesis, hallazgos y respuestas solo en la conversación.
 La síntesis es un párrafo corto con lo esencial: no copies las respuestas ni armes un recap pregunta por pregunta ahí. El detalle por pregunta va solo en respuestas.
 Incluye una entrada en respuestas por cada pregunta guía.
-
+${instruccionesEntrevista?.trim() ? `\nCriterios de la entrevista que también aplican al registrar lo dicho:\n${instruccionesEntrevista.trim()}\nSi la persona dijo que no sabe, o no mencionó un tema, escribe exactamente eso ("no lo sabe" o "no explorado"). Nunca lo conviertas en que algo no existe, no se usa o no se hace.\n` : ""}
 Preguntas guía:
 ${guia}`;
 }
@@ -235,6 +239,50 @@ export function partesCierreSinDuplicar<T extends { type: string }>(
     resultado.push(part);
   }
   return resultado;
+}
+
+const MENSAJES_DE_CONTROL = new Set([
+  MENSAJE_CONTINUAR_SECCION,
+  MENSAJE_FINALIZAR_SECCION,
+  MENSAJE_FORZAR_CIERRE_SECCION,
+  MENSAJE_GUARDAR_PROGRESO,
+  etiquetaCierreTema(false),
+  etiquetaCierreTema(true),
+]);
+
+export function respuestasEnSeccion(messages: ChatMessage[]) {
+  return messages.filter((message) => {
+    if (message.role !== "user") {
+      return false;
+    }
+    const texto = textoUsuario(message).trim();
+    return texto.length > 0 && !MENSAJES_DE_CONTROL.has(texto);
+  }).length;
+}
+
+/** Each agent turn asks at most one question, so every answer after the
+ * main one used up a follow-up. */
+export function seguimientosHechosEnSeccion(messages: ChatMessage[]) {
+  return Math.max(0, respuestasEnSeccion(messages) - 1);
+}
+
+/** With a follow-up menu the cap is enforced here, not only in the prompt:
+ * once it is reached the agent can only offer the close. */
+export function debeForzarOfertaCierre({
+  messages,
+  tieneSeguimientos,
+}: {
+  messages: ChatMessage[];
+  tieneSeguimientos: boolean;
+}) {
+  if (!tieneSeguimientos) {
+    return false;
+  }
+  const ultimo = messages.findLast((message) => message.role === "user");
+  if (!ultimo || MENSAJES_DE_CONTROL.has(textoUsuario(ultimo).trim())) {
+    return false;
+  }
+  return seguimientosHechosEnSeccion(messages) >= MAX_SEGUIMIENTOS;
 }
 
 export function ultimoUsuarioEligePausa(messages: ChatMessage[]) {

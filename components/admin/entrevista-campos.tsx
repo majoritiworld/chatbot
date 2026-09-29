@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
+import {
+  type ConduccionEntrevista,
+  MAX_SEGUIMIENTOS,
+  type SeccionEntrevista,
+} from "@/lib/consultoria/entrevista-contenido";
 import {
   ETIQUETA_ESTADO,
   normalizarEstado,
@@ -98,7 +102,12 @@ function nuevaSeccion(): SeccionEntrevista {
   };
 }
 
-type CampoSeccion = "titulo" | "descripcion" | "preguntas";
+type CampoSeccion =
+  | "titulo"
+  | "descripcion"
+  | "preguntas"
+  | "instrucciones"
+  | "seguimientos";
 
 function SeccionEditor({
   indice,
@@ -135,6 +144,16 @@ function SeccionEditor({
   const handlePreguntas = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) =>
       onActualizar(seccion.id, "preguntas", event.target.value),
+    [onActualizar, seccion.id]
+  );
+  const handleInstrucciones = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) =>
+      onActualizar(seccion.id, "instrucciones", event.target.value),
+    [onActualizar, seccion.id]
+  );
+  const handleSeguimientos = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>) =>
+      onActualizar(seccion.id, "seguimientos", event.target.value),
     [onActualizar, seccion.id]
   );
 
@@ -188,25 +207,71 @@ function SeccionEditor({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${prefijo}-descripcion`}>Descripción</Label>
+        <Label htmlFor={`${prefijo}-descripcion`}>
+          Descripción pública (la ve el participante)
+        </Label>
         <Textarea
           id={`${prefijo}-descripcion`}
           onChange={handleDescripcion}
           placeholder="Qué conversaremos en esta sección."
           value={seccion.descripcion}
         />
+        <p className="text-muted-foreground text-xs">
+          Introducción breve al tema. Nunca reglas del agente ni seguimientos.
+        </p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={`${prefijo}-preguntas`}>Preguntas guía</Label>
-        <Textarea
-          id={`${prefijo}-preguntas`}
-          onChange={handlePreguntas}
-          placeholder={PLACEHOLDER_PREGUNTAS}
-          required
-          value={seccion.preguntas.join("\n")}
-        />
-        <p className="text-muted-foreground text-xs">Una por línea.</p>
+      <div className="flex flex-col gap-3 rounded-md border border-dashed p-3">
+        <p className="font-medium text-muted-foreground text-xs">
+          Solo para el agente. El participante no ve esta parte.
+        </p>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${prefijo}-preguntas`}>
+            Pregunta principal o preguntas guía
+          </Label>
+          <Textarea
+            id={`${prefijo}-preguntas`}
+            onChange={handlePreguntas}
+            placeholder={PLACEHOLDER_PREGUNTAS}
+            required
+            value={seccion.preguntas.join("\n")}
+          />
+          <p className="text-muted-foreground text-xs">
+            Una por línea. Con seguimientos opcionales, deja solo la pregunta
+            principal: el agente la hace primero. Sin seguimientos, cada línea
+            es un tema que el agente debe cubrir.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${prefijo}-instrucciones`}>
+            Instrucciones internas de la sección
+          </Label>
+          <Textarea
+            id={`${prefijo}-instrucciones`}
+            onChange={handleInstrucciones}
+            placeholder="Prioridades de esta sección, texto de apertura o de cierre."
+            value={seccion.instrucciones ?? ""}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${prefijo}-seguimientos`}>
+            Seguimientos opcionales
+          </Label>
+          <Textarea
+            id={`${prefijo}-seguimientos`}
+            onChange={handleSeguimientos}
+            placeholder="Si no menciona resultados concretos: ¿Recuerda alguna situación…?"
+            value={(seccion.seguimientos ?? []).join("\n")}
+          />
+          <p className="text-muted-foreground text-xs">
+            Uno por línea, con su condición antes de los dos puntos. Es un menú:
+            el agente usa como máximo {MAX_SEGUIMIENTOS} por sección, de a uno,
+            y solo si hacen falta.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -228,10 +293,10 @@ export function SeccionesField({
           if (seccion.id !== id) {
             return seccion;
           }
-          if (campo === "preguntas") {
+          if (campo === "preguntas" || campo === "seguimientos") {
             return {
               ...seccion,
-              preguntas: valor.split("\n"),
+              [campo]: valor.split("\n"),
             };
           }
           return { ...seccion, [campo]: valor };
@@ -272,7 +337,8 @@ export function SeccionesField({
       <div>
         <legend className="font-medium text-sm">Secciones</legend>
         <p className="text-muted-foreground text-xs">
-          Cada sección presenta un tema y contiene sus preguntas guía.
+          Cada sección tiene una descripción pública y una parte que solo recibe
+          el agente.
         </p>
       </div>
 
@@ -299,6 +365,51 @@ export function SeccionesField({
         <PlusIcon />
         Agregar sección
       </Button>
+    </fieldset>
+  );
+}
+
+export function ConduccionField({
+  defaultValue,
+}: {
+  defaultValue?: ConduccionEntrevista;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-3 rounded-lg border border-dashed p-3">
+      <div>
+        <legend className="font-medium text-sm">
+          Conducción del agente (común a todas las secciones)
+        </legend>
+        <p className="text-muted-foreground text-xs">
+          Solo para el agente. El participante no ve esta parte.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="conduccion-trato">Trato</Label>
+        <select
+          className="h-9 w-fit rounded-lg border border-input bg-transparent px-3 text-sm"
+          defaultValue={defaultValue?.trato ?? "tu"}
+          id="conduccion-trato"
+          name="trato"
+        >
+          <option value="tu">Tú</option>
+          <option value="usted">Usted</option>
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="conduccion-instrucciones">
+          Instrucciones internas de la entrevista
+        </Label>
+        <Textarea
+          className="min-h-24 text-sm"
+          defaultValue={defaultValue?.instruccionesAgente ?? ""}
+          id="conduccion-instrucciones"
+          name="instruccionesAgente"
+          placeholder="Reglas de conducción comunes a todas las secciones."
+        />
+      </div>
     </fieldset>
   );
 }

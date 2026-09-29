@@ -2,6 +2,7 @@ import "server-only";
 
 import { patronEmail } from "@/lib/consultoria/auth";
 import {
+  type ConduccionEntrevista,
   clonarSecciones,
   type SeccionEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
@@ -134,6 +135,7 @@ export async function crearEntrevistaConTarea({
   preguntas,
   secciones,
   plantillaId,
+  conduccion,
 }: {
   stakeholderId: string;
   responsable: string;
@@ -141,6 +143,7 @@ export async function crearEntrevistaConTarea({
   preguntas: string[];
   secciones?: SeccionEntrevista[];
   plantillaId?: string | null;
+  conduccion?: ConduccionEntrevista;
 }): Promise<ResultadoEntrevista> {
   const supabase = await createClient();
   const seccionesAsignadas = clonarSecciones(
@@ -160,6 +163,12 @@ export async function crearEntrevistaConTarea({
     .from("entrevista")
     .insert({
       estado: "abierta",
+      ...(conduccion
+        ? {
+            instrucciones_agente: conduccion.instruccionesAgente,
+            trato: conduccion.trato,
+          }
+        : {}),
       plantilla_id: plantillaId ?? null,
       preguntas,
       secciones: seccionesAsignadas,
@@ -290,6 +299,7 @@ export type ResultadoProvisionPlantilla =
  * skipped and not rewritten. An earlier phase stays untouched.
  */
 export async function provisionarDestinatarioPlantilla({
+  conduccion,
   proyectoId,
   email,
   nombre,
@@ -300,6 +310,7 @@ export async function provisionarDestinatarioPlantilla({
   secciones,
   plantillaId,
 }: {
+  conduccion: ConduccionEntrevista;
   proyectoId: string;
   email: string;
   nombre: string;
@@ -334,6 +345,7 @@ export async function provisionarDestinatarioPlantilla({
     }
 
     const entrevista = await crearEntrevistaConTarea({
+      conduccion,
       fase,
       plantillaId,
       preguntas,
@@ -377,6 +389,7 @@ export async function provisionarDestinatarioPlantilla({
   }
 
   const entrevista = await crearEntrevistaConTarea({
+    conduccion,
     fase,
     plantillaId,
     preguntas,

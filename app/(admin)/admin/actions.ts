@@ -12,12 +12,14 @@ import {
   parseDestinatariosOpcional,
 } from "@/lib/consultoria/destinatarios";
 import {
+  type ConduccionEntrevista,
   construirArchivoTranscripcion,
   parseResumen,
   parseTranscripcion,
   preguntasDeSecciones,
   type ResumenEntrevista,
   type SeccionEntrevista,
+  seccionesConDescripcionInterna,
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import {
@@ -685,9 +687,41 @@ const plantillaSchema = z.object({
 const seccionFormSchema = z.object({
   descripcion: z.string(),
   id: z.string().min(1),
+  instrucciones: z.string().optional(),
   preguntas: z.array(z.string()),
+  seguimientos: z.array(z.string()).optional(),
   titulo: z.string().trim().min(1, "Cada sección necesita un título"),
 });
+
+const conduccionSchema = z.object({
+  instruccionesAgente: z.string().trim().max(8000),
+  trato: z.enum(["tu", "usted"]),
+});
+
+function conduccionDesdeFormulario(
+  formData: FormData
+):
+  | { ok: true; conduccion: ConduccionEntrevista }
+  | { ok: false; message: string } {
+  const parsed = conduccionSchema.safeParse({
+    instruccionesAgente: formData.get("instruccionesAgente") ?? "",
+    trato: formData.get("trato") ?? "tu",
+  });
+  if (!parsed.success) {
+    return {
+      message: "El trato o las instrucciones no son válidos",
+      ok: false,
+    };
+  }
+  return { conduccion: parsed.data, ok: true };
+}
+
+function columnasConduccion(conduccion: ConduccionEntrevista) {
+  return {
+    instrucciones_agente: conduccion.instruccionesAgente,
+    trato: conduccion.trato,
+  };
+}
 
 function seccionesDesdeFormulario(
   raw: string
@@ -709,15 +743,30 @@ function seccionesDesdeFormulario(
     };
   }
 
-  const secciones = parsed.data.map((seccion) => ({
-    descripcion: seccion.descripcion.trim(),
-    id: seccion.id.startsWith("new-") ? generateUUID() : seccion.id,
-    preguntas: preguntasDesdeTexto(seccion.preguntas.join("\n")),
-    titulo: seccion.titulo,
-  }));
+  const secciones = parsed.data.map((seccion) => {
+    const instrucciones = seccion.instrucciones?.trim() ?? "";
+    const seguimientos = preguntasDesdeTexto(
+      (seccion.seguimientos ?? []).join("\n")
+    );
+    return {
+      descripcion: seccion.descripcion.trim(),
+      id: seccion.id.startsWith("new-") ? generateUUID() : seccion.id,
+      ...(instrucciones ? { instrucciones } : {}),
+      preguntas: preguntasDesdeTexto(seccion.preguntas.join("\n")),
+      ...(seguimientos.length > 0 ? { seguimientos } : {}),
+      titulo: seccion.titulo,
+    };
+  });
   if (secciones.some((seccion) => seccion.preguntas.length === 0)) {
     return {
       message: "Cada sección necesita al menos una pregunta guía",
+      ok: false,
+    };
+  }
+  const conInstrucciones = seccionesConDescripcionInterna(secciones);
+  if (conInstrucciones.length > 0) {
+    return {
+      message: `La descripción pública de «${conInstrucciones.map((seccion) => seccion.titulo).join("», «")}» parece contener instrucciones del agente o seguimientos. Muévelas a la parte que solo recibe el agente.`,
       ok: false,
     };
   }
@@ -748,6 +797,10 @@ export async function crearPlantillaEntrevista(
   }
   const { secciones } = resultadoSecciones;
   const preguntas = preguntasDeSecciones(secciones);
+  const resultadoConduccion = conduccionDesdeFormulario(formData);
+  if (!resultadoConduccion.ok) {
+    return { message: resultadoConduccion.message, status: "error" };
+  }
 
   const fase = await getFaseDelProyecto(
     parsed.data.proyectoId,
@@ -760,6 +813,7 @@ export async function crearPlantillaEntrevista(
 
   const supabase = await createClient();
   const { error } = await supabase.from("entrevista_plantilla").insert({
+    ...columnasConduccion(resultadoConduccion.conduccion),
     fase_id: fase.id,
     nombre: parsed.data.nombre,
     preguntas,
@@ -806,11 +860,19 @@ export async function guardarPreguntasPlantilla(
   }
   const { secciones } = resultadoSecciones;
   const preguntas = preguntasDeSecciones(secciones);
+  const resultadoConduccion = conduccionDesdeFormulario(formData);
+  if (!resultadoConduccion.ok) {
+    return { message: resultadoConduccion.message, status: "error" };
+  }
 
   const supabase = await createClient();
   const { data: plantilla, error } = await supabase
     .from("entrevista_plantilla")
-    .update({ preguntas, secciones })
+    .update({
+      ...columnasConduccion(resultadoConduccion.conduccion),
+      preguntas,
+      secciones,
+    })
     .eq("id", parsed.data.plantillaId)
     .eq("proyecto_id", parsed.data.proyectoId)
     .select("fase_id")
@@ -1134,6 +1196,7 @@ export async function asignarEntrevista(
   }
 
   const resultado = await crearEntrevistaConTarea({
+    conduccion: plantilla.conduccion,
     fase: plantilla.fase,
     plantillaId: plantilla.id,
     preguntas: plantilla.preguntas,
@@ -1349,6 +1412,10 @@ export async function guardarPreguntasEntrevista(
   }
   const { secciones } = resultadoSecciones;
   const preguntas = preguntasDeSecciones(secciones);
+  const resultadoConduccion = conduccionDesdeFormulario(formData);
+  if (!resultadoConduccion.ok) {
+    return { message: resultadoConduccion.message, status: "error" };
+  }
 
   const supabase = await createClient();
   const { data: entrevistaActual } = await supabase
@@ -1369,7 +1436,11 @@ export async function guardarPreguntasEntrevista(
 
   const { data: actualizada, error } = await supabase
     .from("entrevista")
-    .update({ preguntas, secciones })
+    .update({
+      ...columnasConduccion(resultadoConduccion.conduccion),
+      preguntas,
+      secciones,
+    })
     .eq("id", parsed.data.entrevistaId)
     .eq("estado", "abierta")
     .is("consentimiento_en", null)

@@ -12,11 +12,13 @@ import type { TurnoEntrevista } from "@/lib/consultoria/entrevista-contenido";
 
 export async function generarResumenCierreSeccion({
   forzar,
+  instruccionesEntrevista,
   preguntas,
   tituloSeccion,
   turnos,
 }: {
   forzar: boolean;
+  instruccionesEntrevista?: string;
   preguntas: string[];
   tituloSeccion: string;
   turnos: TurnoEntrevista[];
@@ -24,6 +26,7 @@ export async function generarResumenCierreSeccion({
   const { output } = await generateText({
     instructions: instruccionesSintesisCierre({
       forzar,
+      instruccionesEntrevista,
       preguntas,
       tituloSeccion,
     }),

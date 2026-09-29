@@ -4,22 +4,27 @@ import { interviewSystemPrompt, textoSeccionesPrevias } from "@/lib/ai/prompts";
 import {
   agenteOfrecioCierreListo,
   cierrePendienteEnChat,
+  debeForzarOfertaCierre,
   herramientasCierreActivas,
   mensajesTextoParaModelo,
   ofertaCierreVigenteEnChat,
+  seguimientosHechosEnSeccion,
   ultimoUsuarioEligePausa,
   ultimoUsuarioPideFinalizar,
 } from "@/lib/consultoria/cierre-seccion";
 import {
   clonarSecciones,
   consolidarRespuestasEntrevista,
+  contieneInstruccionesInternas,
   fusionarTurnos,
   haySeccionesPendientes,
   ofertaCierreVigenteEnTurnos,
   parseSecciones,
   parseSeccionesCompletadas,
+  partirSeguimiento,
   resolverAvanceSeccion,
   seccionesDesdeGuionPlano,
+  seccionesPublicas,
   type TurnoEntrevista,
   turnosDeSeccion,
 } from "@/lib/consultoria/entrevista-contenido";
@@ -42,12 +47,19 @@ import {
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
 import {
   GUION_CL_FASE_2,
+  INSTRUCCIONES_AGENTE_CL_FASE_2,
   minutosSiEsGuionClFase2,
+  seccionesDeGuionClFase2,
+  TRATO_CL_FASE_2,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-2";
 import {
   mensajesATurnos,
   turnosAMensajes,
 } from "@/lib/consultoria/mensajes-a-turnos";
+import {
+  herramientasDelTurno,
+  pasosTurnoEntrevista,
+} from "@/lib/consultoria/pasos-entrevista";
 import {
   elegirEntrevistaLanding,
   mismoEmail,
@@ -642,19 +654,245 @@ test.describe("ComplianceLatam phase 2 guide", () => {
     expect(
       GUION_CL_FASE_2.every((seccion) => seccion.preguntas.length === 1)
     ).toBe(true);
-    const texto = GUION_CL_FASE_2.map((seccion) => seccion.descripcion).join(
-      "\n"
-    );
-    expect(texto).toContain("no explorado");
-    expect(texto).toContain("como máximo dos");
+    expect(INSTRUCCIONES_AGENTE_CL_FASE_2).toContain("no explorado");
+    expect(INSTRUCCIONES_AGENTE_CL_FASE_2).toContain("como máximo dos");
+    expect(TRATO_CL_FASE_2).toBe("usted");
     expect(
       GUION_CL_FASE_2.flatMap((seccion) => seccion.preguntas).join(" ")
     ).not.toContain("como máximo dos");
+    expect(
+      GUION_CL_FASE_2.map((seccion) => seccion.seguimientos.length)
+    ).toEqual([4, 6, 6, 5, 5]);
+    expect(GUION_CL_FASE_2.at(0)?.instrucciones).toContain("Para abrir");
+    expect(GUION_CL_FASE_2.at(4)?.instrucciones).toContain("Al cerrar");
+    for (const titulo of [1, 2, 3]) {
+      expect(GUION_CL_FASE_2.at(titulo)?.instrucciones).toMatch(/prioriza/);
+    }
     expect(GUION_CL_FASE_1).toHaveLength(6);
     expect(
       minutosSiEsGuionClFase2(GUION_CL_FASE_2.map((seccion) => seccion.titulo))
     ).toBe(30);
     expect(minutosSiEsGuionClFase2(["General"])).toBeNull();
+  });
+
+  test("public descriptions of every guide carry no agent rules", () => {
+    const guiones = [
+      ...GUION_CL_FASE_1,
+      ...GUION_CL_CORTO,
+      ...seccionesDeGuionClFase2(),
+    ];
+    for (const seccion of guiones) {
+      expect(
+        contieneInstruccionesInternas(seccion.descripcion),
+        seccion.titulo
+      ).toBe(false);
+    }
+    expect(
+      contieneInstruccionesInternas(
+        "Haz la pregunta principal y deja espacio para responder."
+      )
+    ).toBe(true);
+    expect(
+      contieneInstruccionesInternas(
+        "Seguimientos opcionales, como máximo dos:\n- Si no menciona resultados concretos: ¿Recuerda…?"
+      )
+    ).toBe(true);
+    expect(
+      contieneInstruccionesInternas(
+        "En esta sección, prioriza cubrir la participación de otros equipos."
+      )
+    ).toBe(true);
+  });
+
+  test("the participant's browser never receives follow-ups or agent rules", () => {
+    const publicas = seccionesPublicas(seccionesDeGuionClFase2());
+    const payload = JSON.stringify(publicas);
+    expect(payload).not.toContain("seguimientos");
+    expect(payload).not.toContain("instrucciones");
+    expect(payload).not.toContain("Si no menciona");
+    expect(publicas.map((seccion) => seccion.preguntas)).toEqual(
+      GUION_CL_FASE_2.map((seccion) => seccion.preguntas)
+    );
+  });
+
+  test("assigned copies and saved sections keep the agent-only fields", () => {
+    const [primera] = clonarSecciones(seccionesDeGuionClFase2());
+    expect(primera?.seguimientos).toHaveLength(4);
+    expect(primera?.instrucciones).toContain("Para abrir");
+    const [leida] = parseSecciones(JSON.parse(JSON.stringify([primera])));
+    expect(leida?.seguimientos).toEqual(primera?.seguimientos);
+    expect(leida?.instrucciones).toEqual(primera?.instrucciones);
+  });
+
+  test("the agent gets the main question, the capped menu and usted, with no tuteo rule", () => {
+    const seccion = GUION_CL_FASE_2.at(1);
+    const prompt = interviewSystemPrompt({
+      descripcionSeccion: seccion?.descripcion,
+      instruccionesEntrevista: INSTRUCCIONES_AGENTE_CL_FASE_2,
+      instruccionesSeccion: seccion?.instrucciones,
+      nombreEntrevistado: "Ana",
+      preguntas: seccion?.preguntas ?? [],
+      seguimientos: seccion?.seguimientos,
+      tituloSeccion: seccion?.titulo ?? "",
+      trato: "usted",
+    });
+    expect(prompt).toContain("Pregunta principal de esta sección");
+    expect(prompt).toContain(seccion?.preguntas.at(0) ?? "?");
+    expect(prompt).toContain("Seguimientos opcionales");
+    expect(prompt).toContain(seccion?.seguimientos.at(0) ?? "?");
+    expect(prompt).toContain("como máximo DOS seguimientos");
+    expect(prompt).toContain("Seguimientos ya hechos en esta sección: 0.");
+    expect(prompt).toContain(
+      "prioriza cubrir la participación de otros equipos"
+    );
+    expect(prompt).toContain("no explorado");
+    expect(prompt).toContain("Trata a la persona de usted");
+    expect(prompt).not.toMatch(/Tutea/);
+    expect(prompt).not.toContain("Asegúrate de cubrir todos los temas guía");
+    expect(prompt).not.toContain("Máximo DOS follow-ups por tema");
+
+    const agotado = interviewSystemPrompt({
+      preguntas: seccion?.preguntas ?? [],
+      seguimientos: seccion?.seguimientos,
+      seguimientosHechos: 2,
+      tituloSeccion: seccion?.titulo ?? "",
+      trato: "usted",
+    });
+    expect(agotado).toContain("el límite está alcanzado");
+  });
+
+  test("the flow, not only the prompt, caps follow-ups at two per section", () => {
+    const usuario = (id: string, text: string): ChatMessage => ({
+      id,
+      parts: [{ text, type: "text" }],
+      role: "user",
+    });
+    const agente = (id: string): ChatMessage => ({
+      id,
+      parts: [{ text: "¿Pregunta?", type: "text" }],
+      role: "assistant",
+    });
+    const principal = [agente("a1"), usuario("u1", "Respuesta principal")];
+    const unSeguimiento = [...principal, agente("a2"), usuario("u2", "Más")];
+    const dos = [...unSeguimiento, agente("a3"), usuario("u3", "Todavía más")];
+
+    expect(seguimientosHechosEnSeccion(principal)).toBe(0);
+    expect(seguimientosHechosEnSeccion(unSeguimiento)).toBe(1);
+    expect(seguimientosHechosEnSeccion(dos)).toBe(2);
+    expect(
+      debeForzarOfertaCierre({
+        messages: unSeguimiento,
+        tieneSeguimientos: true,
+      })
+    ).toBe(false);
+    expect(
+      debeForzarOfertaCierre({ messages: dos, tieneSeguimientos: true })
+    ).toBe(true);
+    expect(
+      debeForzarOfertaCierre({ messages: dos, tieneSeguimientos: false })
+    ).toBe(false);
+    const conControl = [
+      ...unSeguimiento,
+      agente("a3"),
+      usuario("u3", MENSAJE_CONTINUAR_SECCION),
+    ];
+    expect(seguimientosHechosEnSeccion(conControl)).toBe(1);
+    expect(
+      debeForzarOfertaCierre({
+        messages: [
+          ...dos,
+          agente("a4"),
+          usuario("u4", MENSAJE_FINALIZAR_SECCION),
+        ],
+        tieneSeguimientos: true,
+      })
+    ).toBe(false);
+  });
+
+  test("every approved follow-up splits into its condition and the question to ask", () => {
+    for (const seguimiento of GUION_CL_FASE_2.flatMap(
+      (seccion) => seccion.seguimientos
+    )) {
+      const { condicion, pregunta } = partirSeguimiento(seguimiento);
+      expect(condicion, seguimiento).toMatch(/^(Si |Prioritario, si )/);
+      expect(pregunta, seguimiento).not.toMatch(/^Si no /);
+      expect(`${condicion}: ${pregunta}`).toBe(seguimiento);
+    }
+  });
+
+  test("a turn either asks the chosen follow-up or offers the close, never both", () => {
+    const mensajes: ChatMessage[] = [
+      { id: "u1", parts: [{ text: "Respuesta", type: "text" }], role: "user" },
+    ];
+    expect(
+      herramientasDelTurno({
+        forzarOferta: false,
+        messages: mensajes,
+        seguimientoSiguiente: "¿Qué otros equipos participan?",
+      })
+    ).toEqual([]);
+    expect(
+      herramientasDelTurno({ forzarOferta: true, messages: mensajes })
+    ).toEqual(["ofrecerCierreSeccion"]);
+    expect(
+      herramientasDelTurno({ forzarOferta: false, messages: mensajes })
+    ).toEqual(["ofrecerCierreSeccion"]);
+
+    const prompt = interviewSystemPrompt({
+      preguntas: ["¿Qué tanto se conoce?"],
+      seguimientoSiguiente: "¿Qué otros equipos participan?",
+      seguimientos: GUION_CL_FASE_2.at(1)?.seguimientos,
+      tituloSeccion: "Conocimiento",
+      trato: "usted",
+    });
+    expect(prompt).toContain(
+      "Seguimiento para este turno (ya se comprobó que la persona no lo respondió): ¿Qué otros equipos participan?"
+    );
+    expect(prompt).not.toContain("Si no precisa qué conocen");
+    const cierre = interviewSystemPrompt({
+      cerrarSeccion: true,
+      preguntas: ["¿Qué tanto se conoce?"],
+      seguimientos: GUION_CL_FASE_2.at(1)?.seguimientos,
+      tituloSeccion: "Conocimiento",
+      trato: "usted",
+    });
+    expect(cierre).toContain("NO hagas ninguna pregunta");
+    expect(cierre).not.toContain("Si no precisa qué conocen");
+  });
+
+  test("with follow-ups, a close offer without text gets a text-only second step", () => {
+    const { prepareStep, stopWhen } = pasosTurnoEntrevista({
+      conSeguimientos: true,
+      forzarOferta: true,
+    });
+    const paso = (text: string) => ({
+      text,
+      toolCalls: [{ toolName: "ofrecerCierreSeccion" }],
+    });
+    const detener = (steps: unknown[]) =>
+      stopWhen.some((condicion) =>
+        condicion({ steps } as unknown as Parameters<typeof condicion>[0])
+      );
+    const llamar = (stepNumber: number, steps: unknown[]) =>
+      prepareStep?.({ stepNumber, steps } as unknown as Parameters<
+        NonNullable<typeof prepareStep>
+      >[0]);
+
+    expect(llamar(0, [])).toEqual({
+      toolChoice: { toolName: "ofrecerCierreSeccion", type: "tool" },
+    });
+    expect(detener([paso("")])).toBe(false);
+    expect(llamar(1, [paso("")])).toEqual({
+      activeTools: [],
+      toolChoice: "none",
+    });
+    expect(detener([paso("Pulse el botón.")])).toBe(true);
+
+    const legado = pasosTurnoEntrevista({
+      conSeguimientos: false,
+      forzarOferta: false,
+    });
+    expect(legado.prepareStep).toBeUndefined();
   });
 
   test("opening a page keeps an existing guide and a later phase does not rewrite the earlier interview", () => {

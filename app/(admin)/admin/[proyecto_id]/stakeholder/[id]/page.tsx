@@ -129,6 +129,7 @@ async function DetalleContenido({ params }: { params: DetalleParams }) {
             titulo="Guion de la entrevista"
           >
             <PreguntasEntrevistaForm
+              conduccion={detalle.conduccion}
               entrevistaId={detalle.entrevistaId}
               proyectoId={proyectoId}
               secciones={detalle.secciones}

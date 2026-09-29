@@ -1,8 +1,7 @@
 import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
 import type { GuionSeccion } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
 
-export const NOMBRE_PLANTILLA_CL_CORTO =
-  "Diagnóstico corto — abogado de apoyo";
+export const NOMBRE_PLANTILLA_CL_CORTO = "Diagnóstico corto — abogado de apoyo";
 
 export const GUION_CL_CORTO: GuionSeccion[] = [
   {

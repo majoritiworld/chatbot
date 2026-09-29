@@ -6,9 +6,15 @@ import {
   guardarPreguntasEntrevista,
 } from "@/app/(admin)/admin/actions";
 import { ActionMensaje } from "@/components/admin/action-mensaje";
-import { SeccionesField } from "@/components/admin/entrevista-campos";
+import {
+  ConduccionField,
+  SeccionesField,
+} from "@/components/admin/entrevista-campos";
 import { Button } from "@/components/ui/button";
-import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
+import type {
+  ConduccionEntrevista,
+  SeccionEntrevista,
+} from "@/lib/consultoria/entrevista-contenido";
 
 const initialState: ActionState = { status: "idle" };
 
@@ -17,11 +23,13 @@ export function PreguntasEntrevistaForm({
   proyectoId,
   entrevistaId,
   secciones,
+  conduccion,
 }: {
   stakeholderId: string;
   proyectoId: string;
   entrevistaId: string;
   secciones: SeccionEntrevista[];
+  conduccion: ConduccionEntrevista;
 }) {
   const [state, formAction, pending] = useActionState(
     guardarPreguntasEntrevista,
@@ -33,6 +41,8 @@ export function PreguntasEntrevistaForm({
       <input name="stakeholderId" type="hidden" value={stakeholderId} />
       <input name="proyectoId" type="hidden" value={proyectoId} />
       <input name="entrevistaId" type="hidden" value={entrevistaId} />
+
+      <ConduccionField defaultValue={conduccion} />
 
       <SeccionesField defaultValue={secciones} />
 

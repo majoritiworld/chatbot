@@ -57,12 +57,82 @@ export type RespuestaResumen = {
   respuesta_texto: string;
 };
 
+/**
+ * `descripcion` is shown to the participant. `instrucciones` and
+ * `seguimientos` only reach the agent. With `seguimientos`, `preguntas` holds
+ * the main question and the follow-ups are an optional menu capped at
+ * `MAX_SEGUIMIENTOS`.
+ */
 export type SeccionEntrevista = {
   id: string;
   titulo: string;
   descripcion: string;
   preguntas: string[];
+  instrucciones?: string;
+  seguimientos?: string[];
 };
+
+export const MAX_SEGUIMIENTOS = 2;
+
+export type TratoEntrevista = "tu" | "usted";
+
+/** Interview-level agent settings, copied into every assigned interview. */
+export type ConduccionEntrevista = {
+  instruccionesAgente: string;
+  trato: TratoEntrevista;
+};
+
+export function parseTrato(value: unknown): TratoEntrevista {
+  return value === "usted" ? "usted" : "tu";
+}
+
+/** Rules that belong to the agent. They must never reach a public text. */
+const PATRONES_INSTRUCCION_INTERNA = [
+  /pregunta principal/i,
+  /seguimientos?/i,
+  /como m[aá]ximo/i,
+  /\bmen[uú]\b/i,
+  /no explorado/i,
+  /\b(haz|hazla|hazlos|elige|prioriza|interpretes|distingue|reg[ií]stralo|presupongas|di esto)\b/i,
+  /\bsi no (menciona|explica|precisa|distingue|queda|identifica|aborda|eval[uú]a|concreta|aterriza|habla|describe)\b/i,
+  /^\s*[-*•]\s/m,
+];
+
+export function contieneInstruccionesInternas(texto: string) {
+  return PATRONES_INSTRUCCION_INTERNA.some((patron) => patron.test(texto));
+}
+
+const SEPARADOR_CONDICION = /:\s+(?=¿|[A-ZÁÉÍÓÚÑ])/;
+
+/** "Si no menciona X: ¿Pregunta?" → condition and the question to ask. */
+export function partirSeguimiento(seguimiento: string) {
+  const match = SEPARADOR_CONDICION.exec(seguimiento);
+  if (!match) {
+    return { condicion: "", pregunta: seguimiento.trim() };
+  }
+  return {
+    condicion: seguimiento.slice(0, match.index).trim(),
+    pregunta: seguimiento.slice(match.index + match[0].length).trim(),
+  };
+}
+
+/** What may travel to the participant's browser. */
+export function seccionesPublicas(
+  secciones: SeccionEntrevista[]
+): SeccionEntrevista[] {
+  return secciones.map(({ descripcion, id, preguntas, titulo }) => ({
+    descripcion,
+    id,
+    preguntas,
+    titulo,
+  }));
+}
+
+export function seccionesConDescripcionInterna(secciones: SeccionEntrevista[]) {
+  return secciones.filter((seccion) =>
+    contieneInstruccionesInternas(seccion.descripcion)
+  );
+}
 
 export type FlujoEntrevista =
   | "bienvenida"
@@ -117,11 +187,12 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
       return [];
     }
 
-    const { descripcion, id, preguntas, titulo } = item as Record<
-      string,
-      unknown
-    >;
+    const { descripcion, id, instrucciones, preguntas, seguimientos, titulo } =
+      item as Record<string, unknown>;
     const preguntasValidas = parsePreguntas(preguntas);
+    const seguimientosValidos = parsePreguntas(seguimientos);
+    const instruccionesValidas =
+      typeof instrucciones === "string" ? instrucciones.trim() : "";
 
     if (
       typeof id !== "string" ||
@@ -137,7 +208,13 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
       {
         descripcion: typeof descripcion === "string" ? descripcion.trim() : "",
         id,
+        ...(instruccionesValidas
+          ? { instrucciones: instruccionesValidas }
+          : {}),
         preguntas: preguntasValidas,
+        ...(seguimientosValidos.length > 0
+          ? { seguimientos: seguimientosValidos }
+          : {}),
         titulo: titulo.trim(),
       },
     ];
@@ -154,7 +231,11 @@ export function clonarSecciones(
   return secciones.map((seccion) => ({
     descripcion: seccion.descripcion,
     id: crypto.randomUUID(),
+    ...(seccion.instrucciones ? { instrucciones: seccion.instrucciones } : {}),
     preguntas: [...seccion.preguntas],
+    ...(seccion.seguimientos?.length
+      ? { seguimientos: [...seccion.seguimientos] }
+      : {}),
     titulo: seccion.titulo,
   }));
 }

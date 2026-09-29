@@ -11,6 +11,7 @@ import {
   parseSecciones,
   parseSeccionesCompletadas,
   parseTranscripcion,
+  parseTrato,
   preguntasDeSecciones,
   type RespuestaResumen,
   type ResumenEntrevista,
@@ -41,6 +42,8 @@ const ENTREVISTA_SELECT = `
   stakeholder_id,
   preguntas,
   secciones,
+  instrucciones_agente,
+  trato,
   flujo_estado,
   seccion_actual,
   secciones_completadas,
@@ -72,6 +75,8 @@ type EntrevistaRow = {
   stakeholder_id: string;
   preguntas: unknown;
   secciones: unknown;
+  instrucciones_agente?: string | null;
+  trato?: string | null;
   flujo_estado: string;
   seccion_actual: number;
   secciones_completadas: unknown;
@@ -160,6 +165,7 @@ function toEntrevista(row: EntrevistaRow): Entrevista {
     fecha_completada: row.fecha_completada,
     flujo_estado: parseFlujoEstado(row.flujo_estado),
     id: row.id,
+    instrucciones_agente: row.instrucciones_agente?.trim() ?? "",
     notion_transcripcion_id: row.notion_transcripcion_id,
     preguntas:
       secciones.length > 0 ? preguntasDeSecciones(secciones) : preguntas,
@@ -174,6 +180,7 @@ function toEntrevista(row: EntrevistaRow): Entrevista {
     stakeholder_id: row.stakeholder_id,
     stakeholder_nombre:
       nombreCompleto(stakeholder?.nombre, stakeholder?.apellido) || null,
+    trato: parseTrato(row.trato),
   };
 }
 
@@ -609,6 +616,7 @@ export async function cerrarSeccionDirecta({
 
   const resumen = await generarResumenCierreSeccion({
     forzar,
+    instruccionesEntrevista: entrevista.instrucciones_agente,
     preguntas: seccion.preguntas,
     tituloSeccion: seccion.titulo,
     turnos: turnosDeSeccion(turnosPersistidos, seccion.id, true),

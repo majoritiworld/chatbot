@@ -3,8 +3,10 @@ import "server-only";
 import { asegurarAccesoPortal } from "@/lib/consultoria/auth";
 import type { DestinatarioPlantilla } from "@/lib/consultoria/destinatarios";
 import {
+  type ConduccionEntrevista,
   parsePreguntas,
   parseSecciones,
+  parseTrato,
   preguntasDeSecciones,
   type SeccionEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
@@ -18,8 +20,10 @@ import {
   seccionesDeGuionClFase1,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
 import {
+  INSTRUCCIONES_AGENTE_CL_FASE_2,
   NOMBRE_PLANTILLA_CL_FASE_2,
   seccionesDeGuionClFase2,
+  TRATO_CL_FASE_2,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-2";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import {
@@ -41,6 +45,7 @@ export type PlantillaAdmin = {
   faseOrden: number;
   preguntas: string[];
   secciones: SeccionEntrevista[];
+  conduccion: ConduccionEntrevista;
   enviadas: number;
 };
 
@@ -57,6 +62,8 @@ type PlantillaRow = {
   fase_id: string;
   preguntas: unknown;
   secciones: unknown;
+  instrucciones_agente?: string | null;
+  trato?: string | null;
   fase?: FaseEmbed | FaseEmbed[];
   entrevista?: Array<{ id: string }> | null;
 };
@@ -77,6 +84,10 @@ function toPlantillaAdmin(row: PlantillaRow): PlantillaAdmin | null {
   const preguntas = parsePreguntas(row.preguntas);
 
   return {
+    conduccion: {
+      instruccionesAgente: row.instrucciones_agente?.trim() ?? "",
+      trato: parseTrato(row.trato),
+    },
     enviadas: row.entrevista?.length ?? 0,
     faseId: fase.id,
     faseNombre: fase.nombre,
@@ -105,6 +116,8 @@ export async function listPlantillasAdmin(
       fase_id,
       preguntas,
       secciones,
+      instrucciones_agente,
+      trato,
       fase:fase_id ( id, nombre, orden ),
       entrevista ( id )
     `
@@ -142,6 +155,8 @@ export async function getPlantillaDelProyecto(
       fase_id,
       preguntas,
       secciones,
+      instrucciones_agente,
+      trato,
       fase:fase_id ( id, nombre, orden ),
       entrevista ( id )
     `
@@ -226,11 +241,13 @@ async function asegurarPlantillaGuion({
   faseId,
   nombre,
   seccionesDeseadas,
+  conduccion,
 }: {
   proyectoId: string;
   faseId: string;
   nombre: string;
   seccionesDeseadas: SeccionEntrevista[];
+  conduccion?: ConduccionEntrevista;
 }) {
   const supabase = await createClient();
   const existente = await getPlantillaGuionPorNombre(
@@ -253,6 +270,12 @@ async function asegurarPlantillaGuion({
       preguntas,
       proyecto_id: proyectoId,
       secciones,
+      ...(conduccion
+        ? {
+            instrucciones_agente: conduccion.instruccionesAgente,
+            trato: conduccion.trato,
+          }
+        : {}),
     })
     .select("id")
     .maybeSingle();
@@ -318,6 +341,10 @@ export async function asegurarPlantillaGuionClFase2({
   faseId: string;
 }) {
   return await asegurarPlantillaGuion({
+    conduccion: {
+      instruccionesAgente: INSTRUCCIONES_AGENTE_CL_FASE_2,
+      trato: TRATO_CL_FASE_2,
+    },
     faseId,
     nombre: NOMBRE_PLANTILLA_CL_FASE_2,
     proyectoId,
@@ -364,6 +391,7 @@ export type ResultadoEnvioPlantilla = {
 };
 
 async function enviarADestinatario({
+  conduccion,
   destinatario,
   proyectoId,
   fase,
@@ -372,6 +400,7 @@ async function enviarADestinatario({
   plantillaId,
   rol,
 }: {
+  conduccion: ConduccionEntrevista;
   destinatario: DestinatarioPlantilla;
   proyectoId: string;
   fase: FaseObjetivo;
@@ -386,6 +415,7 @@ async function enviarADestinatario({
 }> {
   const resultado = await provisionarDestinatarioPlantilla({
     apellido: destinatario.apellido,
+    conduccion,
     email: destinatario.email,
     fase,
     firma: destinatario.firma,
@@ -462,6 +492,7 @@ export async function enviarPlantillaALista({
 
   const filas = await mapLotes(destinatarios, LOTE_INVITES, (destinatario) =>
     enviarADestinatario({
+      conduccion: plantilla.conduccion,
       destinatario,
       fase: plantilla.fase,
       plantillaId: plantilla.id,

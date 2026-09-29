@@ -7,7 +7,10 @@ import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { MarcaParticipanteProvider } from "@/components/portal/marca-participante";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mostrarPortalFases } from "@/lib/consultoria/acceso-proyecto";
-import { turnosDeSeccion } from "@/lib/consultoria/entrevista-contenido";
+import {
+  seccionesPublicas,
+  turnosDeSeccion,
+} from "@/lib/consultoria/entrevista-contenido";
 import { getEntrevistaPortalCarga } from "@/lib/consultoria/entrevistas";
 import {
   comunicacionDeEntrevista,
@@ -139,7 +142,7 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
         minutos={presentacion?.minutos ?? null}
         mostrarPortal={mostrarPortal}
         seccionActualInicial={entrevista.seccion_actual}
-        secciones={entrevista.secciones}
+        secciones={seccionesPublicas(entrevista.secciones)}
         stakeholderNombre={entrevista.stakeholder_nombre}
       />
     </MarcaParticipanteProvider>

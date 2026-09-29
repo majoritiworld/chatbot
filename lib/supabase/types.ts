@@ -2,6 +2,7 @@ import type {
   FlujoEntrevista,
   SeccionCompletada,
   SeccionEntrevista,
+  TratoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 
 export type UserRole = "majoriti" | "cliente" | "stakeholder" | "comite";
@@ -53,6 +54,9 @@ export type Entrevista = {
   stakeholder_id: string;
   preguntas: string[];
   secciones: SeccionEntrevista[];
+  /** Agent-only rules shared by every section. Never shown to the participant. */
+  instrucciones_agente: string;
+  trato: TratoEntrevista;
   flujo_estado: FlujoEntrevista;
   seccion_actual: number;
   secciones_completadas: SeccionCompletada[];

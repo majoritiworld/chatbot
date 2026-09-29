@@ -2,8 +2,6 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
-  hasToolCall,
-  isStepCount,
   streamText,
   tool,
 } from "ai";
@@ -18,7 +16,6 @@ import { getLanguageModel } from "@/lib/ai/providers";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
   cierreSeccionInputSchema,
-  herramientasCierreActivas,
   mensajesTextoParaModelo,
   ofertaCierreInputSchema,
   pausaSeccionInputSchema,
@@ -35,9 +32,14 @@ import {
 import { textoKickoffEntrevista } from "@/lib/consultoria/kickoff-entrevista";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
 import {
+  herramientasDelTurno,
+  pasosTurnoEntrevista,
+} from "@/lib/consultoria/pasos-entrevista";
+import {
   ErrorGuardadoTranscripcion,
   streamEntrevista,
 } from "@/lib/consultoria/stream-entrevista";
+import { planificarSeguimientos } from "@/lib/consultoria/turno-entrevista";
 import { ChatbotError } from "@/lib/errors";
 import type { ChatMessage, SectionCompletedData } from "@/lib/types";
 import { generateUUID } from "@/lib/utils";
@@ -165,21 +167,72 @@ export async function POST(request: Request) {
     const esUltimoTema =
       entrevista.seccion_actual >= entrevista.secciones.length - 1;
     const etiquetaCierre = etiquetaCierreTema(esUltimoTema);
+    const { forzarOferta, seguimientoSiguiente, seguimientosHechos } =
+      await planificarSeguimientos({
+        messages: uiMessages,
+        seccion,
+        seccionesPrevias,
+      });
 
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
         let avancePendiente: SectionCompletedData | undefined;
+        const herramientas = {
+          completarSeccion: tool({
+            description:
+              "Cierra la sección activa. Úsala solo cuando el entrevistado confirma que quiere finalizar y los temas guía ya están cubiertos.",
+            execute: async ({ hallazgos, respuestas, sintesis }) => {
+              const avance = await completarSeccionEntrevista({
+                entrevistaId: entrevista.id,
+                hallazgos,
+                modo: "agente",
+                respuestas,
+                seccionId: seccion.id,
+                sintesis,
+                turnos: mensajesATurnos(uiMessages, seccion.id),
+              });
+              avancePendiente = avance;
+              return {
+                message: "Sección guardada. Continúa con el siguiente paso.",
+                ok: true,
+              };
+            },
+            inputSchema: cierreSeccionInputSchema,
+          }),
+          ofrecerCierreSeccion: tool({
+            description: `Llama a esta herramienta estructurada para mostrar el botón "${etiquetaCierre}" cuando los temas guía ya están cubiertos. No cierra la sección. El botón aparece por esta llamada, no por mencionar la herramienta o su nombre en el texto. No menciones otros botones.`,
+            execute: () => ({ ok: true as const }),
+            inputSchema: ofertaCierreInputSchema,
+          }),
+          ofrecerContinuarOGuardar: tool({
+            description:
+              "Muestra los botones Continuar y Guardar progreso cuando el entrevistado quiere cerrar pero todavía faltan temas. No hagas la siguiente pregunta en este turno.",
+            execute: () => ({ ok: true as const }),
+            inputSchema: pausaSeccionInputSchema,
+          }),
+        };
         const result = streamText({
-          activeTools: [...herramientasCierreActivas(uiMessages)],
+          activeTools: herramientasDelTurno({
+            forzarOferta,
+            messages: uiMessages,
+            seguimientoSiguiente,
+          }),
           instructions: interviewSystemPrompt({
+            cerrarSeccion: forzarOferta,
             descripcionSeccion: seccion.descripcion,
             esUltimoTema,
             firmaEntrevistado: entrevista.stakeholder_firma,
+            instruccionesEntrevista: entrevista.instrucciones_agente,
+            instruccionesSeccion: seccion.instrucciones,
             nombreEntrevistado: entrevista.stakeholder_nombre,
             preguntas: seccion.preguntas,
             reanudacion: uiMessages.length > 0,
             seccionesPrevias,
+            seguimientoSiguiente,
+            seguimientos: seccion.seguimientos,
+            seguimientosHechos,
             tituloSeccion: seccion.titulo,
+            trato: entrevista.trato,
           }),
           messages: modelMessages,
           model: getLanguageModel(chatModel),
@@ -191,52 +244,15 @@ export async function POST(request: Request) {
               openai: { reasoningEffort: modelConfig.reasoningEffort },
             }),
           },
-          stopWhen: [
-            hasToolCall(
-              "completarSeccion",
-              "ofrecerCierreSeccion",
-              "ofrecerContinuarOGuardar"
-            ),
-            isStepCount(2),
-          ],
+          ...pasosTurnoEntrevista<typeof herramientas>({
+            conSeguimientos: Boolean(seccion.seguimientos?.length),
+            forzarOferta,
+          }),
           telemetry: {
             functionId: "entrevista-guiada",
             isEnabled: isProductionEnvironment,
           },
-          tools: {
-            completarSeccion: tool({
-              description:
-                "Cierra la sección activa. Úsala solo cuando el entrevistado confirma que quiere finalizar y los temas guía ya están cubiertos.",
-              execute: async ({ hallazgos, respuestas, sintesis }) => {
-                const avance = await completarSeccionEntrevista({
-                  entrevistaId: entrevista.id,
-                  hallazgos,
-                  modo: "agente",
-                  respuestas,
-                  seccionId: seccion.id,
-                  sintesis,
-                  turnos: mensajesATurnos(uiMessages, seccion.id),
-                });
-                avancePendiente = avance;
-                return {
-                  message: "Sección guardada. Continúa con el siguiente paso.",
-                  ok: true,
-                };
-              },
-              inputSchema: cierreSeccionInputSchema,
-            }),
-            ofrecerCierreSeccion: tool({
-              description: `Llama a esta herramienta estructurada para mostrar el botón "${etiquetaCierre}" cuando los temas guía ya están cubiertos. No cierra la sección. El botón aparece por esta llamada, no por mencionar la herramienta o su nombre en el texto. No menciones otros botones.`,
-              execute: () => ({ ok: true as const }),
-              inputSchema: ofertaCierreInputSchema,
-            }),
-            ofrecerContinuarOGuardar: tool({
-              description:
-                "Muestra los botones Continuar y Guardar progreso cuando el entrevistado quiere cerrar pero todavía faltan temas. No hagas la siguiente pregunta en este turno.",
-              execute: () => ({ ok: true as const }),
-              inputSchema: pausaSeccionInputSchema,
-            }),
-          },
+          tools: herramientas,
         });
 
         dataStream.merge(

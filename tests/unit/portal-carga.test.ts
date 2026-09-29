@@ -20,6 +20,7 @@ const entrevista: Entrevista = {
   fecha_completada: null,
   flujo_estado: "chat",
   id: ENTREVISTA_ID,
+  instrucciones_agente: "",
   notion_transcripcion_id: null,
   preguntas: ["Pregunta"],
   seccion_actual: 0,
@@ -36,6 +37,7 @@ const entrevista: Entrevista = {
   stakeholder_firma: null,
   stakeholder_id: "30000000-0000-4000-8000-000000000001",
   stakeholder_nombre: "Participant",
+  trato: "tu",
 };
 
 const turnoSecreto: TurnoEntrevista = {

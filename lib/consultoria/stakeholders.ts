@@ -7,10 +7,12 @@ import {
 } from "@/lib/consultoria/auth";
 import type { DestinatarioPlantilla } from "@/lib/consultoria/destinatarios";
 import {
+  type ConduccionEntrevista,
   parsePreguntas,
   parseResumen,
   parseSecciones,
   parseTranscripcion,
+  parseTrato,
   type ResumenEntrevista,
   type SeccionEntrevista,
   type TurnoEntrevista,
@@ -91,6 +93,7 @@ export type DocumentoAdmin = {
 export type StakeholderDetalle = StakeholderAdmin & {
   preguntas: string[];
   secciones: SeccionEntrevista[];
+  conduccion: ConduccionEntrevista;
   transcripcion: TurnoEntrevista[];
   resumen: ResumenEntrevista | null;
   fases: FaseAdmin[];
@@ -112,6 +115,8 @@ type EntrevistaEmbed = {
   fecha_completada: string | null;
   preguntas?: unknown;
   secciones?: unknown;
+  instrucciones_agente?: string | null;
+  trato?: string | null;
   transcripcion?: unknown;
   resumen?: unknown;
 } | null;
@@ -575,6 +580,8 @@ export async function getStakeholderDetalle(
         fecha_completada,
         preguntas,
         secciones,
+        instrucciones_agente,
+        trato,
         transcripcion,
         resumen
       )
@@ -629,6 +636,10 @@ export async function getStakeholderDetalle(
 
   return {
     ...base,
+    conduccion: {
+      instruccionesAgente: entrevista?.instrucciones_agente?.trim() ?? "",
+      trato: parseTrato(entrevista?.trato),
+    },
     documentos: (documentos ?? []).map((doc) => ({
       createdAt: doc.created_at,
       faseId: doc.fase_id,
