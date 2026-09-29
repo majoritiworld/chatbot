@@ -89,8 +89,8 @@ export function EntrevistaVozCompositor({
         aria-keyshortcuts="Alt+Space"
         aria-label="Hablar"
         className={`${BOTON_ICONO_COMPOSITOR_ENTREVISTA} p-0`}
-        size="icon-lg"
         onClick={empezarGrabacion}
+        size="icon-lg"
         type="button"
         variant="outline"
       >
