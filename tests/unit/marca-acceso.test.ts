@@ -45,6 +45,14 @@ test("an unconfigured project keeps the default presentation", () => {
   expect(textoPausa(marcaPredeterminada())).not.toMatch(/Majoriti/);
 });
 
+test("a client brand without its own logo never shows the Majoriti logo", () => {
+  const marca = presentacionPublica({
+    nombre_publico: "ComplianceLatam",
+    slug: "compliance-latam",
+  });
+  expect(marca.logoSrc).toBeNull();
+});
+
 test("a configured project uses the client identity on every participant line", () => {
   const marca = presentacionPublica({
     cliente: "Interno",

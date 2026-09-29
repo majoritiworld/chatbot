@@ -39,18 +39,23 @@ function Cabecera({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <Image
-        alt={marca.nombre}
-        className={
-          marca.personalizada
-            ? "h-auto w-full max-w-[280px] object-contain object-left"
-            : "h-auto w-full max-w-[280px] object-contain object-left dark:invert"
-        }
-        height={156}
-        priority
-        src={marca.logoSrc}
-        width={1024}
-      />
+      {marca.logoSrc ? (
+        <Image
+          alt={marca.nombre}
+          className={
+            marca.personalizada
+              ? "h-auto w-full max-w-[200px] object-contain object-left"
+              : "h-auto w-full max-w-[280px] object-contain object-left dark:invert"
+          }
+          height={156}
+          priority
+          src={marca.logoSrc}
+          unoptimized={marca.personalizada}
+          width={1024}
+        />
+      ) : (
+        <p className="font-semibold text-2xl tracking-tight">{marca.nombre}</p>
+      )}
       {children}
     </div>
   );

@@ -49,7 +49,8 @@ export type MarcaPublica = {
   colorTexto: string | null;
   contactoEmail: string | null;
   contactoNombre: string | null;
-  logoSrc: string;
+  /** Null for a client brand without its own logo: never fall back to Majoriti. */
+  logoSrc: string | null;
   nombre: string;
   personalizada: boolean;
   slug: string | null;
@@ -125,6 +126,17 @@ export function textoSobreColor(hex: string) {
   return luminancia > 0.62 ? "#141414" : "#fafafa";
 }
 
+function logoDeMarca(
+  logoPath: string | null | undefined,
+  slug: string | null,
+  personalizada: boolean
+) {
+  if (logoPath && slug) {
+    return `/marca/${slug}/logo`;
+  }
+  return personalizada ? null : LOGO_PREDETERMINADO;
+}
+
 export function presentacionPublica(fila: FilaMarca): MarcaPublica {
   const slug = slugValido(fila.slug);
   const colorInterpretado = interpretarColor(fila.color_principal ?? "");
@@ -158,8 +170,7 @@ export function presentacionPublica(fila: FilaMarca): MarcaPublica {
     colorTexto: color ? textoSobreColor(color) : null,
     contactoEmail: contactoEmail || null,
     contactoNombre: contactoNombre || null,
-    logoSrc:
-      fila.logo_path && slug ? `/marca/${slug}/logo` : LOGO_PREDETERMINADO,
+    logoSrc: logoDeMarca(fila.logo_path, slug, personalizada),
     nombre,
     personalizada,
     slug,
