@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, LockIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, LockIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,6 +13,11 @@ import {
 import { marcarTarea } from "@/app/(portal)/portal/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import type { FaseEstado } from "@/lib/consultoria/fase-estado";
 import type {
   EntrevistaDelPortal,
@@ -20,6 +25,11 @@ import type {
   TareaDelPortal,
 } from "@/lib/consultoria/fases";
 import { formatRangoFechas } from "@/lib/consultoria/fechas-rango";
+import {
+  agruparPorFirmaYPais,
+  convieneAgruparPorFirma,
+  type GrupoFirma,
+} from "@/lib/consultoria/personas-grupos";
 import { cn } from "@/lib/utils";
 
 const PILL_SEMAFORO = {
@@ -249,6 +259,101 @@ function TareaFila({
   );
 }
 
+function ListaEntrevistas({
+  entrevistas,
+  faseBloqueada,
+}: {
+  entrevistas: EntrevistaDelPortal[];
+  faseBloqueada: boolean;
+}) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {entrevistas.map((entrevista) => (
+        <li key={entrevista.id}>
+          <EntrevistaFila
+            entrevista={entrevista}
+            faseBloqueada={faseBloqueada}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function FirmaGrupo({
+  faseBloqueada,
+  grupo,
+}: {
+  faseBloqueada: boolean;
+  grupo: GrupoFirma<EntrevistaDelPortal>;
+}) {
+  const personas = grupo.paises.flatMap((pais) => pais.personas);
+  const completadas = personas.filter(
+    (entrevista) => entrevista.estado === "completada"
+  ).length;
+  const incluyePropia = personas.some((entrevista) => entrevista.esPropia);
+
+  return (
+    <Collapsible
+      className="rounded-lg ring-1 ring-foreground/10"
+      defaultOpen={incluyePropia}
+    >
+      <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-muted/40">
+        <span className="inline-flex min-w-0 items-center gap-2 font-medium text-sm">
+          <ChevronRightIcon
+            aria-hidden="true"
+            className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
+          />
+          <span className="truncate">{grupo.firma ?? "Sin firma"}</span>
+        </span>
+        <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+          {completadas}/{grupo.total} completadas
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-3 px-3 pt-1 pb-3">
+        {grupo.paises.map((pais) => (
+          <div className="flex flex-col gap-2" key={pais.pais ?? "sin-pais"}>
+            <h4 className="text-muted-foreground text-xs">
+              {pais.pais ?? "Sin país"}
+            </h4>
+            <ListaEntrevistas
+              entrevistas={pais.personas}
+              faseBloqueada={faseBloqueada}
+            />
+          </div>
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function EntrevistasDeFase({
+  entrevistas,
+  faseBloqueada,
+}: {
+  entrevistas: EntrevistaDelPortal[];
+  faseBloqueada: boolean;
+}) {
+  if (!convieneAgruparPorFirma(entrevistas)) {
+    return (
+      <ListaEntrevistas
+        entrevistas={entrevistas}
+        faseBloqueada={faseBloqueada}
+      />
+    );
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {agruparPorFirmaYPais(entrevistas).map((grupo) => (
+        <li key={grupo.firma ?? "sin-firma"}>
+          <FirmaGrupo faseBloqueada={faseBloqueada} grupo={grupo} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function FaseContenido({ fase }: { fase: FaseDelPortal }) {
   const bloqueada = fase.estado === "bloqueado";
   const tieneEntrevistas = fase.entrevistas.length > 0;
@@ -288,16 +393,10 @@ function FaseContenido({ fase }: { fase: FaseDelPortal }) {
           <h3 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
             Entrevistas
           </h3>
-          <ul className="flex flex-col gap-2">
-            {fase.entrevistas.map((entrevista) => (
-              <li key={entrevista.id}>
-                <EntrevistaFila
-                  entrevista={entrevista}
-                  faseBloqueada={bloqueada}
-                />
-              </li>
-            ))}
-          </ul>
+          <EntrevistasDeFase
+            entrevistas={fase.entrevistas}
+            faseBloqueada={bloqueada}
+          />
         </div>
       ) : null}
 

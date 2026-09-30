@@ -15,6 +15,8 @@ export type EntrevistaDelPortal = {
   estado: string;
   stakeholderId: string;
   stakeholderNombre: string;
+  firma: string | null;
+  pais: string | null;
   esPropia: boolean;
   /** Whether the current user may open/respond to this interview. */
   puedeResponder: boolean;
@@ -51,6 +53,8 @@ type StakeholderEmbed = {
   apellido: string | null;
   email: string;
   estado_entrevista: string;
+  firma: string | null;
+  pais: string | null;
 } | null;
 
 type EntrevistaEmbed = {
@@ -114,7 +118,7 @@ const FASE_SELECT = `
       estado,
       flujo_estado,
       stakeholder_id,
-      stakeholder:stakeholder_id ( id, nombre, apellido, email, estado_entrevista )
+      stakeholder:stakeholder_id ( id, nombre, apellido, email, estado_entrevista, firma, pais )
     ),
     asignado:stakeholder_id ( id, nombre, apellido, email )
   )
@@ -194,7 +198,9 @@ function toFaseDelPortal(
         flujoEstado: entrevista.flujo_estado,
         stakeholderEstado: stakeholder.estado_entrevista,
       }),
+      firma: stakeholder.firma,
       id: entrevista.id,
+      pais: stakeholder.pais,
       puedeConsultar: esCliente && !esPropia,
       puedeResponder: esPropia,
       stakeholderId: stakeholder.id,
