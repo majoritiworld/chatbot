@@ -9,11 +9,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { mostrarPortalFases } from "@/lib/consultoria/acceso-proyecto";
 import {
   seccionesPublicas,
+  type TurnoEntrevista,
   turnosDeSeccion,
 } from "@/lib/consultoria/entrevista-contenido";
 import {
   getEntrevistaEnlace,
   getEntrevistaPortalCarga,
+  getUsuarioPerfil,
 } from "@/lib/consultoria/entrevistas";
 import {
   comunicacionDeEntrevista,
@@ -23,7 +25,11 @@ import {
 } from "@/lib/consultoria/marca-publica";
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
+import { asignacionTieneAccesoSoloCorreo } from "@/lib/consultoria/roles";
+import { puedeAbrirAsignacionConSesionHabitual } from "@/lib/consultoria/sesion-entrevista";
 import { sintesisConsultaGuardada } from "@/lib/consultoria/sintesis-consulta";
+import { createClient } from "@/lib/supabase/server";
+import type { Entrevista } from "@/lib/supabase/types";
 
 export default function EntrevistaPage({
   params,
@@ -76,6 +82,41 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
       </MarcaParticipanteProvider>
     );
   }
+
+  const habitual = await getUsuarioPerfil();
+  if (habitual?.user.email) {
+    const supabase = await createClient();
+    const soloCorreo = await asignacionTieneAccesoSoloCorreo(
+      supabase,
+      entrevistaId,
+      habitual.user.email
+    );
+    if (
+      puedeAbrirAsignacionConSesionHabitual({
+        accesoSoloCorreo: soloCorreo,
+        emailAsignacion: habitual.user.email,
+        emailHabitual: habitual.user.email,
+        rolHabitual: habitual.rol,
+      })
+    ) {
+      const cargaHabitual = await getEntrevistaPortalCarga(
+        entrevistaId,
+        habitual.user.email,
+        { proyectoId: null, rol: habitual.rol }
+      );
+      if (cargaHabitual.acceso === "propia") {
+        return (
+          <EntrevistaPropia
+            correoUsuario={habitual.user.email}
+            entrevista={cargaHabitual.entrevista}
+            mostrarPortal={false}
+            turnos={cargaHabitual.turnos}
+          />
+        );
+      }
+    }
+  }
+
   const portalUser = await requirePortalUser({ conProyecto: false });
   const carga = await getEntrevistaPortalCarga(entrevistaId, portalUser.email, {
     proyectoId: portalUser.proyectoId,
@@ -163,6 +204,33 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
   }
 
   const { entrevista, turnos } = carga;
+
+  return (
+    <EntrevistaPropia
+      correoUsuario={portalUser.email}
+      entrevista={entrevista}
+      mostrarPortal={mostrarPortal}
+      turnos={turnos}
+    />
+  );
+}
+
+async function EntrevistaPropia({
+  correoUsuario,
+  entrevista,
+  mostrarPortal,
+  turnos,
+}: {
+  correoUsuario: string | null;
+  entrevista: Entrevista;
+  mostrarPortal: boolean;
+  turnos: TurnoEntrevista[];
+}) {
+  const presentacion = await comunicacionDeEntrevista(entrevista.id);
+  const marca = marcaConTextos(
+    await marcaPorProyectoId(entrevista.proyecto_id),
+    presentacion.textos
+  );
   const seccionActiva = entrevista.secciones.at(entrevista.seccion_actual);
   const turnosActivos = seccionActiva
     ? turnosDeSeccion(turnos, seccionActiva.id, entrevista.seccion_actual === 0)
@@ -174,12 +242,12 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
         cliente={entrevista.proyecto_cliente}
         consentimientoEn={entrevista.consentimiento_en}
         correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
-        correoUsuario={portalUser.email}
+        correoUsuario={correoUsuario}
         entrevistaId={entrevista.id}
         estadoInicial={entrevista.estado}
         flujoEstadoInicial={entrevista.flujo_estado}
         mensajesIniciales={turnosAMensajes(turnosActivos)}
-        minutos={presentacion?.minutos ?? null}
+        minutos={presentacion.minutos}
         mostrarPortal={mostrarPortal}
         seccionActualInicial={entrevista.seccion_actual}
         secciones={seccionesPublicas(entrevista.secciones)}

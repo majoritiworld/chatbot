@@ -23,13 +23,18 @@ import {
   turnosDeSeccion,
 } from "@/lib/consultoria/entrevista-contenido";
 import { decisionReintentoCorreo } from "@/lib/consultoria/entrevista-piloto";
+import { MENSAJE_ACEPTACION_NO_REGISTRADA } from "@/lib/consultoria/mensajes-chat";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import {
   accesoEntrevistaPortal,
   coincideFaseYViewer,
   type EntrevistaPortalCarga,
 } from "@/lib/consultoria/portal-carga-acceso";
-import { mismoEmail } from "@/lib/consultoria/roles";
+import {
+  asignacionTieneAccesoSoloCorreo,
+  mismoEmail,
+} from "@/lib/consultoria/roles";
+import { puedeAbrirAsignacionConSesionHabitual } from "@/lib/consultoria/sesion-entrevista";
 import { generarResumenCierreSeccion } from "@/lib/consultoria/sintesis-cierre";
 import {
   citasLiteralesDelParticipante,
@@ -267,6 +272,34 @@ async function membresiaConfirmada(
   });
 }
 
+/** Same person, email-only phase, and not a committee account. */
+async function sesionHabitualOperaSoloCorreo(entrevistaId: string) {
+  const context = await getUsuarioPerfil();
+  const email = context?.user.email;
+  if (!(context && email) || context.rol === "comite") {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const soloCorreo = await asignacionTieneAccesoSoloCorreo(
+    supabase,
+    entrevistaId,
+    email
+  );
+  if (
+    !puedeAbrirAsignacionConSesionHabitual({
+      accesoSoloCorreo: soloCorreo,
+      emailAsignacion: email,
+      emailHabitual: email,
+      rolHabitual: context.rol,
+    })
+  ) {
+    return null;
+  }
+
+  return { email };
+}
+
 /**
  * Loads the requested interview and confirms the caller owns it in that
  * project. A session from another project does not pass.
@@ -310,7 +343,7 @@ export async function getEntrevistaEnlace(entrevistaId: string) {
 
 async function canalDeEscritura(entrevistaId: string) {
   const context = await getUsuarioPerfil();
-  if (context) {
+  if (context && context.rol !== "comite") {
     const propia = await entrevistaPorId(entrevistaId);
     if (
       propia &&
@@ -321,6 +354,18 @@ async function canalDeEscritura(entrevistaId: string) {
         email: null,
         supabase: await createClient(),
         tipo: "sesion" as const,
+      };
+    }
+    const habitual = await sesionHabitualOperaSoloCorreo(entrevistaId);
+    if (habitual) {
+      const admin = createAdminClient();
+      if (!admin) {
+        throw new Error("No se pudo guardar la entrevista");
+      }
+      return {
+        email: habitual.email,
+        supabase: admin,
+        tipo: "enlace" as const,
       };
     }
   }
@@ -347,7 +392,7 @@ export async function getEntrevistaEscribible(
   }
 
   const context = await getUsuarioPerfil();
-  if (context) {
+  if (context && context.rol !== "comite") {
     const entrevista = await entrevistaPorId(entrevistaId);
     if (
       entrevista &&
@@ -355,6 +400,9 @@ export async function getEntrevistaEscribible(
       (await membresiaConfirmada(context.user.email, entrevista.proyecto_id))
     ) {
       return entrevista;
+    }
+    if (await sesionHabitualOperaSoloCorreo(entrevistaId)) {
+      return entrevistaPorId(entrevistaId);
     }
   }
 
@@ -958,15 +1006,19 @@ export async function aceptarConsentimientoEntrevista(entrevistaId: string) {
     return { alreadyDone: true as const };
   }
 
-  const supabase = await createClient();
-  const ahora = new Date().toISOString();
-  const { error } = await supabase
-    .from("entrevista")
-    .update({ consentimiento_en: ahora })
-    .eq("id", entrevistaId);
+  const canal = await canalDeEscritura(entrevista.id);
+  const { data, error } =
+    canal.tipo === "enlace"
+      ? await canal.supabase.rpc("accept_interview_consent_enlace", {
+          p_email: canal.email,
+          p_entrevista_id: entrevista.id,
+        })
+      : await canal.supabase.rpc("accept_interview_consent", {
+          p_entrevista_id: entrevista.id,
+        });
 
-  if (error) {
-    throw error;
+  if (error || typeof data !== "string" || data.length === 0) {
+    throw new Error(MENSAJE_ACEPTACION_NO_REGISTRADA);
   }
 
   return { alreadyDone: false as const };

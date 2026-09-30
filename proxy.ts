@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { rutaEntrevistaPermitida } from "@/lib/consultoria/destino-entrevista";
 import {
+  asignacionTieneAccesoSoloCorreo,
   getEntrevistaIdByEmail,
   homePathForRol,
   isGenericChatPath,
@@ -11,7 +12,9 @@ import {
 } from "@/lib/consultoria/roles";
 import {
   COOKIE_ENTREVISTA,
+  decidirCookieFrenteASesionHabitual,
   leerSesionEntrevistaValor,
+  puedeAbrirAsignacionConSesionHabitual,
   rutaCubiertaPorSesionEntrevista,
 } from "@/lib/consultoria/sesion-entrevista";
 import { updateSession } from "@/lib/supabase/middleware";
@@ -49,11 +52,27 @@ export async function proxy(request: NextRequest) {
     request.cookies.get(COOKIE_ENTREVISTA)?.value
   );
   if (
-    !user &&
     sesionEntrevista &&
     rutaCubiertaPorSesionEntrevista(pathname, sesionEntrevista.entrevistaId)
   ) {
-    return supabaseResponse;
+    if (!user) {
+      return supabaseResponse;
+    }
+    const { data: perfil } = await supabase
+      .from("usuario")
+      .select("rol")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (
+      decidirCookieFrenteASesionHabitual({
+        emailCookie: sesionEntrevista.email,
+        emailHabitual: user.email,
+        haySesionHabitual: true,
+        rolHabitual: perfil?.rol,
+      }) === "permitida"
+    ) {
+      return supabaseResponse;
+    }
   }
 
   if (
@@ -114,6 +133,27 @@ export async function proxy(request: NextRequest) {
 
     const portalRole = isPortalRole(perfil?.rol);
     const isMajoriti = perfil?.rol === "majoriti";
+    const entrevistaDeRuta = /^\/portal\/entrevista\/([0-9a-f-]{36})$/i.exec(
+      pathname
+    );
+    if (isPortal && !portalRole && entrevistaDeRuta && user.email) {
+      const soloCorreo = await asignacionTieneAccesoSoloCorreo(
+        supabase,
+        entrevistaDeRuta[1],
+        user.email
+      );
+      if (
+        puedeAbrirAsignacionConSesionHabitual({
+          accesoSoloCorreo: soloCorreo,
+          emailAsignacion: user.email,
+          emailHabitual: user.email,
+          rolHabitual: perfil?.rol,
+        })
+      ) {
+        return supabaseResponse;
+      }
+    }
+
     const url = request.nextUrl.clone();
     const entrevistaId =
       isStakeholderRole(perfil?.rol) &&

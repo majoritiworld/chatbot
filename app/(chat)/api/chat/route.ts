@@ -32,6 +32,13 @@ import {
 import { textoKickoffEntrevista } from "@/lib/consultoria/kickoff-entrevista";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
 import {
+  MENSAJE_ACEPTA_INDICACIONES,
+  MENSAJE_CUENTA_NO_PUEDE_RESPONDER,
+  MENSAJE_ENTREVISTA_COMPLETADA,
+  MENSAJE_NO_PUEDE_RESPONDER,
+  MENSAJE_SECCION_INACTIVA,
+} from "@/lib/consultoria/mensajes-chat";
+import {
   herramientasDelTurno,
   pasosTurnoEntrevista,
 } from "@/lib/consultoria/pasos-entrevista";
@@ -63,7 +70,10 @@ export async function POST(request: Request) {
     const session = await auth();
 
     if (session?.user?.role === "comite") {
-      return new ChatbotError("forbidden:chat").toResponse();
+      return new ChatbotError(
+        "forbidden:chat",
+        MENSAJE_CUENTA_NO_PUEDE_RESPONDER
+      ).toResponse();
     }
 
     const chatModel = allowedModelIds.has(selectedChatModel)
@@ -74,14 +84,14 @@ export async function POST(request: Request) {
     if (!entrevista) {
       return new ChatbotError(
         "forbidden:chat",
-        "Solo puedes responder tu propia entrevista"
+        MENSAJE_NO_PUEDE_RESPONDER
       ).toResponse();
     }
 
     if (entrevista.estado !== "abierta") {
       return new ChatbotError(
         "bad_request:api",
-        "La entrevista ya está completada"
+        MENSAJE_ENTREVISTA_COMPLETADA
       ).toResponse();
     }
 
@@ -94,14 +104,14 @@ export async function POST(request: Request) {
     ) {
       return new ChatbotError(
         "bad_request:api",
-        "Esta sección ya no está activa"
+        MENSAJE_SECCION_INACTIVA
       ).toResponse();
     }
 
     if (!entrevistaAceptaChat(entrevista.consentimiento_en)) {
       return new ChatbotError(
         "forbidden:chat",
-        "Acepta las indicaciones antes de empezar la entrevista"
+        MENSAJE_ACEPTA_INDICACIONES
       ).toResponse();
     }
 

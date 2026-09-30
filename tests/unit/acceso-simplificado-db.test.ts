@@ -153,6 +153,72 @@ test("link wrappers save only with an active link or the email-only flag", async
   ]);
 });
 
+test("simplified session without a Supabase user persists consent and keeps answers", async () => {
+  await guardarTurno(E_SOCIAS, "ambas@prueba.test");
+  await db.exec("RESET ROLE");
+  await db.query("SELECT set_config('request.jwt.claim.sub', '', false)");
+
+  const aceptar = (entrevistaId: string, email: string) =>
+    comoServicio("SELECT public.accept_interview_consent_enlace($1, $2)", [
+      entrevistaId,
+      email,
+    ]);
+
+  await db.exec("RESET ROLE; SET ROLE authenticated");
+  await expect(
+    db.query("SELECT public.accept_interview_consent_enlace($1, $2)", [
+      E_SOCIAS,
+      "ambas@prueba.test",
+    ])
+  ).rejects.toThrow(/permission denied/i);
+  await db.exec("RESET ROLE; SET ROLE anon");
+  await expect(
+    db.query("SELECT public.accept_interview_consent($1)", [E_SOCIAS])
+  ).rejects.toThrow(/permission denied/i);
+
+  await aceptar(E_SOCIAS, "ambas@prueba.test");
+  await expect(aceptar(E_SOCIAS, "colab@prueba.test")).rejects.toThrow(
+    /Interview not found/
+  );
+  await aceptar(E_COLAB, "colab@prueba.test");
+
+  await db.exec("RESET ROLE");
+  await db.query(
+    "UPDATE public.entrevista_enlace SET revocado_en = now() WHERE entrevista_id = $1",
+    [E_COLAB]
+  );
+  await expect(aceptar(E_COLAB, "colab@prueba.test")).rejects.toThrow(
+    /Interview not found/
+  );
+
+  await db.exec("RESET ROLE");
+  const leer = () =>
+    db.query<{ consentimiento: string | null; id: string; n: number }>(
+      `SELECT id, consentimiento_en::text AS consentimiento, jsonb_array_length(transcripcion) AS n
+       FROM public.entrevista ORDER BY id`
+    );
+  const antes = await leer();
+  const socias = antes.rows.find((fila) => fila.id === E_SOCIAS);
+  const colab = antes.rows.find((fila) => fila.id === E_COLAB);
+  expect(socias).toMatchObject({ id: E_SOCIAS, n: 1 });
+  expect(socias?.consentimiento).toBeTruthy();
+  expect(colab?.consentimiento).toBeTruthy();
+  expect(colab?.n).toBe(0);
+  expect(antes.rows.find((fila) => fila.id === E_AMBAS_COLAB)).toMatchObject({
+    consentimiento: null,
+    n: 0,
+  });
+  expect(antes.rows.find((fila) => fila.id === E_AJENA)).toMatchObject({
+    consentimiento: null,
+    n: 0,
+  });
+
+  await aceptar(E_SOCIAS, "ambas@prueba.test");
+  await db.exec("RESET ROLE");
+  const despues = await leer();
+  expect(despues.rows.find((fila) => fila.id === E_SOCIAS)).toEqual(socias);
+});
+
 test("email-only completion records the thank-you once, without a portal session", async () => {
   const marcar = (entrevistaId: string, email: string) =>
     comoServicio("SELECT public.mark_interview_thank_you_sent_enlace($1, $2)", [

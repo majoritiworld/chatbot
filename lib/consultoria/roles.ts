@@ -176,6 +176,82 @@ export function elegirEntrevistaLanding(entrevistas: EntrevistaLandingFila[]) {
  * project's interview. Without one, a single membership keeps the previous
  * landing; several memberships do not pick a project.
  */
+/**
+ * True when this interview is the email-only assignment of this address.
+ * A personal-link phase does not count.
+ */
+export async function asignacionTieneAccesoSoloCorreo(
+  supabase: SupabaseClient,
+  entrevistaId: string,
+  email: string | null | undefined
+) {
+  if (!email) {
+    return false;
+  }
+
+  const { data } = await supabase
+    .from("entrevista")
+    .select(
+      "stakeholder:stakeholder_id ( email ), tarea ( tipo, fase:fase_id ( acceso_solo_correo ) )"
+    )
+    .eq("id", entrevistaId)
+    .maybeSingle();
+
+  if (!data) {
+    return false;
+  }
+
+  const fila = data as {
+    stakeholder:
+      | { email: string | null }
+      | Array<{ email: string | null }>
+      | null;
+    tarea:
+      | Array<{
+          fase:
+            | { acceso_solo_correo: boolean | null }
+            | Array<{ acceso_solo_correo: boolean | null }>
+            | null;
+          tipo: string | null;
+        }>
+      | {
+          fase:
+            | { acceso_solo_correo: boolean | null }
+            | Array<{ acceso_solo_correo: boolean | null }>
+            | null;
+          tipo: string | null;
+        }
+      | null;
+  };
+  const stakeholder = primerObjeto(fila.stakeholder);
+  if (!mismoEmail(stakeholder?.email, email)) {
+    return false;
+  }
+
+  let tareas: Array<{
+    fase:
+      | { acceso_solo_correo: boolean | null }
+      | Array<{ acceso_solo_correo: boolean | null }>
+      | null;
+    tipo: string | null;
+  }> = [];
+  if (Array.isArray(fila.tarea)) {
+    tareas = fila.tarea;
+  } else if (fila.tarea) {
+    tareas = [fila.tarea];
+  }
+  for (const tarea of tareas) {
+    if (tarea.tipo !== "entrevista") {
+      continue;
+    }
+    const fase = primerObjeto(tarea.fase);
+    if (fase?.acceso_solo_correo === true) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function getEntrevistaIdByEmail(
   supabase: SupabaseClient,
   email: string | null | undefined,

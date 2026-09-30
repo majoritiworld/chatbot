@@ -65,6 +65,67 @@ export function sesionPortalPermiteEntrar(
   );
 }
 
+/**
+ * Whether the interview cookie may open this assignment.
+ * No habitual session: the cookie stands alone.
+ * Same person, except a committee account: the cookie may open it.
+ * Another person, or a committee account: the cookie does not.
+ */
+export function decidirCookieFrenteASesionHabitual({
+  emailCookie,
+  emailHabitual,
+  haySesionHabitual,
+  rolHabitual,
+}: {
+  emailCookie: string;
+  emailHabitual: string | null | undefined;
+  haySesionHabitual: boolean;
+  rolHabitual: string | null | undefined;
+}): "permitida" | "ajena" | "comite" {
+  if (!haySesionHabitual) {
+    return "permitida";
+  }
+  if (
+    !emailHabitual ||
+    !sesionPortalPermiteEntrar(emailHabitual, emailCookie)
+  ) {
+    return "ajena";
+  }
+  if (rolHabitual === "comite") {
+    return "comite";
+  }
+  return "permitida";
+}
+
+/**
+ * A habitual session may open its own email-only assignment.
+ * Committee stays out. Another person's session stays out.
+ * A collaborator phase (no email-only access) stays out.
+ */
+export function puedeAbrirAsignacionConSesionHabitual({
+  accesoSoloCorreo,
+  emailAsignacion,
+  emailHabitual,
+  rolHabitual,
+}: {
+  accesoSoloCorreo: boolean;
+  emailAsignacion: string;
+  emailHabitual: string | null | undefined;
+  rolHabitual: string | null | undefined;
+}) {
+  if (!accesoSoloCorreo) {
+    return false;
+  }
+  return (
+    decidirCookieFrenteASesionHabitual({
+      emailCookie: emailAsignacion,
+      emailHabitual,
+      haySesionHabitual: true,
+      rolHabitual,
+    }) === "permitida"
+  );
+}
+
 export const COOKIE_ENTREVISTA = "mj_entrevista";
 
 const MAX_AGE_S = 60 * 60 * 12;

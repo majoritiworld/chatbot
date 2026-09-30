@@ -30,6 +30,9 @@ export async function GET(
   if (resultado.motivo === "sesion_ajena") {
     consulta.set("motivo", "sesion");
   }
+  if (resultado.motivo === "cuenta") {
+    consulta.set("motivo", "cuenta");
+  }
   const sufijo = consulta.size > 0 ? `?${consulta.toString()}` : "";
   return redirigir(`/e/no-disponible${sufijo}`, request);
 }

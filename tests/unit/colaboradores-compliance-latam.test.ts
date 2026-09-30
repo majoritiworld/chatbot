@@ -21,12 +21,14 @@ import {
   paginarSeguimiento,
 } from "@/lib/consultoria/seguimiento-pagina";
 import {
+  decidirCookieFrenteASesionHabitual,
   decidirEntradaEnlace,
   decidirEntradaSoloCorreo,
   empaquetarSesionEntrevista,
   hashTokenEnlace,
   leerSesionEntrevistaValor,
   MENSAJE_SOLO_CORREO_SIN_ACCESO,
+  puedeAbrirAsignacionConSesionHabitual,
   rutaCubiertaPorSesionEntrevista,
   sesionPortalPermiteEntrar,
 } from "@/lib/consultoria/sesion-entrevista";
@@ -309,6 +311,77 @@ test("la entrada con solo correo abre una asignación y trata las ambiguas", () 
   ).toBe(true);
   expect(
     sesionPortalPermiteEntrar("otra@empresa.test", "ana@empresa.test")
+  ).toBe(false);
+});
+
+test("la cookie no pisa una sesión de otra persona ni el veto de comité", () => {
+  const misma = {
+    emailCookie: "ana@empresa.test",
+    emailHabitual: "ANA@empresa.test",
+    haySesionHabitual: true,
+    rolHabitual: "majoriti",
+  };
+  expect(decidirCookieFrenteASesionHabitual(misma)).toBe("permitida");
+  expect(
+    decidirCookieFrenteASesionHabitual({
+      ...misma,
+      emailHabitual: null,
+      haySesionHabitual: false,
+      rolHabitual: null,
+    })
+  ).toBe("permitida");
+  expect(
+    decidirCookieFrenteASesionHabitual({
+      ...misma,
+      emailHabitual: "otra@empresa.test",
+      rolHabitual: "stakeholder",
+    })
+  ).toBe("ajena");
+  expect(
+    decidirCookieFrenteASesionHabitual({
+      ...misma,
+      emailHabitual: "otra@empresa.test",
+      rolHabitual: "comite",
+    })
+  ).toBe("ajena");
+  expect(
+    decidirCookieFrenteASesionHabitual({
+      ...misma,
+      rolHabitual: "comite",
+    })
+  ).toBe("comite");
+
+  const propia = {
+    accesoSoloCorreo: true,
+    emailAsignacion: "ana@empresa.test",
+    emailHabitual: "ana@empresa.test",
+    rolHabitual: "majoriti",
+  };
+  expect(puedeAbrirAsignacionConSesionHabitual(propia)).toBe(true);
+  expect(
+    puedeAbrirAsignacionConSesionHabitual({
+      ...propia,
+      accesoSoloCorreo: false,
+    })
+  ).toBe(false);
+  expect(
+    puedeAbrirAsignacionConSesionHabitual({
+      ...propia,
+      rolHabitual: "comite",
+    })
+  ).toBe(false);
+  expect(
+    puedeAbrirAsignacionConSesionHabitual({
+      ...propia,
+      emailHabitual: "otra@empresa.test",
+    })
+  ).toBe(false);
+  expect(
+    puedeAbrirAsignacionConSesionHabitual({
+      ...propia,
+      emailHabitual: "otra@empresa.test",
+      rolHabitual: "comite",
+    })
   ).toBe(false);
 });
 

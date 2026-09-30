@@ -1,3 +1,5 @@
+import { mensajePublico } from "@/lib/consultoria/mensajes-chat";
+
 export type ErrorType =
   | "bad_request"
   | "unauthorized"
@@ -42,17 +44,15 @@ export class ChatbotError extends Error {
   statusCode: number;
 
   constructor(errorCode: ErrorCode, cause?: string | ErrorOptions) {
-    const message = getMessageByErrorCode(errorCode);
+    const respaldo = getMessageByErrorCode(errorCode);
+    const detalle = typeof cause === "string" ? cause : undefined;
     const options = typeof cause === "string" ? undefined : cause;
 
-    super(message, options);
+    super(mensajePublico(detalle, respaldo), options);
 
     const [type, surface] = errorCode.split(":");
 
     this.type = type as ErrorType;
-    if (typeof cause === "string") {
-      this.cause = cause;
-    }
     this.surface = surface as Surface;
     this.statusCode = getStatusCodeByType(this.type);
   }
@@ -61,7 +61,7 @@ export class ChatbotError extends Error {
     const code: ErrorCode = `${this.type}:${this.surface}`;
     const visibility = visibilityBySurface[this.surface];
 
-    const { message, cause, statusCode } = this;
+    const { cause, message, statusCode } = this;
 
     if (visibility === "log") {
       console.error({
@@ -76,7 +76,10 @@ export class ChatbotError extends Error {
       );
     }
 
-    return Response.json({ cause, code, message }, { status: statusCode });
+    return Response.json(
+      { code, message: mensajePublico(message, getMessageByErrorCode(code)) },
+      { status: statusCode }
+    );
   }
 }
 
@@ -102,7 +105,7 @@ export function getMessageByErrorCode(errorCode: ErrorCode): string {
     case "not_found:chat":
       return "The requested chat was not found. Please check the chat ID and try again.";
     case "forbidden:chat":
-      return "This chat belongs to another user. Please check the chat ID and try again.";
+      return "No puedes responder esta entrevista.";
     case "unauthorized:chat":
       return "You need to sign in to view this chat. Please sign in and try again.";
     case "save_failed:chat":

@@ -5,8 +5,10 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 import { normalizarEmail } from "@/lib/consultoria/auth";
 import { slugValido } from "@/lib/consultoria/marca";
+import { MENSAJE_CUENTA_NO_PUEDE_RESPONDER } from "@/lib/consultoria/mensajes-chat";
 import {
   COOKIE_ENTREVISTA,
+  decidirCookieFrenteASesionHabitual,
   decidirEntradaEnlace,
   decidirEntradaSoloCorreo,
   empaquetarSesionEntrevista,
@@ -159,7 +161,17 @@ export const leerSesionEntrevista = cache(
       sesion.via === "enlace"
         ? await sesionEnlaceVigente(admin, sesion)
         : await sesionCorreoVigente(admin, sesion);
-    return vigente ? sesion : null;
+    if (!vigente) {
+      return null;
+    }
+    const habitual = await sesionHabitualPortal();
+    const decision = decidirCookieFrenteASesionHabitual({
+      emailCookie: sesion.email,
+      emailHabitual: habitual.email,
+      haySesionHabitual: habitual.hay,
+      rolHabitual: habitual.rol,
+    });
+    return decision === "permitida" ? sesion : null;
   }
 );
 
@@ -168,19 +180,50 @@ export async function borrarSesionEntrevista() {
   jar.delete(COOKIE_ENTREVISTA);
 }
 
-async function emailSesionPortal() {
+async function sesionHabitualPortal() {
   const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  return data.user?.email ?? null;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { email: null, hay: false, rol: null };
+  }
+  const { data: perfil } = await supabase
+    .from("usuario")
+    .select("rol")
+    .eq("id", user.id)
+    .maybeSingle();
+  return {
+    email: user.email ?? null,
+    hay: true,
+    rol: perfil?.rol ?? null,
+  };
 }
 
-/** A portal session or an interview cookie of someone else is never replaced. */
-async function hayOtraPersonaConectada(email: string) {
-  if (!sesionPortalPermiteEntrar(await emailSesionPortal(), email)) {
-    return true;
+/**
+ * Refuses a habitual session of someone else, and a committee account.
+ * A leftover cookie of another assignment is also refused when nobody is
+ * signed in; the same person's session may replace it.
+ */
+async function rechazoDeSesionHabitual(email: string) {
+  const habitual = await sesionHabitualPortal();
+  const decision = decidirCookieFrenteASesionHabitual({
+    emailCookie: email,
+    emailHabitual: habitual.email,
+    haySesionHabitual: habitual.hay,
+    rolHabitual: habitual.rol,
+  });
+  if (decision === "ajena") {
+    return MENSAJE_SESION_AJENA;
+  }
+  if (decision === "comite") {
+    return MENSAJE_CUENTA_NO_PUEDE_RESPONDER;
   }
   const previa = await leerSesionEntrevista();
-  return !sesionPortalPermiteEntrar(previa?.email, email);
+  if (previa && !sesionPortalPermiteEntrar(previa.email, email)) {
+    return MENSAJE_SESION_AJENA;
+  }
+  return null;
 }
 
 async function abrirSesionEntrevista(sesion: SesionEntrevista) {
@@ -243,7 +286,7 @@ export type ResultadoEntrada =
   | { ok: true; entrevistaId: string }
   | {
       ok: false;
-      motivo: "no_disponible" | "sesion_ajena";
+      motivo: "cuenta" | "no_disponible" | "sesion_ajena";
       slug: string | null;
     };
 
@@ -280,7 +323,11 @@ export async function entrarConEnlace(
   if (!decision.ok) {
     return { motivo: "no_disponible", ok: false, slug: entrevista.slug };
   }
-  if (await hayOtraPersonaConectada(entrevista.email)) {
+  const rechazo = await rechazoDeSesionHabitual(entrevista.email);
+  if (rechazo === MENSAJE_CUENTA_NO_PUEDE_RESPONDER) {
+    return { motivo: "cuenta", ok: false, slug: entrevista.slug };
+  }
+  if (rechazo) {
     return { motivo: "sesion_ajena", ok: false, slug: entrevista.slug };
   }
   await abrirSesionEntrevista({
@@ -340,8 +387,12 @@ export async function entrarSoloConCorreo({
   if (!decision.ok) {
     return decision;
   }
-  if (await hayOtraPersonaConectada(email)) {
-    return { mensaje: MENSAJE_SESION_AJENA, ok: false, sesionAjena: true };
+  const rechazo = await rechazoDeSesionHabitual(email);
+  if (rechazo === MENSAJE_SESION_AJENA) {
+    return { mensaje: rechazo, ok: false, sesionAjena: true };
+  }
+  if (rechazo) {
+    return { mensaje: rechazo, ok: false };
   }
   await abrirSesionEntrevista({
     email,
