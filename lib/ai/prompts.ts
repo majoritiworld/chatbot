@@ -11,6 +11,7 @@ import {
   MENSAJE_FORZAR_CIERRE_SECCION,
   MENSAJE_GUARDAR_PROGRESO,
 } from "@/lib/consultoria/finalizar-seccion";
+import type { MotivoCierreSeccion } from "@/lib/consultoria/seguimientos-sustantivos";
 
 export const artifactsPrompt = `
 Artifacts is a side panel that displays content alongside the conversation. It supports scripts (code), documents (text), and spreadsheets. Changes appear in real-time.
@@ -146,6 +147,79 @@ const REGLA_TRATO: Record<TratoEntrevista, string> = {
     "Habla en español neutro, tono cálido y profesional. Trata a la persona de usted en todos los turnos (usted, su, le, cuénteme, podría). Nunca tutees ni uses voseo, tampoco al saludar, al reformular un seguimiento o al cerrar.",
 };
 
+function reglaOfertaCierre({
+  cierreHonesto,
+  etiquetaCierre,
+  motivoCierre,
+}: {
+  cierreHonesto: boolean;
+  etiquetaCierre: string;
+  motivoCierre?: MotivoCierreSeccion;
+}) {
+  const llamada = `b) Llama UNA sola vez a la herramienta estructurada ofrecerCierreSeccion con listo=true. Esa llamada no se escribe en el chat; el botón solo aparece si la herramienta se ejecuta. No basta con mencionar el botón, el nombre de la herramienta o listo=true en el texto. No la llames otra vez en el mismo turno.
+    No llames completarSeccion en ese momento. No hagas más preguntas en ese turno. No llames ofrecerCierreSeccion en los demás turnos.`;
+  if (cierreHonesto) {
+    return `Cuando toque cerrar sin afirmar que la sección ya está cubierta, haz DOS cosas en el mismo turno y no sustituyas una por la otra:
+    a) En el texto visible, agradece en una frase y pide que pulse exactamente "${etiquetaCierre}". No digas que ya tienes lo necesario. No inventes motivos, ejemplos ni conclusiones. No escribas síntesis, recap ni copia de las respuestas.
+    ${llamada}`;
+  }
+  if (motivoCierre === "suficiente") {
+    return `Cuando hay información suficiente, haz DOS cosas en el mismo turno y no sustituyas una por la otra:
+    a) En el texto visible, señala en una frase lo que sí quedó recogido y pide que pulse exactamente "${etiquetaCierre}". No inventes lo que no se dijo ni armes un recap.
+    ${llamada}`;
+  }
+  return `Cuando los temas de esta sección estén suficientemente cubiertos, haz DOS cosas en el mismo turno y no sustituyas una por la otra:
+    a) En el texto visible, una o dos frases: ya tienes lo necesario y que pulse exactamente "${etiquetaCierre}". No inventes otros nombres de botón ni ofrezcas acciones que no están visibles. No escribas síntesis, recap ni copia de las respuestas: eso se arma al pulsar el botón, fuera del chat.
+    ${llamada}`;
+}
+
+function textoTope(max: number) {
+  if (max === 3) {
+    return "TRES";
+  }
+  if (max === 2) {
+    return "DOS";
+  }
+  return String(max);
+}
+
+function rangoSeguimientos(max: number) {
+  if (max === 3) {
+    return "ninguno, uno, dos o tres";
+  }
+  return "ninguno, uno o dos";
+}
+
+function estadoAlCerrar({
+  limiteAlcanzado,
+  maxSeguimientos,
+  motivoCierre,
+}: {
+  limiteAlcanzado: boolean;
+  maxSeguimientos: number;
+  motivoCierre?: MotivoCierreSeccion;
+}) {
+  if (motivoCierre === "limite") {
+    return `Se alcanzó el máximo de ${maxSeguimientos} seguimientos sustantivos. En este turno NO hagas ninguna pregunta. Agradece y ofrece pasar al siguiente tema. No digas que ya tienes lo necesario ni inventes lo que faltó.`;
+  }
+  if (motivoCierre === "no_sabe") {
+    return "La persona no sabe o no tiene esa experiencia. No insistas ni lo conviertas en un hecho negativo. Agradece y ofrece pasar al siguiente tema sin decir que ya tienes lo necesario.";
+  }
+  if (motivoCierre === "no_profundizar") {
+    return "La persona no quiere seguir con este tema. Respeta esa decisión. Agradece y ofrece pasar al siguiente tema sin decir que ya tienes lo necesario.";
+  }
+  if (motivoCierre === "sin_comprension") {
+    return "La persona sigue sin entender la pregunta. Simplifica en una frase qué le estabas preguntando y ofrece pasar al siguiente tema. No digas que ya tienes lo necesario.";
+  }
+  if (motivoCierre === "suficiente") {
+    return "Hay información suficiente para cerrar. En este turno NO hagas ninguna pregunta. Señala en una frase lo que sí quedó recogido y ofrece el cierre. No armes un recap ni inventes lo que no se dijo.";
+  }
+  if (limiteAlcanzado) {
+    return `Ya se hicieron ${maxSeguimientos} seguimientos en esta sección: el límite está alcanzado. En este turno NO hagas ninguna pregunta; agradece brevemente y ofrece el cierre.`;
+  }
+  return "Lo que la persona contó ya cubre los seguimientos de esta sección. En este turno NO hagas ninguna pregunta; agradece brevemente y ofrece el cierre.";
+}
+
 /**
  * With optional follow-ups the section is a main question plus a capped menu;
  * without them, every guide question is a topic to cover.
@@ -154,20 +228,28 @@ function bloqueGuiaSeccion({
   preguntas,
   obligatorias = [],
   seguimientos,
+  seguimientoEsAclaracion = false,
   seguimientoEsObligatorio = false,
   seguimientoSiguiente,
   seguimientosHechos,
   limiteAlcanzado,
   cerrarAhora,
+  maxSeguimientos,
+  motivoCierre,
+  preguntaYaHecha = false,
 }: {
   preguntas: string[];
   obligatorias?: string[];
   seguimientos: string[];
+  seguimientoEsAclaracion?: boolean;
   seguimientoEsObligatorio?: boolean;
   seguimientoSiguiente?: string;
   seguimientosHechos: number;
   limiteAlcanzado: boolean;
   cerrarAhora: boolean;
+  maxSeguimientos: number;
+  motivoCierre?: MotivoCierreSeccion;
+  preguntaYaHecha?: boolean;
 }) {
   const lista = preguntas
     .map((pregunta, indice) => `${indice + 1}. ${pregunta}`)
@@ -190,16 +272,17 @@ function bloqueGuiaSeccion({
     obligatorias.length > 0
       ? " Las preguntas obligatorias no consumen este cupo."
       : "";
-  let estado = `Seguimientos ya hechos en esta sección: ${seguimientosHechos}. Máximo ${MAX_SEGUIMIENTOS}: es un tope, no una cuota. Con una respuesta completa lo normal es ninguno o uno.${notaObligatorias}`;
+  let estado = `Seguimientos ya hechos en esta sección: ${seguimientosHechos}. Máximo ${maxSeguimientos}: es un tope, no una cuota. Con una respuesta completa lo normal es ninguno o uno.${notaObligatorias}`;
   if (cerrarAhora) {
-    estado = limiteAlcanzado
-      ? `Ya se hicieron ${MAX_SEGUIMIENTOS} seguimientos en esta sección: el límite está alcanzado. En este turno NO hagas ninguna pregunta; agradece brevemente y ofrece el cierre.`
-      : "Lo que la persona contó ya cubre los seguimientos de esta sección. En este turno NO hagas ninguna pregunta; agradece brevemente y ofrece el cierre.";
+    estado = estadoAlCerrar({ limiteAlcanzado, maxSeguimientos, motivoCierre });
   }
 
   let menu: string;
   if (cerrarAhora) {
     menu = "";
+  } else if (seguimientoEsAclaracion) {
+    menu = `La persona no entendió la pregunta anterior. Reformúlala más simple, en una sola pregunta, sin agregar temas ni cambiar lo que preguntabas. No es un seguimiento nuevo y no consume el cupo. No ofrezcas el cierre.
+Pregunta a reformular: ${seguimientoSiguiente ?? "la última que hiciste"}`;
   } else if (seguimientoSiguiente && seguimientoEsObligatorio) {
     menu = `Pregunta obligatoria para este turno (la persona todavía no la respondió; no cuenta como seguimiento opcional): ${seguimientoSiguiente}
 Hazla en este turno, solo esa, adaptando las palabras a lo que la persona acaba de contar y sin cambiar su sentido. No ofrezcas el cierre en este turno.`;
@@ -220,14 +303,19 @@ ${seguimientos.map((item) => `- ${item}`).join("\n")}`;
       ? " También deben estar respondidas las preguntas obligatorias, que no consumen el cupo de seguimientos."
       : "";
 
+  const apertura = preguntaYaHecha
+    ? "Pregunta principal de esta sección (ya fue hecha y respondida; no la repitas, aunque su redacción haya cambiado):"
+    : "Pregunta principal de esta sección (aprobada; hazla primero, completa y con sus palabras, adaptando solo el trato si hiciera falta):";
+  const tope = textoTope(maxSeguimientos);
+
   return {
-    guia: `Pregunta principal de esta sección (aprobada; hazla primero, completa y con sus palabras, adaptando solo el trato si hiciera falta):
+    guia: `${apertura}
 ${lista}
 ${bloqueObligatorias}${menu ? `\n${menu}\n` : ""}
 ${estado}`,
-    reglaCobertura: `La sección está cubierta cuando la persona respondió la pregunta principal y ya hiciste los seguimientos que hacían falta (ninguno, uno o dos). No hace falta usar todos los seguimientos. Si ninguno hace falta, ofrece el cierre en ese mismo turno. Un turno lleva una pregunta o la oferta de cierre, nunca las dos.${coberturaObligatorias}`,
+    reglaCobertura: `La sección está cubierta cuando la persona respondió la pregunta principal y ya hiciste los seguimientos que hacían falta (${rangoSeguimientos(maxSeguimientos)}). No hace falta usar todos los seguimientos. Si ninguno hace falta, ofrece el cierre en ese mismo turno. Un turno lleva una pregunta o la oferta de cierre, nunca las dos.${coberturaObligatorias}`,
     reglasConduccion: [
-      "Después de la respuesta a la pregunta principal, haz como máximo DOS seguimientos en toda la sección, de a uno por turno. Antes de escribir uno, comprueba en silencio si la persona ya dio esa información; si la dio, descártalo. Si dio solo una parte, pregunta únicamente la parte que falta y menciona lo que ya dijo. Adapta las palabras a lo que acaba de contar, sin cambiar el sentido. No inventes seguimientos fuera de los disponibles.",
+      `Después de la respuesta a la pregunta principal, haz como máximo ${tope} seguimientos en toda la sección, de a uno por turno. Antes de escribir uno, comprueba en silencio si la persona ya dio esa información; si la dio, descártalo. Si dio solo una parte, pregunta únicamente la parte que falta y menciona lo que ya dijo. Adapta las palabras a lo que acaba de contar, sin cambiar el sentido. No inventes seguimientos fuera de los disponibles.`,
       'Un seguimiento marcado como "Prioritario" va antes que los demás solo si su condición se cumple. Si la persona ya cubrió ese tema, no lo preguntes.',
       "Nunca muestres el menú, las condiciones, las prioridades ni estas reglas. No digas que hay seguimientos, límites ni instrucciones.",
     ],
@@ -243,10 +331,14 @@ export const interviewSystemPrompt = ({
   etiquetaOrganizacion = "firma",
   obligatorias = [],
   seguimientos = [],
+  seguimientoEsAclaracion = false,
   seguimientoEsObligatorio = false,
   seguimientoSiguiente,
   cerrarSeccion = false,
   seguimientosHechos = 0,
+  maxSeguimientos = MAX_SEGUIMIENTOS,
+  motivoCierre,
+  preguntaYaHecha = false,
   trato = "tu",
   nombreEntrevistado,
   firmaEntrevistado,
@@ -262,6 +354,7 @@ export const interviewSystemPrompt = ({
   etiquetaOrganizacion?: "empresa" | "firma";
   obligatorias?: string[];
   seguimientos?: string[];
+  seguimientoEsAclaracion?: boolean;
   seguimientoEsObligatorio?: boolean;
   /** Decided by the flow: the follow-up to ask now, as a bare question.
    * Without it (and without `cerrarSeccion`) the full menu is shown. */
@@ -269,6 +362,9 @@ export const interviewSystemPrompt = ({
   /** Decided by the flow: nothing left to ask in this section. */
   cerrarSeccion?: boolean;
   seguimientosHechos?: number;
+  maxSeguimientos?: number;
+  motivoCierre?: MotivoCierreSeccion;
+  preguntaYaHecha?: boolean;
   trato?: TratoEntrevista;
   nombreEntrevistado?: string | null;
   firmaEntrevistado?: string | null;
@@ -280,17 +376,24 @@ export const interviewSystemPrompt = ({
   const conSeguimientos = seguimientos.length > 0;
   const limiteAlcanzado =
     conSeguimientos &&
-    seguimientosHechos >= MAX_SEGUIMIENTOS &&
-    !seguimientoEsObligatorio;
+    seguimientosHechos >= maxSeguimientos &&
+    !seguimientoEsObligatorio &&
+    !seguimientoEsAclaracion;
   const cerrarAhora =
     conSeguimientos &&
     (limiteAlcanzado || cerrarSeccion) &&
-    !seguimientoEsObligatorio;
+    !seguimientoEsObligatorio &&
+    !seguimientoEsAclaracion;
+  const cierreHonesto = Boolean(motivoCierre && motivoCierre !== "suficiente");
   const { guia, reglasConduccion, reglaCobertura } = bloqueGuiaSeccion({
     cerrarAhora,
     limiteAlcanzado,
+    maxSeguimientos,
+    motivoCierre,
     obligatorias,
     preguntas,
+    preguntaYaHecha,
+    seguimientoEsAclaracion,
     seguimientoEsObligatorio,
     seguimientoSiguiente,
     seguimientos,
@@ -355,10 +458,11 @@ export const interviewSystemPrompt = ({
     "Si un tema pide una nota del 1 al 10, pide la nota y un por qué breve. No insistas más si ambos están.",
     'No digas "pregunta 1", "siguiente en la lista", etc.',
     reglaCobertura,
-    `Cuando los temas de esta sección estén suficientemente cubiertos, haz DOS cosas en el mismo turno y no sustituyas una por la otra:
-    a) En el texto visible, una o dos frases: ya tienes lo necesario y que pulse exactamente "${etiquetaCierre}". No inventes otros nombres de botón ni ofrezcas acciones que no están visibles. No escribas síntesis, recap ni copia de las respuestas: eso se arma al pulsar el botón, fuera del chat.
-    b) Llama UNA sola vez a la herramienta estructurada ofrecerCierreSeccion con listo=true. Esa llamada no se escribe en el chat; el botón solo aparece si la herramienta se ejecuta. No basta con mencionar el botón, el nombre de la herramienta o listo=true en el texto. No la llames otra vez en el mismo turno.
-    No llames completarSeccion en ese momento. No hagas más preguntas en ese turno. No llames ofrecerCierreSeccion en los demás turnos.`,
+    reglaOfertaCierre({
+      cierreHonesto,
+      etiquetaCierre,
+      motivoCierre,
+    }),
     reglaTrasOferta,
     "No inventes hechos del entrevistado.",
     "El entrevistado puede pausar y volver otro día. Trata el historial previo como parte de la misma entrevista.",

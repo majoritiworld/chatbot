@@ -25,6 +25,7 @@ import type { VisibilityType } from "@/components/chat/visibility-selector";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { transporteChatAislado } from "@/lib/consultoria/chat-aislado";
+import { ofertaCierreVigenteEnChat } from "@/lib/consultoria/cierre-seccion";
 import {
   escribirBorradorEntrevista,
   leerBorradorEntrevista,
@@ -78,6 +79,8 @@ type ActiveChatContextValue = {
   marcarProgresoGuardado: () => void;
   guardadoEnCurso: boolean;
   setGuardadoEnCurso: Dispatch<SetStateAction<boolean>>;
+  /** True once the server stored the close offer the close endpoint will read. */
+  ofertaCierrePersistida: boolean;
   demoAislada: boolean;
   demoVoz?: ModoVozEntrevista;
 };
@@ -155,6 +158,9 @@ export function ActiveChatProvider({
     [entrevistaId, seccionId]
   );
   const [guardadoEnCurso, setGuardadoEnCurso] = useState(false);
+  const [ofertaCierrePersistida, setOfertaCierrePersistida] = useState(() =>
+    ofertaCierreVigenteEnChat(mensajesIniciales ?? [])
+  );
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [claveGuardada, setClaveGuardada] = useState<string | null>(null);
   const [mensajeFallido, setMensajeFallido] = useState<ChatMessage | null>(
@@ -195,6 +201,10 @@ export function ActiveChatProvider({
     id: chatId,
     messages: initialMessages,
     onData: (dataPart) => {
+      if (dataPart.type === "data-oferta-cierre-persistida") {
+        setOfertaCierrePersistida(true);
+        return;
+      }
       if (dataPart.type === "data-waiting-status") {
         setWaitingStatus(dataPart.data);
         return;
@@ -411,6 +421,7 @@ export function ActiveChatProvider({
       marcarProgresoGuardado,
       messages,
       numeroSecciones,
+      ofertaCierrePersistida,
       onSeccionCompletada,
       progresoGuardado,
       regenerate,
@@ -446,6 +457,7 @@ export function ActiveChatProvider({
       marcarProgresoGuardado,
       messages,
       numeroSecciones,
+      ofertaCierrePersistida,
       onSeccionCompletada,
       progresoGuardado,
       regenerate,

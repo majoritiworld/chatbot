@@ -698,6 +698,7 @@ const seccionFormSchema = z.object({
   descripcion: z.string(),
   id: z.string().min(1),
   instrucciones: z.string().optional(),
+  maxSeguimientos: z.number().int().positive().optional(),
   preguntas: z.array(z.string()),
   seguimientos: z.array(z.string()).optional(),
   titulo: z.string().trim().min(1, "Cada sección necesita un título"),
@@ -762,6 +763,9 @@ function seccionesDesdeFormulario(
       descripcion: seccion.descripcion.trim(),
       id: seccion.id.startsWith("new-") ? generateUUID() : seccion.id,
       ...(instrucciones ? { instrucciones } : {}),
+      ...(seccion.maxSeguimientos
+        ? { maxSeguimientos: seccion.maxSeguimientos }
+        : {}),
       preguntas: preguntasDesdeTexto(seccion.preguntas.join("\n")),
       ...(seguimientos.length > 0 ? { seguimientos } : {}),
       titulo: seccion.titulo,

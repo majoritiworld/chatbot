@@ -11,7 +11,11 @@ import {
 
 export type RolTurno = "entrevistador" | "entrevistado";
 
-export type ClaseTurnoAgente = "principal" | "obligatoria" | "seguimiento";
+export type ClaseTurnoAgente =
+  | "principal"
+  | "obligatoria"
+  | "seguimiento"
+  | "aclaracion";
 
 export type TurnoEntrevista = {
   id: string;
@@ -81,6 +85,9 @@ export type SeccionEntrevista = {
   instrucciones?: string;
   obligatorias?: string[];
   seguimientos?: string[];
+  /** When set, follow-ups are a cap of substantive questions. A clarification
+   * does not spend it. Absent means the shared cap of `MAX_SEGUIMIENTOS`. */
+  maxSeguimientos?: number;
   etiquetaOrganizacion?: EtiquetaOrganizacion;
 };
 
@@ -204,6 +211,7 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
       etiquetaOrganizacion,
       id,
       instrucciones,
+      maxSeguimientos,
       obligatorias,
       preguntas,
       seguimientos,
@@ -214,6 +222,12 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
     const seguimientosValidos = parsePreguntas(seguimientos);
     const instruccionesValidas =
       typeof instrucciones === "string" ? instrucciones.trim() : "";
+    const maximoValido =
+      typeof maxSeguimientos === "number" &&
+      Number.isInteger(maxSeguimientos) &&
+      maxSeguimientos > 0
+        ? maxSeguimientos
+        : undefined;
 
     if (
       typeof id !== "string" ||
@@ -235,6 +249,7 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
         ...(instruccionesValidas
           ? { instrucciones: instruccionesValidas }
           : {}),
+        ...(maximoValido ? { maxSeguimientos: maximoValido } : {}),
         ...(obligatoriasValidas.length > 0
           ? { obligatorias: obligatoriasValidas }
           : {}),
@@ -262,6 +277,9 @@ export function clonarSecciones(
       ? { etiquetaOrganizacion: "empresa" as const }
       : {}),
     ...(seccion.instrucciones ? { instrucciones: seccion.instrucciones } : {}),
+    ...(seccion.maxSeguimientos
+      ? { maxSeguimientos: seccion.maxSeguimientos }
+      : {}),
     ...(seccion.obligatorias?.length
       ? { obligatorias: [...seccion.obligatorias] }
       : {}),
@@ -448,7 +466,8 @@ export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
             : `legacy-${index}-${typeof at === "string" ? at : "unknown"}`,
         ...(clase === "principal" ||
         clase === "obligatoria" ||
-        clase === "seguimiento"
+        clase === "seguimiento" ||
+        clase === "aclaracion"
           ? { clase }
           : {}),
         ...(typeof indiceObligatoria === "number" &&

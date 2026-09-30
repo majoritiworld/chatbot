@@ -7,8 +7,12 @@ import {
 import {
   GUION_CL_FASE_2,
   INSTRUCCIONES_AGENTE_CL_FASE_2,
+  NOMBRE_PLANTILLA_CL_FASE_2,
 } from "@/lib/consultoria/guiones/compliance-latam-fase-2";
-import { sqlReparacionPautaClFase2 } from "@/lib/consultoria/reparaciones/pauta-cl-fase-2";
+import {
+  sqlProfundidadFirmasSocias,
+  sqlReparacionPautaClFase2,
+} from "@/lib/consultoria/reparaciones/pauta-cl-fase-2";
 import { actAs, createTestDatabase } from "../support/database";
 
 const USER = "10000000-0000-4000-8000-000000000002";
@@ -44,6 +48,7 @@ test.afterAll(async () => {
   await db?.close();
 });
 test.beforeEach(async () => {
+  await db.query("SELECT set_config('app.interview_transition', '', false)");
   const fase1 = JSON.stringify([
     {
       descripcion: "Te pediremos una nota.",
@@ -172,6 +177,76 @@ test("refuses a template that is not the approved guide", async () => {
     /no coincide/
   );
   expect(() => sqlReparacionPautaClFase2("x'; DROP TABLE x; --")).toThrow();
+});
+
+test("updates open partner-firm copies and leaves completed interviews", async () => {
+  const completada = "40000000-0000-4000-8000-000000000005";
+  const stakeholder = "30000000-0000-4000-8000-000000000004";
+  await db.query(
+    "UPDATE public.entrevista_plantilla SET nombre = $1 WHERE id = $2",
+    [NOMBRE_PLANTILLA_CL_FASE_2, PLANTILLA_2]
+  );
+  const antes = await fila(EN_CURSO);
+  const secciones = parseSecciones(antes.secciones);
+  const viejas = secciones.map((seccion, indice) =>
+    indice === 1
+      ? {
+          ...seccion,
+          preguntas: [
+            "¿Qué tanto se conoce ComplianceLatam dentro de su firma?",
+          ],
+        }
+      : seccion
+  );
+  await db.query(
+    "SELECT set_config('app.interview_transition', 'allowed', false)"
+  );
+  await db.query(
+    "UPDATE public.entrevista SET secciones = $1::jsonb WHERE id = $2",
+    [JSON.stringify(viejas), EN_CURSO]
+  );
+  await db.query(
+    `INSERT INTO public.stakeholder (id, proyecto_id, nombre, email)
+     VALUES ($1, $2, 'Cerrada', 'cerrada@example.test')`,
+    [stakeholder, PROJECT]
+  );
+  await db.query(
+    `INSERT INTO public.entrevista (
+       id, stakeholder_id, plantilla_id, secciones, flujo_estado,
+       seccion_actual, estado, transcripcion, secciones_completadas
+     ) VALUES ($1, $2, $3, $4::jsonb, 'revision', 5, 'completada', '[]', '[]')`,
+    [completada, stakeholder, PLANTILLA_2, JSON.stringify(viejas)]
+  );
+
+  await db.exec(sqlProfundidadFirmasSocias());
+  await db.exec(sqlProfundidadFirmasSocias());
+
+  const despues = await fila(EN_CURSO);
+  const actualizadas = parseSecciones(despues.secciones);
+  expect(actualizadas.map((seccion) => seccion.id)).toEqual(
+    secciones.map((seccion) => seccion.id)
+  );
+  expect(actualizadas.at(1)?.preguntas.at(0)).toBe(
+    GUION_CL_FASE_2.at(1)?.preguntas.at(0)
+  );
+  expect(actualizadas.at(1)?.maxSeguimientos).toBe(3);
+  expect(actualizadas.at(1)?.seguimientos?.at(0)).toContain(
+    "¿Cómo se comparte hoy dentro de la firma"
+  );
+  expect(despues.transcripcion).toEqual(antes.transcripcion);
+  expect(despues.secciones_completadas).toEqual(antes.secciones_completadas);
+  expect(despues.seccion_actual).toBe(1);
+  expect(despues.flujo_estado).toBe("chat");
+  expect(despues.instrucciones_agente).toBe(INSTRUCCIONES_AGENTE_CL_FASE_2);
+
+  const cerrada = await fila(completada);
+  expect(parseSecciones(cerrada.secciones).at(1)?.preguntas.at(0)).toBe(
+    "¿Qué tanto se conoce ComplianceLatam dentro de su firma?"
+  );
+  expect(parseSecciones(cerrada.secciones).at(1)?.maxSeguimientos).toBe(
+    undefined
+  );
+  await db.query("SELECT set_config('app.interview_transition', '', false)");
 });
 
 test("a participant cannot change the agent settings of their interview", async () => {

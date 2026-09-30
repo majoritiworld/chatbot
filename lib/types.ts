@@ -9,7 +9,9 @@ import type { FlujoEntrevista } from "./consultoria/entrevista-contenido";
 import type { Suggestion } from "./db/schema";
 
 export const messageMetadataSchema = z.object({
-  clase: z.enum(["principal", "obligatoria", "seguimiento"]).optional(),
+  clase: z
+    .enum(["principal", "obligatoria", "seguimiento", "aclaracion"])
+    .optional(),
   createdAt: z.string(),
   indiceObligatoria: z.number().int().nonnegative().optional(),
 });
@@ -76,6 +78,7 @@ export type CustomUIDataTypes = {
   "chat-title": string;
   "waiting-status": WaitingStatusData;
   "seccion-completada": SectionCompletedData;
+  "oferta-cierre-persistida": { seccionId: string };
 };
 
 export type ChatMessage = UIMessage<

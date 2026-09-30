@@ -655,14 +655,23 @@ test.describe("ComplianceLatam phase 2 guide", () => {
       GUION_CL_FASE_2.every((seccion) => seccion.preguntas.length === 1)
     ).toBe(true);
     expect(INSTRUCCIONES_AGENTE_CL_FASE_2).toContain("no explorado");
-    expect(INSTRUCCIONES_AGENTE_CL_FASE_2).toContain("como máximo dos");
+    expect(INSTRUCCIONES_AGENTE_CL_FASE_2).toContain("como máximo tres");
+    expect(GUION_CL_FASE_2.at(1)?.preguntas.at(0)).toBe(
+      "Dentro de su firma, ¿quiénes conocen ComplianceLatam y qué saben de lo que ofrece?"
+    );
+    expect(GUION_CL_FASE_2.at(1)?.seguimientos.at(0)).toContain(
+      "¿Cómo se comparte hoy dentro de la firma la información que reciben de ComplianceLatam?"
+    );
     expect(TRATO_CL_FASE_2).toBe("usted");
     expect(
       GUION_CL_FASE_2.flatMap((seccion) => seccion.preguntas).join(" ")
     ).not.toContain("como máximo dos");
     expect(
       GUION_CL_FASE_2.map((seccion) => seccion.seguimientos.length)
-    ).toEqual([4, 6, 6, 5, 5]);
+    ).toEqual([4, 4, 6, 5, 5]);
+    expect(
+      GUION_CL_FASE_2.every((seccion) => seccion.maxSeguimientos === 3)
+    ).toBe(true);
     expect(GUION_CL_FASE_2.at(0)?.instrucciones).toBeUndefined();
     expect(GUION_CL_FASE_2.at(0)?.descripcion).toBe(
       "Sobre lo que ComplianceLatam aporta a su firma."
@@ -681,7 +690,7 @@ test.describe("ComplianceLatam phase 2 guide", () => {
     );
     expect(GUION_CL_FASE_2.at(4)?.instrucciones).toContain("Al cerrar");
     for (const titulo of [1, 2, 3]) {
-      expect(GUION_CL_FASE_2.at(titulo)?.instrucciones).toMatch(/prioriza/);
+      expect(GUION_CL_FASE_2.at(titulo)?.instrucciones).toMatch(/prioriza/i);
     }
     expect(GUION_CL_FASE_1).toHaveLength(6);
     expect(
@@ -724,6 +733,7 @@ test.describe("ComplianceLatam phase 2 guide", () => {
     const payload = JSON.stringify(publicas);
     expect(payload).not.toContain("seguimientos");
     expect(payload).not.toContain("instrucciones");
+    expect(payload).not.toContain("maxSeguimientos");
     expect(payload).not.toContain("Si no menciona");
     expect(publicas.map((seccion) => seccion.preguntas)).toEqual(
       GUION_CL_FASE_2.map((seccion) => seccion.preguntas)
@@ -733,6 +743,7 @@ test.describe("ComplianceLatam phase 2 guide", () => {
   test("assigned copies and saved sections keep the agent-only fields", () => {
     const [primera] = clonarSecciones(seccionesDeGuionClFase2());
     expect(primera?.seguimientos).toHaveLength(4);
+    expect(primera?.maxSeguimientos).toBe(3);
     expect(primera?.instrucciones).toBeUndefined();
     expect(primera?.descripcion).toBe(
       "Sobre lo que ComplianceLatam aporta a su firma."
@@ -740,6 +751,7 @@ test.describe("ComplianceLatam phase 2 guide", () => {
     const [leida] = parseSecciones(JSON.parse(JSON.stringify([primera])));
     expect(leida?.seguimientos).toEqual(primera?.seguimientos);
     expect(leida?.instrucciones).toEqual(primera?.instrucciones);
+    expect(leida?.maxSeguimientos).toBe(3);
   });
 
   test("the agent gets the main question, the capped menu and usted, with no tuteo rule", () => {
@@ -748,6 +760,7 @@ test.describe("ComplianceLatam phase 2 guide", () => {
       descripcionSeccion: seccion?.descripcion,
       instruccionesEntrevista: INSTRUCCIONES_AGENTE_CL_FASE_2,
       instruccionesSeccion: seccion?.instrucciones,
+      maxSeguimientos: seccion?.maxSeguimientos,
       nombreEntrevistado: "Ana",
       preguntas: seccion?.preguntas ?? [],
       seguimientos: seccion?.seguimientos,
@@ -758,11 +771,9 @@ test.describe("ComplianceLatam phase 2 guide", () => {
     expect(prompt).toContain(seccion?.preguntas.at(0) ?? "?");
     expect(prompt).toContain("Seguimientos opcionales");
     expect(prompt).toContain(seccion?.seguimientos.at(0) ?? "?");
-    expect(prompt).toContain("como máximo DOS seguimientos");
+    expect(prompt).toContain("como máximo TRES seguimientos");
     expect(prompt).toContain("Seguimientos ya hechos en esta sección: 0.");
-    expect(prompt).toContain(
-      "prioriza cubrir la participación de otros equipos"
-    );
+    expect(prompt).toContain("Conocimiento y participación son distintos");
     expect(prompt).toContain("no explorado");
     expect(prompt).toContain("no lo repitas ni lo parafrasees");
     expect(prompt).toContain("Trata a la persona de usted");
@@ -771,13 +782,27 @@ test.describe("ComplianceLatam phase 2 guide", () => {
     expect(prompt).not.toContain("Máximo DOS follow-ups por tema");
 
     const agotado = interviewSystemPrompt({
+      cerrarSeccion: true,
+      maxSeguimientos: 3,
+      motivoCierre: "limite",
       preguntas: seccion?.preguntas ?? [],
       seguimientos: seccion?.seguimientos,
-      seguimientosHechos: 2,
+      seguimientosHechos: 3,
       tituloSeccion: seccion?.titulo ?? "",
       trato: "usted",
     });
-    expect(agotado).toContain("el límite está alcanzado");
+    expect(agotado).toContain("No digas que ya tienes lo necesario");
+    expect(agotado).not.toContain("ya tienes lo necesario y que pulse");
+
+    const conRespuesta = interviewSystemPrompt({
+      maxSeguimientos: 3,
+      preguntas: seccion?.preguntas ?? [],
+      preguntaYaHecha: true,
+      seguimientos: seccion?.seguimientos,
+      tituloSeccion: seccion?.titulo ?? "",
+      trato: "usted",
+    });
+    expect(conRespuesta).toContain("no la repitas, aunque su redacción");
   });
 
   test("the flow, not only the prompt, caps follow-ups at two per section", () => {

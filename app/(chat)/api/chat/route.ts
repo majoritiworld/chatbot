@@ -16,9 +16,11 @@ import { getLanguageModel } from "@/lib/ai/providers";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
   cierreSeccionInputSchema,
+  mensajeOfreceCierreListo,
   mensajesTextoParaModelo,
   ofertaCierreInputSchema,
   pausaSeccionInputSchema,
+  respuestasEnSeccion,
 } from "@/lib/consultoria/cierre-seccion";
 import {
   entrevistaAceptaChat,
@@ -127,13 +129,27 @@ export async function POST(request: Request) {
       uiMessages = [...uiMessages, message as ChatMessage];
     }
 
+    const guardarTurno = async (
+      turnos: ReturnType<typeof mensajesATurnos>,
+      restantes = 3
+    ): Promise<void> => {
+      try {
+        await registrarTurnosEntrevista({
+          entrevistaId: entrevista.id,
+          estricto: true,
+          turnos,
+        });
+      } catch (error) {
+        if (restantes <= 1) {
+          throw error;
+        }
+        await guardarTurno(turnos, restantes - 1);
+      }
+    };
+
     // Confirm the user's answer is durable before asking the next question.
     try {
-      await registrarTurnosEntrevista({
-        entrevistaId: entrevista.id,
-        estricto: true,
-        turnos: mensajesATurnos(uiMessages, seccion.id),
-      });
+      await guardarTurno(mensajesATurnos(uiMessages, seccion.id));
     } catch (error) {
       // biome-ignore lint/style/useErrorCause: this subclass forwards options.cause to Error
       throw new ErrorGuardadoTranscripcion({ cause: error });
@@ -177,6 +193,7 @@ export async function POST(request: Request) {
       clase,
       forzarOferta,
       indiceObligatoria,
+      motivoCierre,
       seguimientoSiguiente,
       seguimientosHechos,
     } = await planificarSeguimientos({
@@ -193,6 +210,7 @@ export async function POST(request: Request) {
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
         let avancePendiente: SectionCompletedData | undefined;
+        let ofertaPersistida = false;
         const herramientas = {
           completarSeccion: tool({
             description:
@@ -241,11 +259,15 @@ export async function POST(request: Request) {
             firmaEntrevistado: entrevista.stakeholder_firma,
             instruccionesEntrevista: entrevista.instrucciones_agente,
             instruccionesSeccion: seccion.instrucciones,
+            maxSeguimientos: seccion.maxSeguimientos,
+            motivoCierre,
             nombreEntrevistado: entrevista.stakeholder_nombre,
             obligatorias: seccion.obligatorias,
             preguntas: seccion.preguntas,
+            preguntaYaHecha: respuestasEnSeccion(uiMessages) > 0,
             reanudacion: uiMessages.length > 0,
             seccionesPrevias,
+            seguimientoEsAclaracion: clase === "aclaracion",
             seguimientoEsObligatorio: clase === "obligatoria",
             seguimientoSiguiente,
             seguimientos: seccion.seguimientos,
@@ -279,6 +301,13 @@ export async function POST(request: Request) {
         dataStream.merge(
           streamEntrevista({
             despuesDeGuardar: () => {
+              if (ofertaPersistida) {
+                dataStream.write({
+                  data: { seccionId: seccion.id },
+                  transient: true,
+                  type: "data-oferta-cierre-persistida",
+                });
+              }
               if (avancePendiente) {
                 dataStream.write({
                   data: avancePendiente,
@@ -286,14 +315,14 @@ export async function POST(request: Request) {
                 });
               }
             },
-            guardar: (responseMessage) =>
-              registrarTurnosEntrevista({
-                entrevistaId: entrevista.id,
-                estricto: true,
-                turnos: mensajesATurnos([responseMessage], seccion.id, {
+            guardar: async (responseMessage) => {
+              await guardarTurno(
+                mensajesATurnos([responseMessage], seccion.id, {
                   persistirOfertaEjecutada: true,
-                }),
-              }),
+                })
+              );
+              ofertaPersistida = mensajeOfreceCierreListo(responseMessage);
+            },
             metadataTurno,
             sendReasoning: isReasoningModel,
             stream: result.stream,

@@ -384,6 +384,29 @@ async function canalDeEscritura(entrevistaId: string) {
   };
 }
 
+/** The close check must read the transcript from the same channel that wrote
+ * it. A simplified session has no Supabase user, so a session SELECT is empty
+ * even after the enlace write stored the close offer. */
+async function leerTranscripcionOperable(entrevistaId: string) {
+  const canal = await canalDeEscritura(entrevistaId);
+  if (canal.tipo !== "enlace") {
+    return await getTranscripcionEntrevista(entrevistaId);
+  }
+
+  const { data, error } = await canal.supabase
+    .from("entrevista")
+    .select("transcripcion")
+    .eq("id", entrevistaId)
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    throw new Error("No se pudo leer la conversación");
+  }
+  return parseTranscripcion(data.transcripcion);
+}
+
 export async function getEntrevistaEscribible(
   entrevistaId?: string | null
 ): Promise<Entrevista | null> {
@@ -734,7 +757,7 @@ export async function cerrarSeccionDirecta({
   }
 
   const seccion = entrevista.secciones.at(entrevista.seccion_actual);
-  const turnosPersistidos = await getTranscripcionEntrevista(entrevista.id);
+  const turnosPersistidos = await leerTranscripcionOperable(entrevista.id);
   const denegado = autorizarCierreDirecto({
     forzar,
     seccionActivaId: seccion?.id,

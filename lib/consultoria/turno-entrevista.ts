@@ -19,14 +19,20 @@ import {
   obligatoriasYaCubiertas,
   siguienteSeguimiento,
 } from "@/lib/consultoria/seguimientos-elegibles";
+import {
+  decidirAntesDelMenu,
+  esNoSabe,
+  type MotivoCierreSeccion,
+} from "@/lib/consultoria/seguimientos-sustantivos";
 import type { ChatMessage } from "@/lib/types";
 
 const OFERTA = "ofrecerCierreSeccion";
 
 export type PlanSeguimientos = {
-  clase: "principal" | "obligatoria" | "seguimiento" | "cierre";
+  clase: "principal" | "obligatoria" | "seguimiento" | "cierre" | "aclaracion";
   forzarOferta: boolean;
   indiceObligatoria?: number;
+  motivoCierre?: MotivoCierreSeccion;
   /** Set when the flow decided to ask this follow-up now. */
   seguimientoSiguiente?: string;
   seguimientosHechos: number;
@@ -55,6 +61,17 @@ export async function planificarSeguimientos({
     return await planificarObligatorias({
       messages,
       obligatorias,
+      seccion,
+      seccionesPrevias,
+      seguimientos,
+      tieneSeguimientos,
+    });
+  }
+
+  if (typeof seccion.maxSeguimientos === "number") {
+    return await planificarConTopeSustantivo({
+      maxSeguimientos: seccion.maxSeguimientos,
+      messages,
       seccion,
       seccionesPrevias,
       seguimientos,
@@ -104,6 +121,109 @@ export async function planificarSeguimientos({
     forzarOferta: false,
     seguimientoSiguiente: siguiente,
     seguimientosHechos,
+  };
+}
+
+function textoMensaje(message: ChatMessage) {
+  return (message.parts ?? [])
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join(" ")
+    .trim();
+}
+
+async function planificarConTopeSustantivo({
+  maxSeguimientos,
+  messages,
+  seccion,
+  seccionesPrevias,
+  seguimientos,
+  tieneSeguimientos,
+}: {
+  maxSeguimientos: number;
+  messages: ChatMessage[];
+  seccion: SeccionEntrevista;
+  seccionesPrevias: ResumenSeccionPrevia[];
+  seguimientos: string[];
+  tieneSeguimientos: boolean;
+}): Promise<PlanSeguimientos> {
+  const [herramienta, ...otras] = herramientasCierreActivas(messages);
+  const flujoNormal = herramienta === OFERTA && otras.length === 0;
+  if (!(flujoNormal && respuestasEnSeccion(messages) > 0)) {
+    return {
+      clase: "principal",
+      forzarOferta: false,
+      seguimientosHechos: 0,
+    };
+  }
+  const decision = decidirAntesDelMenu({ maxSeguimientos, messages });
+  if (ofertaCierreVigenteEnChat(messages)) {
+    return {
+      clase: "cierre",
+      forzarOferta: true,
+      motivoCierre: decision.motivoCierre ?? "suficiente",
+      seguimientosHechos: decision.seguimientosHechos,
+    };
+  }
+  if (decision.clase === "aclaracion") {
+    return {
+      clase: "aclaracion",
+      forzarOferta: false,
+      seguimientoSiguiente: decision.preguntaAReformular,
+      seguimientosHechos: decision.seguimientosHechos,
+    };
+  }
+  if (decision.clase === "cierre") {
+    return {
+      clase: "cierre",
+      forzarOferta: true,
+      motivoCierre: decision.motivoCierre,
+      seguimientosHechos: decision.seguimientosHechos,
+    };
+  }
+  if (!tieneSeguimientos) {
+    return {
+      clase: "cierre",
+      forzarOferta: true,
+      motivoCierre: "suficiente",
+      seguimientosHechos: decision.seguimientosHechos,
+    };
+  }
+
+  const turnos = mensajesATurnos(messages);
+  const ultimo = messages.findLast((message) => message.role === "user");
+  const siguiente = await siguienteSeguimiento({
+    conversacion: textoConversacionCierre(turnos),
+    dichoPorLaPersona: turnos
+      .filter((turno) => turno.rol === "entrevistado")
+      .map((turno) => turno.texto)
+      .join("\n"),
+    preguntaPrincipal: seccion.preguntas.join(" "),
+    previas: textoSeccionesPrevias(seccionesPrevias),
+    seguimientos,
+  });
+  if (siguiente === undefined) {
+    return {
+      clase: "cierre",
+      forzarOferta: false,
+      seguimientosHechos: decision.seguimientosHechos,
+    };
+  }
+  if (siguiente === null) {
+    return {
+      clase: "cierre",
+      forzarOferta: true,
+      motivoCierre: esNoSabe(ultimo ? textoMensaje(ultimo) : "")
+        ? "no_sabe"
+        : "suficiente",
+      seguimientosHechos: decision.seguimientosHechos,
+    };
+  }
+  return {
+    clase: "seguimiento",
+    forzarOferta: false,
+    seguimientoSiguiente: siguiente,
+    seguimientosHechos: decision.seguimientosHechos,
   };
 }
 

@@ -10,11 +10,16 @@ export const MINUTOS_CL_FASE_2 = 30;
 
 export const TRATO_CL_FASE_2: TratoEntrevista = "usted";
 
+export const MAX_SEGUIMIENTOS_CL_FASE_2 = 3;
+
 export const INSTRUCCIONES_AGENTE_CL_FASE_2 = [
-  "Haz la pregunta principal y deja espacio para responder. Consérvala en usted, como está escrita.",
-  "Los seguimientos son un menú: elige como máximo dos por sección, solo para cubrir información clave que no haya surgido. Hazlos de a uno, adaptando las palabras a lo que la persona acaba de contar. Si un tema ya fue respondido, no lo vuelvas a preguntar.",
+  "Haz la pregunta principal y deja espacio para responder. Consérvala en usted, como está escrita. Si esta sección ya tiene respuestas, no vuelvas a hacer la pregunta principal aunque su redacción haya cambiado.",
+  "Los seguimientos son un menú: elige como máximo tres por sección, solo los que aporten información que todavía no esté. No es obligatorio hacer los tres. Hazlos de a uno, adaptando las palabras a lo que la persona acaba de contar. Si un tema ya fue respondido, no lo vuelvas a preguntar.",
+  "Una aclaración o reformulación porque la persona no entendió la pregunta no es un seguimiento nuevo. Si vuelve a no entender, simplifica y ofrece pasar al siguiente punto.",
+  "Respeta un «no sé», la falta de experiencia y la voluntad de no profundizar. No insistas ni completes con suposiciones.",
+  "No digas que ya tienes lo necesario solo porque se agotaron los seguimientos, la persona no sabe o no quiere seguir. En esos casos agradece y ofrece pasar al siguiente tema, sin inventar motivos, ejemplos ni conclusiones. Si hay información suficiente, puedes cerrar señalando en una frase lo recogido.",
   "Prioriza ejemplos de lo que ocurrió en la práctica. No presupongas falta de participación ni uso incorrecto.",
-  "No interpretes la falta de mención como falta de uso o participación. Si un tema no se abordó, regístralo como “no explorado”.",
+  "No interpretes la falta de mención como falta de uso o participación. Si un tema no se abordó, regístralo como “no explorado”. Conocimiento y participación son distintos: que nadie más participe no significa que nadie conozca la red.",
   "Distingue entre lo que la persona conoce directamente y lo que supone sobre otros integrantes de su firma.",
 ].join(" ");
 
@@ -23,6 +28,7 @@ const CIERRE =
 
 type GuionSeccionConSeguimientos = GuionSeccion & {
   instrucciones?: string;
+  maxSeguimientos: number;
   seguimientos: string[];
 };
 
@@ -42,6 +48,7 @@ function armarSeccion({
   return {
     descripcion,
     ...(instrucciones ? { instrucciones } : {}),
+    maxSeguimientos: MAX_SEGUIMIENTOS_CL_FASE_2,
     preguntas: [pregunta],
     seguimientos,
     titulo,
@@ -65,15 +72,14 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
     descripcion:
       "Sobre qué tanto se conoce ComplianceLatam dentro de su firma.",
     instrucciones:
-      "En esta sección, prioriza cubrir la participación de otros equipos. Si ese tema ya surgió, usa los seguimientos para profundizar en otros aspectos.",
-    pregunta: "¿Qué tanto se conoce ComplianceLatam dentro de su firma?",
+      "Conocimiento y participación son distintos: que nadie más participe no significa que nadie conozca la red. No presupongas que hay otros equipos participantes. Prioriza, si todavía no surgió, cómo circula la información y qué ayudaría a que más personas la conocieran y participaran. Si no quedó claro quién participa, explóralo sin dar por hecho que existen otros equipos.",
+    pregunta:
+      "Dentro de su firma, ¿quiénes conocen ComplianceLatam y qué saben de lo que ofrece?",
     seguimientos: [
-      "Prioritario, si no explica quiénes participan: Además de los socios que representan a la firma, ¿qué otros equipos participan en las actividades de la red y qué hacen concretamente?",
-      "Si no precisa qué conocen: ¿Diría que conocen solo el nombre o también lo que ofrece la red y cómo pueden aprovecharla?",
-      "Si no distingue entre personas o áreas: ¿Ese conocimiento está extendido entre los socios y equipos o se concentra en quienes participan directamente?",
-      "Si no habla del valor percibido por otros: Por lo que ha conversado con otros socios, ¿qué valor le ven a pertenecer a la red?",
-      "Si no explica cómo se demuestra ese valor: ¿Qué resultados han podido mostrar dentro de la firma y qué reacción han generado?",
-      "Si no explica cómo circula la información: Cuando ocurre algo valioso en la red, ¿cómo se enteran los demás?",
+      "Si no explica cómo circula la información: ¿Cómo se comparte hoy dentro de la firma la información que reciben de ComplianceLatam?",
+      "Si no explica qué facilitaría que más personas la conocieran o participaran: ¿Qué cree que ayudaría a que más personas de la firma la conocieran y participaran?",
+      "Si no quedó claro quién participa: ¿Quiénes participan hoy en las actividades de ComplianceLatam?",
+      "Si no precisa qué saben quienes sí la conocen: ¿Qué saben de lo que ofrece la red y de cómo pueden usarla?",
     ],
     titulo: "Conocimiento y participación dentro de la firma",
   }),
@@ -82,7 +88,7 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
     instrucciones:
       "En esta sección, prioriza cubrir el uso de herramientas de la red. Si ese tema ya surgió, usa los seguimientos para profundizar en otros aspectos.",
     pregunta:
-      "¿Cómo están aprovechando hoy la membresía y qué les dificulta sacarle más provecho?",
+      "En el último año, ¿cómo ha usado su firma la membresía de ComplianceLatam y qué le ha impedido aprovecharla más?",
     seguimientos: [
       "Prioritario, si no describe el uso de herramientas: ¿Qué medios o herramientas de ComplianceLatam utilizan para coordinar su participación? Cuénteme cómo los usaron la última vez.",
       "Si dice que no utilizan esas herramientas y no explica por qué: ¿Qué explica que no las estén utilizando?",
@@ -98,7 +104,7 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
     instrucciones:
       "En esta sección, prioriza cubrir los aportes de contenido o iniciativas. Si ese tema ya surgió, usa los seguimientos para profundizar en otros aspectos.",
     pregunta:
-      "¿Qué compromiso sería razonable esperar de una firma que pertenece a ComplianceLatam y cómo se compara eso con lo que ustedes hacen hoy?",
+      "¿Qué debería aportar una firma que pertenece a ComplianceLatam, y qué de eso está haciendo la suya hoy?",
     seguimientos: [
       "Prioritario, si no menciona aportes para dar visibilidad a la firma: Durante el último año, ¿qué contenido o iniciativas han compartido para que se difundan a través de ComplianceLatam?",
       "Si responde en términos generales: En la práctica, ¿qué debería aportar cualquier firma socia, incluso en un período de mucho trabajo?",
@@ -139,6 +145,7 @@ export function seccionesDeGuionClFase2(): SeccionEntrevista[] {
     ...(seccionGuion.instrucciones
       ? { instrucciones: seccionGuion.instrucciones }
       : {}),
+    maxSeguimientos: seccionGuion.maxSeguimientos,
     preguntas: [...seccionGuion.preguntas],
     seguimientos: [...seccionGuion.seguimientos],
     titulo: seccionGuion.titulo,

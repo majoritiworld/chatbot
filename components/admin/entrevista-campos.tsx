@@ -268,7 +268,8 @@ function SeccionEditor({
           />
           <p className="text-muted-foreground text-xs">
             Uno por línea, con su condición antes de los dos puntos. Es un menú:
-            el agente usa como máximo {MAX_SEGUIMIENTOS} por sección, de a uno,
+            el agente usa como máximo{" "}
+            {seccion.maxSeguimientos ?? MAX_SEGUIMIENTOS} por sección, de a uno,
             y solo si hacen falta.
           </p>
         </div>

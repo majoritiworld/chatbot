@@ -40,6 +40,7 @@ export function useCerrarSeccionEntrevista() {
     input,
     marcarProgresoGuardado,
     messages,
+    ofertaCierrePersistida,
     onSeccionCompletada,
     seccionId,
     sendMessage,
@@ -188,6 +189,7 @@ export function useCerrarSeccionEntrevista() {
     forzarCierre,
     guardarProgreso,
     pedirCierre,
-    seccionListaParaCerrar: ofertaCierreVigenteEnChat(messages),
+    seccionListaParaCerrar:
+      ofertaCierrePersistida && ofertaCierreVigenteEnChat(messages),
   };
 }
