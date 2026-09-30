@@ -18,9 +18,6 @@ export const INSTRUCCIONES_AGENTE_CL_FASE_2 = [
   "Distingue entre lo que la persona conoce directamente y lo que supone sobre otros integrantes de su firma.",
 ].join(" ");
 
-const APERTURA =
-  "Gracias por hacerse este espacio. Nos gustaría entender cómo les ha ido con ComplianceLatam: qué les ha servido, qué les ha costado aprovechar y qué podríamos mejorar. La idea es conversar con franqueza, pensando sobre todo en lo que han vivido durante el último año.";
-
 const CIERRE =
   "Gracias por compartir su experiencia con franqueza. Sus respuestas nos ayudarán a entender qué está aportando valor, qué dificulta la participación y qué cambios conviene priorizar para las firmas socias de ComplianceLatam.";
 
@@ -53,9 +50,7 @@ function armarSeccion({
 
 export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
   armarSeccion({
-    descripcion:
-      "Conversaremos sobre lo que ComplianceLatam aporta a su firma en la práctica.",
-    instrucciones: `Para abrir, di esto antes de la pregunta principal: ${APERTURA}`,
+    descripcion: "Sobre lo que ComplianceLatam aporta a su firma.",
     pregunta:
       "Si su firma dejara de pertenecer a ComplianceLatam mañana, ¿qué perdería en la práctica?",
     seguimientos: [
@@ -68,7 +63,7 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
   }),
   armarSeccion({
     descripcion:
-      "Nos interesa saber qué tanto se conoce ComplianceLatam dentro de su firma y quiénes participan en la red.",
+      "Sobre qué tanto se conoce ComplianceLatam dentro de su firma.",
     instrucciones:
       "En esta sección, prioriza cubrir la participación de otros equipos. Si ese tema ya surgió, usa los seguimientos para profundizar en otros aspectos.",
     pregunta: "¿Qué tanto se conoce ComplianceLatam dentro de su firma?",
@@ -83,8 +78,7 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
     titulo: "Conocimiento y participación dentro de la firma",
   }),
   armarSeccion({
-    descripcion:
-      "Veremos cómo aprovechan hoy la membresía y qué les dificulta sacarle más provecho.",
+    descripcion: "Sobre cómo usan hoy la membresía.",
     instrucciones:
       "En esta sección, prioriza cubrir el uso de herramientas de la red. Si ese tema ya surgió, usa los seguimientos para profundizar en otros aspectos.",
     pregunta:
@@ -100,8 +94,7 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
     titulo: "Uso y barreras",
   }),
   armarSeccion({
-    descripcion:
-      "Hablaremos del compromiso que cabe esperar de una firma socia y de cómo se compara con lo que hacen hoy.",
+    descripcion: "Sobre el compromiso de una firma socia.",
     instrucciones:
       "En esta sección, prioriza cubrir los aportes de contenido o iniciativas. Si ese tema ya surgió, usa los seguimientos para profundizar en otros aspectos.",
     pregunta:
@@ -116,8 +109,7 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
     titulo: "Responsabilidades y compromiso",
   }),
   armarSeccion({
-    descripcion:
-      "Para terminar, conversaremos sobre la renovación de la membresía y su precio.",
+    descripcion: "Sobre la renovación de la membresía y su precio.",
     instrucciones: `Al cerrar esta última sección, después de la conversación, di: ${CIERRE}`,
     pregunta:
       "Si hoy tuviera que defender el pago de la membresía frente a sus socios, ¿cuál sería su argumento más fuerte y dónde le costaría más convencerlos?",

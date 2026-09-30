@@ -101,43 +101,32 @@ test.describe("Pilot interview helpers", () => {
     expect(entrevistaAceptaChat("2026-09-19T00:00:00Z")).toBe(true);
   });
 
-  test("chains only the opening transitions and stops after a failure", async () => {
-    expect(siguienteTransicionInicial("bienvenida", 0)).toBe("bienvenida");
-    expect(siguienteTransicionInicial("presentacion", 0)).toBe("presentacion");
-    expect(siguienteTransicionInicial("presentacion", 1)).toBeNull();
-    expect(siguienteTransicionInicial("chat", 0)).toBeNull();
+  test("chains only the welcome and leaves every section introduction on screen", async () => {
+    expect(siguienteTransicionInicial("bienvenida")).toBe("bienvenida");
+    expect(siguienteTransicionInicial("presentacion")).toBeNull();
+    expect(siguienteTransicionInicial("chat")).toBeNull();
 
     const llamadas: string[] = [];
     const flujo = await encadenarAvanceInicial({
       avanzar: (desde) => {
         llamadas.push(desde);
-        return Promise.resolve(
-          desde === "bienvenida" ? "presentacion" : "chat"
-        );
+        return Promise.resolve("presentacion");
       },
       flujoEstado: "bienvenida",
-      seccionActual: 0,
     });
-    expect(llamadas).toEqual(["bienvenida", "presentacion"]);
-    expect(flujo).toBe("chat");
+    expect(llamadas).toEqual(["bienvenida"]);
+    expect(flujo).toBe("presentacion");
 
     await expect(
       encadenarAvanceInicial({
-        avanzar: (desde) => {
-          if (desde === "presentacion") {
-            return Promise.reject(new Error("fallo intermedio"));
-          }
-          return Promise.resolve("presentacion");
-        },
+        avanzar: () => Promise.reject(new Error("fallo intermedio")),
         flujoEstado: "bienvenida",
-        seccionActual: 0,
       })
     ).rejects.toThrow("fallo intermedio");
 
     const later = await encadenarAvanceInicial({
       avanzar: () => Promise.resolve("chat"),
       flujoEstado: "presentacion",
-      seccionActual: 1,
     });
     expect(later).toBe("presentacion");
   });
@@ -155,6 +144,10 @@ test.describe("Pilot interview helpers", () => {
       "haz de inmediato la primera pregunta"
     );
     expect(textoKickoffEntrevista(true)).toContain("No te presentes de nuevo");
+    expect(textoKickoffEntrevista(true)).toContain(
+      "haz solo la primera pregunta"
+    );
+    expect(textoKickoffEntrevista(true)).not.toContain("transición breve");
   });
 
   test("shows real section progress and close labels", () => {
@@ -233,7 +226,6 @@ test.describe("Pilot interview helpers", () => {
         flujoEstado: "revision",
         llegoEnRevision: false,
         onboardingListo: true,
-        seccionActual: 1,
       })
     ).toBe("finalizando");
     expect(
@@ -243,7 +235,6 @@ test.describe("Pilot interview helpers", () => {
         flujoEstado: "revision",
         llegoEnRevision: true,
         onboardingListo: true,
-        seccionActual: 1,
       })
     ).toBe("entrega_pendiente");
     expect(
@@ -253,7 +244,6 @@ test.describe("Pilot interview helpers", () => {
         flujoEstado: "revision",
         llegoEnRevision: false,
         onboardingListo: true,
-        seccionActual: 1,
       })
     ).toBe("entrega_pendiente");
     expect(
@@ -263,7 +253,6 @@ test.describe("Pilot interview helpers", () => {
         flujoEstado: "revision",
         llegoEnRevision: true,
         onboardingListo: true,
-        seccionActual: 1,
       })
     ).toBe("completada");
     expect(textoTemasTerminados(1)).toBe("Terminaste el tema.");
@@ -275,7 +264,6 @@ test.describe("Pilot interview helpers", () => {
         flujoEstado: "bienvenida",
         llegoEnRevision: false,
         onboardingListo: false,
-        seccionActual: 0,
       })
     ).toBe("onboarding");
     expect(minutosAproxEntrevista(1)).toBe(8);

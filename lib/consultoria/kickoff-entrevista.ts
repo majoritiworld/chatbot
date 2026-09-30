@@ -27,8 +27,8 @@ export function reiniciarKickoffsParaPruebas() {
 
 export function textoKickoffEntrevista(haySeccionesPrevias: boolean) {
   if (haySeccionesPrevias) {
-    return "Estoy listo para continuar con esta sección. No te presentes de nuevo; haz una transición breve y la primera pregunta.";
+    return "Estoy listo para continuar con esta sección. No te presentes de nuevo ni expliques el tema: haz solo la primera pregunta.";
   }
 
-  return "Estoy listo para comenzar. Saluda en una frase y haz de inmediato la primera pregunta.";
+  return "Estoy listo para comenzar. Saluda en una frase y haz de inmediato la primera pregunta, sin explicar el tema.";
 }

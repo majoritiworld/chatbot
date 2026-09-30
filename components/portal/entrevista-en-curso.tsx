@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { EntrevistaChat } from "@/components/portal/entrevista-chat";
 import { EntrevistaCompletada } from "@/components/portal/entrevista-completada";
+import { EntrevistaEspera } from "@/components/portal/entrevista-espera";
 import { EntrevistaOnboarding } from "@/components/portal/entrevista-onboarding";
 import { EntrevistaPantallaTransicion } from "@/components/portal/entrevista-pantalla-transicion";
 import { EntrevistaPresentacionSeccion } from "@/components/portal/entrevista-presentacion-seccion";
@@ -120,7 +121,6 @@ export function EntrevistaEnCurso({
         const siguiente = await encadenarAvanceInicial({
           avanzar: postAvance,
           flujoEstado: flujoRef.current,
-          seccionActual,
           signal,
         });
         flujoRef.current = siguiente;
@@ -135,17 +135,17 @@ export function EntrevistaEnCurso({
         avanceLockRef.current = false;
       }
     });
-  }, [postAvance, seccionActual]);
+  }, [postAvance]);
 
   useEffect(() => {
     if (!onboardingListo || completada) {
       return;
     }
-    if (!siguienteTransicionInicial(flujoRef.current, seccionActual)) {
+    if (!siguienteTransicionInicial(flujoRef.current)) {
       return;
     }
     encadenar();
-  }, [completada, encadenar, onboardingListo, seccionActual]);
+  }, [completada, encadenar, onboardingListo]);
 
   useEffect(() => {
     if (completada) {
@@ -311,7 +311,6 @@ export function EntrevistaEnCurso({
     flujoEstado,
     llegoEnRevision,
     onboardingListo,
-    seccionActual,
   });
 
   if (pantalla === "completada") {
@@ -356,11 +355,7 @@ export function EntrevistaEnCurso({
         mostrarPortal={mostrarPortal}
         titulo={titulo}
       >
-        <EntrevistaPantallaTransicion>
-          <p className="text-muted-foreground text-sm">
-            {textoFinalizandoEntrevista()}
-          </p>
-        </EntrevistaPantallaTransicion>
+        <EntrevistaEspera texto={textoFinalizandoEntrevista()} />
       </EntrevistaShell>
     );
   }
@@ -391,27 +386,23 @@ export function EntrevistaEnCurso({
         mostrarPortal={mostrarPortal}
         titulo={titulo}
       >
-        <EntrevistaPantallaTransicion>
-          {avanceError ? (
-            <>
-              <p className="text-destructive text-sm" role="alert">
-                {avanceError}
-              </p>
-              <Button
-                className="w-fit"
-                disabled={pending}
-                onClick={encadenar}
-                type="button"
-              >
-                {pending ? "Reintentando…" : "Reintentar"}
-              </Button>
-            </>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              Abriendo la entrevista…
+        {avanceError ? (
+          <EntrevistaPantallaTransicion>
+            <p className="text-destructive text-sm" role="alert">
+              {avanceError}
             </p>
-          )}
-        </EntrevistaPantallaTransicion>
+            <Button
+              className="w-fit"
+              disabled={pending}
+              onClick={encadenar}
+              type="button"
+            >
+              {pending ? "Reintentando…" : "Reintentar"}
+            </Button>
+          </EntrevistaPantallaTransicion>
+        ) : (
+          <EntrevistaEspera texto="Abriendo la entrevista…" />
+        )}
       </EntrevistaShell>
     );
   }

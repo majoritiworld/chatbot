@@ -663,7 +663,22 @@ test.describe("ComplianceLatam phase 2 guide", () => {
     expect(
       GUION_CL_FASE_2.map((seccion) => seccion.seguimientos.length)
     ).toEqual([4, 6, 6, 5, 5]);
-    expect(GUION_CL_FASE_2.at(0)?.instrucciones).toContain("Para abrir");
+    expect(GUION_CL_FASE_2.at(0)?.instrucciones).toBeUndefined();
+    expect(GUION_CL_FASE_2.at(0)?.descripcion).toBe(
+      "Sobre lo que ComplianceLatam aporta a su firma."
+    );
+    expect(GUION_CL_FASE_2.at(1)?.descripcion).toBe(
+      "Sobre qué tanto se conoce ComplianceLatam dentro de su firma."
+    );
+    expect(GUION_CL_FASE_2.at(2)?.descripcion).toBe(
+      "Sobre cómo usan hoy la membresía."
+    );
+    expect(GUION_CL_FASE_2.at(3)?.descripcion).toBe(
+      "Sobre el compromiso de una firma socia."
+    );
+    expect(GUION_CL_FASE_2.at(4)?.descripcion).toBe(
+      "Sobre la renovación de la membresía y su precio."
+    );
     expect(GUION_CL_FASE_2.at(4)?.instrucciones).toContain("Al cerrar");
     for (const titulo of [1, 2, 3]) {
       expect(GUION_CL_FASE_2.at(titulo)?.instrucciones).toMatch(/prioriza/);
@@ -718,7 +733,10 @@ test.describe("ComplianceLatam phase 2 guide", () => {
   test("assigned copies and saved sections keep the agent-only fields", () => {
     const [primera] = clonarSecciones(seccionesDeGuionClFase2());
     expect(primera?.seguimientos).toHaveLength(4);
-    expect(primera?.instrucciones).toContain("Para abrir");
+    expect(primera?.instrucciones).toBeUndefined();
+    expect(primera?.descripcion).toBe(
+      "Sobre lo que ComplianceLatam aporta a su firma."
+    );
     const [leida] = parseSecciones(JSON.parse(JSON.stringify([primera])));
     expect(leida?.seguimientos).toEqual(primera?.seguimientos);
     expect(leida?.instrucciones).toEqual(primera?.instrucciones);
@@ -746,6 +764,7 @@ test.describe("ComplianceLatam phase 2 guide", () => {
       "prioriza cubrir la participación de otros equipos"
     );
     expect(prompt).toContain("no explorado");
+    expect(prompt).toContain("no lo repitas ni lo parafrasees");
     expect(prompt).toContain("Trata a la persona de usted");
     expect(prompt).not.toMatch(/Tutea/);
     expect(prompt).not.toContain("Asegúrate de cubrir todos los temas guía");

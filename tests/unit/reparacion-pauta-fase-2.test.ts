@@ -134,7 +134,10 @@ test("repairs the template and its copies without touching answers, state or con
   expect(secciones.map((seccion) => seccion.preguntas)).toEqual(
     GUION_CL_FASE_2.map((seccion) => seccion.preguntas)
   );
-  expect(secciones.at(0)?.instrucciones).toContain("Para abrir");
+  expect(secciones.at(0)?.instrucciones).toBeUndefined();
+  expect(secciones.at(0)?.descripcion).toBe(
+    "Sobre lo que ComplianceLatam aporta a su firma."
+  );
   expect(despues.trato).toBe("usted");
   expect(despues.instrucciones_agente).toBe(INSTRUCCIONES_AGENTE_CL_FASE_2);
   expect(despues.transcripcion).toEqual(antes.transcripcion);

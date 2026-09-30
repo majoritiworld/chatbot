@@ -41,15 +41,10 @@ export function estadoVisibleEntrevistaPortal({
 }
 
 export function siguienteTransicionInicial(
-  flujoEstado: FlujoEntrevista,
-  seccionActual: number
-): "bienvenida" | "presentacion" | null {
+  flujoEstado: FlujoEntrevista
+): "bienvenida" | null {
   if (flujoEstado === "bienvenida") {
     return "bienvenida";
-  }
-
-  if (flujoEstado === "presentacion" && seccionActual === 0) {
-    return "presentacion";
   }
 
   return null;
@@ -58,12 +53,10 @@ export function siguienteTransicionInicial(
 export async function encadenarAvanceInicial({
   avanzar,
   flujoEstado,
-  seccionActual,
   signal,
 }: {
   avanzar: (desde: "bienvenida" | "presentacion") => Promise<FlujoEntrevista>;
   flujoEstado: FlujoEntrevista;
-  seccionActual: number;
   signal?: { cancelled: boolean };
 }): Promise<FlujoEntrevista> {
   let flujo = flujoEstado;
@@ -73,7 +66,7 @@ export async function encadenarAvanceInicial({
       return flujo;
     }
 
-    const paso = siguienteTransicionInicial(flujo, seccionActual);
+    const paso = siguienteTransicionInicial(flujo);
     if (!paso) {
       return flujo;
     }
@@ -206,14 +199,12 @@ export function pantallaParticipanteEntrevista({
   flujoEstado,
   llegoEnRevision,
   onboardingListo,
-  seccionActual,
 }: {
   completada: boolean;
   errorEntrega: boolean;
   flujoEstado: FlujoEntrevista;
   llegoEnRevision: boolean;
   onboardingListo: boolean;
-  seccionActual: number;
 }): PantallaParticipanteEntrevista {
   if (completada) {
     return "completada";
@@ -237,7 +228,7 @@ export function pantallaParticipanteEntrevista({
     return "finalizando";
   }
 
-  if (siguienteTransicionInicial(flujoEstado, seccionActual) !== null) {
+  if (siguienteTransicionInicial(flujoEstado) !== null) {
     return "avance";
   }
 

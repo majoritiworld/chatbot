@@ -132,12 +132,12 @@ function saludoEntrevista({
     return "Esta conversación se retoma: no te presentes de nuevo ni repitas preguntas ya cubiertas. Si el último turno quedó a medias, saluda muy breve por haber vuelto y continúa desde el último tema pendiente.";
   }
   if (haySeccionesPrevias) {
-    return "Esta es una sección nueva de la misma entrevista: no te presentes de nuevo. Abre con una transición breve y la primera pregunta.";
+    return "Esta es una sección nueva de la misma entrevista: no te presentes de nuevo. La persona ya leyó el sentido de la sección. En el primer turno haz solo la primera pregunta, sin volver a explicar el tema.";
   }
   if (nombre) {
-    return "En el primer turno, saluda a la persona por su nombre en una frase y haz de inmediato la primera pregunta. No te presentes en un párrafo aparte.";
+    return "En el primer turno, saluda a la persona por su nombre en una frase y haz de inmediato la primera pregunta. No expliques el tema: la persona ya lo leyó. No te presentes en un párrafo aparte.";
   }
-  return "En el primer turno, saluda en una frase y haz de inmediato la primera pregunta. No te presentes en un párrafo aparte.";
+  return "En el primer turno, saluda en una frase y haz de inmediato la primera pregunta. No expliques el tema: la persona ya lo leyó. No te presentes en un párrafo aparte.";
 }
 
 const REGLA_TRATO: Record<TratoEntrevista, string> = {
@@ -289,12 +289,9 @@ export const interviewSystemPrompt = ({
     : "Esta es la primera sección: no hay respuestas previas que referenciar.";
 
   const descripcion = descripcionSeccion?.trim();
-  let bloqueDescripcion = "";
-  if (descripcion) {
-    bloqueDescripcion = conSeguimientos
-      ? `Presentación que la persona ya leyó antes de entrar (no la repitas): ${descripcion}`
-      : `Contexto de la sección: ${descripcion}`;
-  }
+  const bloqueDescripcion = descripcion
+    ? `La persona ya leyó esto antes de entrar al chat (no lo repitas ni lo parafrasees): ${descripcion}`
+    : "";
 
   const internas = [
     instruccionesEntrevista?.trim()
