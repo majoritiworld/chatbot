@@ -456,6 +456,7 @@ export async function crearFaseEnProyecto({
 }
 
 export async function actualizarFaseEnProyecto({
+  accesoEnlacePersonal,
   proyectoId,
   faseId,
   nombre,
@@ -464,6 +465,7 @@ export async function actualizarFaseEnProyecto({
   fechaCierre,
   textos,
 }: {
+  accesoEnlacePersonal?: boolean;
   proyectoId: string;
   faseId: string;
   nombre: string;
@@ -479,6 +481,8 @@ export async function actualizarFaseEnProyecto({
     correoCuerpo: string | null;
     correoFirma: string | null;
     correoRemitente: string | null;
+    invitacionAsunto: string | null;
+    invitacionCuerpo: string | null;
     minutos: number | null;
     textoBienvenida: string | null;
   };
@@ -503,9 +507,14 @@ export async function actualizarFaseEnProyecto({
       descripcion,
       fecha_cierre: fechaCierre,
       fecha_estimada: fechaEstimada,
+      invitacion_asunto: textos.invitacionAsunto,
+      invitacion_cuerpo: textos.invitacionCuerpo,
       minutos: textos.minutos,
       nombre,
       texto_bienvenida: textos.textoBienvenida,
+      ...(accesoEnlacePersonal === undefined
+        ? {}
+        : { acceso_enlace_personal: accesoEnlacePersonal }),
     })
     .eq("id", faseId)
     .eq("proyecto_id", proyectoId);

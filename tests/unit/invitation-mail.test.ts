@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { test } from "@playwright/test";
 
-test("completion mail is branded, copied to the team, and idempotent", () => {
+test("interview mail resolves the assignment on the server, blocks mismatches, and keeps invitations off", () => {
   execFileSync(
     process.execPath,
     [

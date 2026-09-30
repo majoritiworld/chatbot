@@ -9,6 +9,11 @@ import {
   stakeholderNeedsInterviewLanding,
   stakeholderPathNeedsLandingInterview,
 } from "@/lib/consultoria/roles";
+import {
+  COOKIE_ENTREVISTA,
+  leerSesionEntrevistaValor,
+  rutaCubiertaPorSesionEntrevista,
+} from "@/lib/consultoria/sesion-entrevista";
 import { updateSession } from "@/lib/supabase/middleware";
 
 const LEGACY_STAKEHOLDER = /^\/admin\/stakeholder\/([0-9a-f-]{36})$/i;
@@ -37,7 +42,19 @@ export async function proxy(request: NextRequest) {
   const isPublicAuth =
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
-    pathname.startsWith("/auth/");
+    pathname.startsWith("/auth/") ||
+    pathname.startsWith("/e/");
+
+  const sesionEntrevista = leerSesionEntrevistaValor(
+    request.cookies.get(COOKIE_ENTREVISTA)?.value
+  );
+  if (
+    !user &&
+    sesionEntrevista &&
+    rutaCubiertaPorSesionEntrevista(pathname, sesionEntrevista.entrevistaId)
+  ) {
+    return supabaseResponse;
+  }
 
   if (
     !user &&

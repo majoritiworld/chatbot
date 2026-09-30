@@ -44,10 +44,15 @@ export function mensajesATurnos(
       return [];
     }
 
+    const clase = mensaje.metadata?.clase;
+    const indice = mensaje.metadata?.indiceObligatoria;
+
     return [
       {
         at: mensaje.metadata?.createdAt ?? new Date().toISOString(),
+        ...(clase ? { clase } : {}),
         id: mensaje.id,
+        ...(typeof indice === "number" ? { indiceObligatoria: indice } : {}),
         ...(ofertaCierre ? { ofertaCierre: true } : {}),
         rol: mensaje.role === "user" ? "entrevistado" : "entrevistador",
         seccionId: seccionId ?? null,
@@ -74,7 +79,13 @@ export function turnosAMensajes(turnos: TurnoEntrevista[]): ChatMessage[] {
     }
     return {
       id: turno.id,
-      metadata: { createdAt: turno.at },
+      metadata: {
+        ...(turno.clase ? { clase: turno.clase } : {}),
+        createdAt: turno.at,
+        ...(typeof turno.indiceObligatoria === "number"
+          ? { indiceObligatoria: turno.indiceObligatoria }
+          : {}),
+      },
       parts,
       role: turno.rol === "entrevistado" ? "user" : "assistant",
     };

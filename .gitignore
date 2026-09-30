@@ -28,3 +28,4 @@ tsconfig.tsbuildinfo
 
 .next-test/
 tests/staging/.auth/
+.local/

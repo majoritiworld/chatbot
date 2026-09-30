@@ -152,14 +152,18 @@ const REGLA_TRATO: Record<TratoEntrevista, string> = {
  */
 function bloqueGuiaSeccion({
   preguntas,
+  obligatorias = [],
   seguimientos,
+  seguimientoEsObligatorio = false,
   seguimientoSiguiente,
   seguimientosHechos,
   limiteAlcanzado,
   cerrarAhora,
 }: {
   preguntas: string[];
+  obligatorias?: string[];
   seguimientos: string[];
+  seguimientoEsObligatorio?: boolean;
   seguimientoSiguiente?: string;
   seguimientosHechos: number;
   limiteAlcanzado: boolean;
@@ -182,7 +186,11 @@ function bloqueGuiaSeccion({
     };
   }
 
-  let estado = `Seguimientos ya hechos en esta sección: ${seguimientosHechos}. Máximo ${MAX_SEGUIMIENTOS}: es un tope, no una cuota. Con una respuesta completa lo normal es ninguno o uno.`;
+  const notaObligatorias =
+    obligatorias.length > 0
+      ? " Las preguntas obligatorias no consumen este cupo."
+      : "";
+  let estado = `Seguimientos ya hechos en esta sección: ${seguimientosHechos}. Máximo ${MAX_SEGUIMIENTOS}: es un tope, no una cuota. Con una respuesta completa lo normal es ninguno o uno.${notaObligatorias}`;
   if (cerrarAhora) {
     estado = limiteAlcanzado
       ? `Ya se hicieron ${MAX_SEGUIMIENTOS} seguimientos en esta sección: el límite está alcanzado. En este turno NO hagas ninguna pregunta; agradece brevemente y ofrece el cierre.`
@@ -192,6 +200,9 @@ function bloqueGuiaSeccion({
   let menu: string;
   if (cerrarAhora) {
     menu = "";
+  } else if (seguimientoSiguiente && seguimientoEsObligatorio) {
+    menu = `Pregunta obligatoria para este turno (la persona todavía no la respondió; no cuenta como seguimiento opcional): ${seguimientoSiguiente}
+Hazla en este turno, solo esa, adaptando las palabras a lo que la persona acaba de contar y sin cambiar su sentido. No ofrezcas el cierre en este turno.`;
   } else if (seguimientoSiguiente) {
     menu = `Seguimiento para este turno (ya se comprobó que la persona no lo respondió): ${seguimientoSiguiente}
 Hazlo en este turno, solo ese, adaptando las palabras a lo que la persona acaba de contar y sin cambiar su sentido. No ofrezcas el cierre en este turno.`;
@@ -200,13 +211,21 @@ Hazlo en este turno, solo ese, adaptando las palabras a lo que la persona acaba 
 ${seguimientos.map((item) => `- ${item}`).join("\n")}`;
   }
 
+  const bloqueObligatorias =
+    obligatorias.length > 0
+      ? `\nPreguntas obligatorias de esta sección (hazlas todas, una por turno, salvo que la persona ya las haya respondido. No cuentan para el máximo de seguimientos opcionales):\n${obligatorias.map((pregunta, indice) => `${indice + 1}. ${pregunta}`).join("\n")}\n`
+      : "";
+  const coberturaObligatorias =
+    obligatorias.length > 0
+      ? " También deben estar respondidas las preguntas obligatorias, que no consumen el cupo de seguimientos."
+      : "";
+
   return {
     guia: `Pregunta principal de esta sección (aprobada; hazla primero, completa y con sus palabras, adaptando solo el trato si hiciera falta):
 ${lista}
-${menu ? `\n${menu}\n` : ""}
+${bloqueObligatorias}${menu ? `\n${menu}\n` : ""}
 ${estado}`,
-    reglaCobertura:
-      "La sección está cubierta cuando la persona respondió la pregunta principal y ya hiciste los seguimientos que hacían falta (ninguno, uno o dos). No hace falta usar todos los seguimientos. Si ninguno hace falta, ofrece el cierre en ese mismo turno. Un turno lleva una pregunta o la oferta de cierre, nunca las dos.",
+    reglaCobertura: `La sección está cubierta cuando la persona respondió la pregunta principal y ya hiciste los seguimientos que hacían falta (ninguno, uno o dos). No hace falta usar todos los seguimientos. Si ninguno hace falta, ofrece el cierre en ese mismo turno. Un turno lleva una pregunta o la oferta de cierre, nunca las dos.${coberturaObligatorias}`,
     reglasConduccion: [
       "Después de la respuesta a la pregunta principal, haz como máximo DOS seguimientos en toda la sección, de a uno por turno. Antes de escribir uno, comprueba en silencio si la persona ya dio esa información; si la dio, descártalo. Si dio solo una parte, pregunta únicamente la parte que falta y menciona lo que ya dijo. Adapta las palabras a lo que acaba de contar, sin cambiar el sentido. No inventes seguimientos fuera de los disponibles.",
       'Un seguimiento marcado como "Prioritario" va antes que los demás solo si su condición se cumple. Si la persona ya cubrió ese tema, no lo preguntes.',
@@ -221,7 +240,10 @@ export const interviewSystemPrompt = ({
   descripcionSeccion,
   instruccionesEntrevista,
   instruccionesSeccion,
+  etiquetaOrganizacion = "firma",
+  obligatorias = [],
   seguimientos = [],
+  seguimientoEsObligatorio = false,
   seguimientoSiguiente,
   cerrarSeccion = false,
   seguimientosHechos = 0,
@@ -237,7 +259,10 @@ export const interviewSystemPrompt = ({
   descripcionSeccion?: string;
   instruccionesEntrevista?: string;
   instruccionesSeccion?: string;
+  etiquetaOrganizacion?: "empresa" | "firma";
+  obligatorias?: string[];
   seguimientos?: string[];
+  seguimientoEsObligatorio?: boolean;
   /** Decided by the flow: the follow-up to ask now, as a bare question.
    * Without it (and without `cerrarSeccion`) the full menu is shown. */
   seguimientoSiguiente?: string;
@@ -254,12 +279,19 @@ export const interviewSystemPrompt = ({
   const etiquetaCierre = etiquetaCierreTema(esUltimoTema);
   const conSeguimientos = seguimientos.length > 0;
   const limiteAlcanzado =
-    conSeguimientos && seguimientosHechos >= MAX_SEGUIMIENTOS;
-  const cerrarAhora = conSeguimientos && (limiteAlcanzado || cerrarSeccion);
+    conSeguimientos &&
+    seguimientosHechos >= MAX_SEGUIMIENTOS &&
+    !seguimientoEsObligatorio;
+  const cerrarAhora =
+    conSeguimientos &&
+    (limiteAlcanzado || cerrarSeccion) &&
+    !seguimientoEsObligatorio;
   const { guia, reglasConduccion, reglaCobertura } = bloqueGuiaSeccion({
     cerrarAhora,
     limiteAlcanzado,
+    obligatorias,
     preguntas,
+    seguimientoEsObligatorio,
     seguimientoSiguiente,
     seguimientos,
     seguimientosHechos,
@@ -268,12 +300,14 @@ export const interviewSystemPrompt = ({
   const firma = firmaEntrevistado?.trim() || null;
   const previas = textoSeccionesPrevias(seccionesPrevias);
 
+  const organizacion =
+    etiquetaOrganizacion === "empresa" ? "empresa" : "firma socia";
   const contextoPersona = nombre
     ? [
         `La persona entrevistada se llama ${nombre}.`,
         firma
-          ? `Pertenece a la firma socia ${firma}. Usa ese nombre cuando te refieras a su organización.`
-          : "No tienes el nombre de su firma socia.",
+          ? `Pertenece a la ${organizacion} ${firma}. Usa ese nombre cuando te refieras a su organización.`
+          : `No tienes el nombre de su ${organizacion}.`,
         "Personaliza las preguntas usando su nombre cuando encaje; no inventes cargo, rol ni contexto que no esté aquí.",
       ].join("\n")
     : "No tienes el nombre del entrevistado.";

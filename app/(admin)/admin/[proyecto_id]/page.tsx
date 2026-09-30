@@ -8,11 +8,14 @@ import { CopiarEnlaceProyecto } from "@/components/admin/copiar-enlace-proyecto"
 import { EditarProyectoForm } from "@/components/admin/editar-proyecto-form";
 import { EventosProyecto } from "@/components/admin/eventos-proyecto";
 import { FasesProyecto } from "@/components/admin/fases-proyecto";
+import { IncidenciasCorreo } from "@/components/admin/incidencias-correo";
 import { MarcaProyectoForm } from "@/components/admin/marca-proyecto-form";
 import { PersonasPorAcceso } from "@/components/admin/stakeholders-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdminUser } from "@/lib/consultoria/admin";
 import { siteUrl } from "@/lib/consultoria/auth";
+import { textosInvitacionDeProyecto } from "@/lib/consultoria/correos/asignacion-servidor";
+import { listarIncidenciasCorreo } from "@/lib/consultoria/correos/incidencia";
 import { getEventosDelProyecto } from "@/lib/consultoria/eventos";
 import { cargarCalendarioAdmin } from "@/lib/consultoria/google-calendar";
 import { avisoCalendario } from "@/lib/consultoria/google-evento";
@@ -57,14 +60,23 @@ async function ProyectoContenido({
     notFound();
   }
 
-  const [stakeholders, fases, eventos, calendario, consulta] =
-    await Promise.all([
-      listStakeholdersAdmin(proyectoId),
-      listFasesAdmin(proyectoId),
-      getEventosDelProyecto(proyectoId),
-      cargarCalendarioAdmin(admin.id),
-      searchParams,
-    ]);
+  const [
+    stakeholders,
+    fases,
+    eventos,
+    calendario,
+    consulta,
+    invitacion,
+    incidencias,
+  ] = await Promise.all([
+    listStakeholdersAdmin(proyectoId),
+    listFasesAdmin(proyectoId),
+    getEventosDelProyecto(proyectoId),
+    cargarCalendarioAdmin(admin.id),
+    searchParams,
+    textosInvitacionDeProyecto(proyectoId),
+    listarIncidenciasCorreo(proyectoId),
+  ]);
   const slug = slugValido(proyecto.slug);
   const completadas = stakeholders.filter(
     (row) => row.estadoEntrevista === "completada"
@@ -130,6 +142,12 @@ async function ProyectoContenido({
           <CopiarEnlaceProyecto
             enlace={slug ? enlaceDeProyecto(siteUrl(), slug) : null}
           />
+          <Link
+            className="w-fit text-sm underline-offset-4 hover:underline"
+            href={`/admin/correos?proyecto=${proyectoId}`}
+          >
+            Ver vista previa de los correos
+          </Link>
           <MarcaProyectoForm
             avisoRespuestas={proyecto.aviso_respuestas}
             color={proyecto.color_principal}
@@ -139,6 +157,7 @@ async function ProyectoContenido({
             correoCuerpo={proyecto.correo_cuerpo}
             correoFirma={proyecto.correo_firma}
             correoRemitente={proyecto.correo_remitente}
+            invitacion={invitacion}
             nombrePublico={proyecto.nombre_publico}
             proyectoId={proyectoId}
             slug={proyecto.slug}
@@ -147,6 +166,10 @@ async function ProyectoContenido({
           />
         </div>
       </AdminSeccion>
+
+      {incidencias && incidencias.length > 0 ? (
+        <IncidenciasCorreo incidencias={incidencias} />
+      ) : null}
 
       <AdminSeccion
         descripcion="Quien conozca un correo invitado de este proyecto entra sin código. Si lo desactivas, vuelve el código de 8 dígitos."

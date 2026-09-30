@@ -11,7 +11,10 @@ import {
   seccionesPublicas,
   turnosDeSeccion,
 } from "@/lib/consultoria/entrevista-contenido";
-import { getEntrevistaPortalCarga } from "@/lib/consultoria/entrevistas";
+import {
+  getEntrevistaEnlace,
+  getEntrevistaPortalCarga,
+} from "@/lib/consultoria/entrevistas";
 import {
   comunicacionDeEntrevista,
   marcaConTextos,
@@ -36,6 +39,43 @@ export default function EntrevistaPage({
 
 async function EntrevistaContenido({ id }: { id: Promise<string> }) {
   const entrevistaId = await id;
+  const enlace = await getEntrevistaEnlace(entrevistaId);
+  if (enlace) {
+    const presentacion = await comunicacionDeEntrevista(entrevistaId);
+    const marca = marcaConTextos(
+      await marcaPorProyectoId(enlace.entrevista.proyecto_id),
+      presentacion.textos
+    );
+    const seccionActiva = enlace.entrevista.secciones.at(
+      enlace.entrevista.seccion_actual
+    );
+    const turnosActivos = seccionActiva
+      ? turnosDeSeccion(
+          enlace.turnos,
+          seccionActiva.id,
+          enlace.entrevista.seccion_actual === 0
+        )
+      : [];
+    return (
+      <MarcaParticipanteProvider marca={marca}>
+        <EntrevistaEnCurso
+          cliente={enlace.entrevista.proyecto_cliente}
+          consentimientoEn={enlace.entrevista.consentimiento_en}
+          correoAgradecimientoEn={enlace.entrevista.correo_agradecimiento_en}
+          correoUsuario={enlace.entrevista.stakeholder_email}
+          entrevistaId={enlace.entrevista.id}
+          estadoInicial={enlace.entrevista.estado}
+          flujoEstadoInicial={enlace.entrevista.flujo_estado}
+          mensajesIniciales={turnosAMensajes(turnosActivos)}
+          minutos={presentacion.minutos}
+          mostrarPortal={false}
+          seccionActualInicial={enlace.entrevista.seccion_actual}
+          secciones={seccionesPublicas(enlace.entrevista.secciones)}
+          stakeholderNombre={enlace.entrevista.stakeholder_nombre}
+        />
+      </MarcaParticipanteProvider>
+    );
+  }
   const portalUser = await requirePortalUser({ conProyecto: false });
   const carga = await getEntrevistaPortalCarga(entrevistaId, portalUser.email, {
     proyectoId: portalUser.proyectoId,

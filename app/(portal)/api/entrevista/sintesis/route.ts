@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { auth } from "@/app/(auth)/auth";
+import { leerSesionEntrevista } from "@/lib/consultoria/acceso-entrevista";
 import { guardarSintesisConsultaEntrevista } from "@/lib/consultoria/entrevistas";
 
 const ESPERA_SINTESIS_AL_RECUPERAR_MS = 45_000;
@@ -9,14 +10,15 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return Response.json({ error: "No autenticado" }, { status: 401 });
-  }
-
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return Response.json({ error: "Datos inválidos" }, { status: 400 });
+  }
+
+  const session = await auth();
+  const enlace = await leerSesionEntrevista();
+  if (!(session?.user || enlace?.entrevistaId === parsed.data.entrevistaId)) {
+    return Response.json({ error: "No autenticado" }, { status: 401 });
   }
 
   try {

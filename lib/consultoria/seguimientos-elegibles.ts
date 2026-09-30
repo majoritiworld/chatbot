@@ -141,3 +141,62 @@ ${menu}`,
     console.error("No se pudieron evaluar los seguimientos", error);
   }
 }
+
+const cubiertasSchema = z.object({
+  preguntas: z.array(
+    z.object({
+      indice: z.number().int(),
+      yaRespondido: z
+        .boolean()
+        .describe(
+          "true solo si la persona ya dio esa información, aunque sea con otras palabras"
+        ),
+    })
+  ),
+});
+
+/** Indices of obligatory questions already answered. An evaluation failure
+ * returns none, so the interview still asks them instead of skipping. */
+export async function obligatoriasYaCubiertas({
+  conversacion,
+  dichoPorLaPersona,
+  obligatorias,
+  previas,
+}: {
+  conversacion: string;
+  dichoPorLaPersona: string;
+  obligatorias: string[];
+  previas: string;
+}): Promise<number[]> {
+  if (obligatorias.length === 0 || dichoPorLaPersona.trim().length === 0) {
+    return [];
+  }
+  const lista = obligatorias
+    .map((pregunta, indice) => `${indice}. ${pregunta}`)
+    .join("\n");
+  try {
+    const { output } = await generateText({
+      instructions: `Marca cada pregunta obligatoria como yaRespondido solo si la persona ya dio esa información, aunque sea en parte, con otras palabras o de pasada. Si no la dio, yaRespondido es false. No inventes respuestas. Ante la duda, yaRespondido es false.
+
+Preguntas:
+${lista}`,
+      model: getLanguageModel(DEFAULT_CHAT_MODEL),
+      output: Output.object({ schema: cubiertasSchema }),
+      prompt: `${previas ? `Secciones anteriores:\n${previas}\n\n` : ""}Conversación:\n${conversacion}`,
+    });
+    if (!output) {
+      return [];
+    }
+    return output.preguntas
+      .filter(
+        (item) =>
+          item.yaRespondido &&
+          item.indice >= 0 &&
+          item.indice < obligatorias.length
+      )
+      .map((item) => item.indice);
+  } catch (error) {
+    console.error("No se pudieron evaluar las preguntas obligatorias", error);
+    return [];
+  }
+}

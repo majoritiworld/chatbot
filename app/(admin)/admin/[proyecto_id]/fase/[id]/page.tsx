@@ -4,12 +4,16 @@ import { Suspense } from "react";
 import { AdminSeccion } from "@/components/admin/admin-seccion";
 import { EditarFaseForm } from "@/components/admin/editar-fase-form";
 import { EntrevistasFase } from "@/components/admin/entrevistas-fase";
+import { FaseColaboradoresAdmin } from "@/components/admin/fase-colaboradores";
+import { InvitacionFaseAdmin } from "@/components/admin/invitacion-fase";
 import { PlantillasProyecto } from "@/components/admin/plantillas-proyecto";
 import { TareasFase } from "@/components/admin/tareas-fase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireAdminUser } from "@/lib/consultoria/admin";
+import { esFaseColaboradores } from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
 import { esProyectoComplianceLatam } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
 import {
+  asegurarPlantillaGuionClColaboradores,
   asegurarPlantillaGuionClFase1,
   asegurarPlantillaGuionClFase2,
   listPlantillasAdmin,
@@ -58,6 +62,12 @@ async function FaseContenido({ params }: { params: FaseParams }) {
       proyectoId,
     });
   }
+  if (esProyectoComplianceLatam(proyecto) && esFaseColaboradores(fase)) {
+    await asegurarPlantillaGuionClColaboradores({
+      faseId: fase.id,
+      proyectoId,
+    });
+  }
 
   const [plantillas, entrevistas, tareas, stakeholders] = await Promise.all([
     listPlantillasAdmin(proyectoId, faseId),
@@ -100,7 +110,11 @@ async function FaseContenido({ params }: { params: FaseParams }) {
         resumen={
           entrevistas.length === 1 ? "1 envío" : `${entrevistas.length} envíos`
         }
-        titulo="Entrevistas enviadas"
+        titulo={
+          esFaseColaboradores(fase)
+            ? "Entrevistas asignadas"
+            : "Entrevistas enviadas"
+        }
       >
         <EntrevistasFase
           entrevistas={entrevistas}
@@ -130,6 +144,16 @@ async function FaseContenido({ params }: { params: FaseParams }) {
         plantillas={plantillas}
         proyectoId={proyectoId}
       />
+
+      <InvitacionFaseAdmin
+        faseId={fase.id}
+        proyectoId={proyectoId}
+        soloCorreo={fase.acceso?.soloCorreo === true}
+      />
+
+      {esFaseColaboradores(fase) ? (
+        <FaseColaboradoresAdmin faseId={fase.id} />
+      ) : null}
     </>
   );
 }

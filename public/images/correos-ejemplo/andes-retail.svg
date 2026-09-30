@@ -1,0 +1,19 @@
+<svg
+  height="40"
+  viewBox="0 0 190 40"
+  width="190"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title>Andes Retail (ejemplo)</title>
+  <path d="M2 34L16 8l9 16 5-8 12 18z" fill="#c2410c" />
+  <text
+    fill="#431407"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="20"
+    font-weight="700"
+    x="50"
+    y="27"
+  >
+    Andes Retail
+  </text>
+</svg>

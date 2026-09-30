@@ -19,6 +19,7 @@ export function MarcaProyectoForm({
   correoCuerpo,
   correoFirma,
   correoRemitente,
+  invitacion,
   nombrePublico,
   proyectoId,
   slug,
@@ -33,6 +34,8 @@ export function MarcaProyectoForm({
   correoCuerpo: string | null;
   correoFirma: string | null;
   correoRemitente: string | null;
+  /** Null until the migration adds the invitation columns. */
+  invitacion: { asunto: string | null; cuerpo: string | null } | null;
   nombrePublico: string | null;
   proyectoId: string;
   slug: string | null;
@@ -113,27 +116,63 @@ export function MarcaProyectoForm({
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="marca-remitente">Nombre visible del remitente</Label>
-        <Input
-          defaultValue={correoRemitente ?? ""}
-          id="marca-remitente"
-          name="correoRemitente"
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="marca-cuerpo">Cuerpo del correo</Label>
+        <Label htmlFor="marca-cuerpo">Cuerpo del correo de confirmación</Label>
         <Textarea
           defaultValue={correoCuerpo ?? ""}
           id="marca-cuerpo"
           name="correoCuerpo"
         />
       </div>
+      {invitacion ? (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="marca-invitacion-asunto">
+              Asunto del correo de invitación
+            </Label>
+            <Input
+              defaultValue={invitacion.asunto ?? ""}
+              id="marca-invitacion-asunto"
+              name="invitacionAsunto"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="marca-invitacion-cuerpo">
+              Cuerpo del correo de invitación
+            </Label>
+            <Textarea
+              defaultValue={invitacion.cuerpo ?? ""}
+              id="marca-invitacion-cuerpo"
+              name="invitacionCuerpo"
+              placeholder="La duración, el guardado y el acceso se agregan solos."
+            />
+          </div>
+        </>
+      ) : (
+        <p className="text-muted-foreground text-xs">
+          Los textos de invitación estarán disponibles cuando se aplique la
+          migración de correos.
+        </p>
+      )}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="marca-firma">Firma del correo</Label>
+        <Label htmlFor="marca-remitente">Nombre en el remitente</Label>
+        <Input
+          defaultValue={correoRemitente ?? ""}
+          id="marca-remitente"
+          name="correoRemitente"
+          placeholder="Vacío: nombre público del cliente"
+        />
+        <p className="text-muted-foreground text-xs">
+          Se muestra como «nombre vía Majoriti», en la confirmación y en la
+          invitación.
+        </p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="marca-firma">Firma de los correos</Label>
         <Input
           defaultValue={correoFirma ?? ""}
           id="marca-firma"
           name="correoFirma"
+          placeholder="Vacío: Equipo y nombre del cliente"
         />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -154,6 +193,9 @@ export function MarcaProyectoForm({
             name="contactoEmail"
             type="email"
           />
+          <p className="text-muted-foreground text-xs">
+            Recibe las respuestas a los correos. Sin él, no se envían.
+          </p>
         </div>
       </div>
       <ActionMensaje state={state} />

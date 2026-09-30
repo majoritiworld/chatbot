@@ -1,0 +1,28 @@
+<svg
+  height="40"
+  viewBox="0 0 220 40"
+  width="220"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title>ComplianceLatam (ejemplo)</title>
+  <rect fill="#0f4c81" height="32" rx="7" width="32" x="0" y="4" />
+  <path
+    d="M10 20.5l5 5 9-11"
+    fill="none"
+    stroke="#ffffff"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="3.2"
+  />
+  <text
+    fill="#0f2a44"
+    font-family="Helvetica, Arial, sans-serif"
+    font-size="19"
+    font-weight="700"
+    x="42"
+    y="27"
+  >
+    Compliance
+    <tspan fill="#0f4c81">Latam</tspan>
+  </text>
+</svg>

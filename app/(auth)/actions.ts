@@ -3,6 +3,10 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
+  borrarSesionEntrevista,
+  entrarSoloConCorreo,
+} from "@/lib/consultoria/acceso-entrevista";
+import {
   abrirSesionPorCorreo,
   buscarInvitacion,
   ensureAuthUser,
@@ -173,6 +177,7 @@ export async function solicitarCodigo(
     }
 
     await ensureUsuarioPerfil(sesion.user);
+    await borrarSesionEntrevista();
     redirect(await landingPathForCurrentUser(next, invitacion.proyectoId));
   }
 
@@ -262,9 +267,42 @@ export async function verificarCodigo(
     };
   }
 
+  // A portal session replaces any interview cookie of another person.
+  await borrarSesionEntrevista();
   redirect(
     await landingPathForCurrentUser(next, busqueda.invitacion.proyectoId)
   );
+}
+
+export type EntradaCorreoState = {
+  email?: string;
+  message?: string;
+  sesionAjena?: boolean;
+};
+
+/** Email-only entry of a project page. Opens one interview, no role, no mail. */
+export async function entrarConCorreo(
+  _prev: EntradaCorreoState,
+  formData: FormData
+): Promise<EntradaCorreoState> {
+  const parsed = emailSchema.safeParse({
+    email: String(formData.get("email") ?? "").trim(),
+  });
+  const slug = slugDelFormulario(formData.get("proyecto"));
+  if (!(parsed.success && slug)) {
+    return { message: "Escriba un correo electrónico válido." };
+  }
+  const email = normalizarEmail(parsed.data.email);
+  const resultado = await entrarSoloConCorreo({ correo: email, slug });
+  if (!resultado.ok) {
+    return {
+      email,
+      message: resultado.mensaje,
+      sesionAjena: resultado.sesionAjena,
+    };
+  }
+  const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  redirect(`${base}/portal/entrevista/${resultado.entrevistaId}`);
 }
 
 /** Majoriti only. Clients cannot obtain a session through this form. */
@@ -298,5 +336,6 @@ export async function iniciarSesionAdmin(
   }
 
   await ensureUsuarioPerfil(data.user);
+  await borrarSesionEntrevista();
   redirect("/admin");
 }

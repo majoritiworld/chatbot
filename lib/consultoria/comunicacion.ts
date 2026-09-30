@@ -91,6 +91,71 @@ export function resolverComunicacion(
   };
 }
 
+/** Invitation copy is stored apart so a confirmation field never lands in it. */
+export type FilaTextosCorreo = FilaComunicacion & {
+  invitacion_asunto?: string | null;
+  invitacion_cuerpo?: string | null;
+};
+
+export type FilaTextosCorreoFase = FilaComunicacionFase & {
+  invitacion_asunto?: string | null;
+  invitacion_cuerpo?: string | null;
+};
+
+export type TextosCorreo = {
+  asunto: string | null;
+  cuerpo: string | null;
+  firma: string | null;
+  remitente: string | null;
+};
+
+export type SiguientePaso = {
+  etiqueta: string | null;
+  texto: string;
+  url: string | null;
+};
+
+export type TextosCorreos = {
+  confirmacion: TextosCorreo;
+  invitacion: TextosCorreo;
+  siguientePaso: SiguientePaso | null;
+};
+
+export function resolverTextosCorreo(
+  proyecto: FilaTextosCorreo | null | undefined,
+  fase: FilaTextosCorreoFase | null | undefined
+): TextosCorreos {
+  const firma = preferir(fase?.correo_firma, proyecto?.correo_firma);
+  const remitente = preferir(
+    fase?.correo_remitente,
+    proyecto?.correo_remitente
+  );
+  const textoPaso = limpio(fase?.bloque_comercial);
+  const url = urlHttps(fase?.bloque_comercial_url);
+  const etiqueta = limpio(fase?.bloque_comercial_etiqueta);
+  return {
+    confirmacion: {
+      asunto: preferir(fase?.correo_asunto, proyecto?.correo_asunto),
+      cuerpo: preferir(fase?.correo_cuerpo, proyecto?.correo_cuerpo),
+      firma,
+      remitente,
+    },
+    invitacion: {
+      asunto: preferir(fase?.invitacion_asunto, proyecto?.invitacion_asunto),
+      cuerpo: preferir(fase?.invitacion_cuerpo, proyecto?.invitacion_cuerpo),
+      firma,
+      remitente,
+    },
+    siguientePaso: textoPaso
+      ? {
+          etiqueta: url && etiqueta ? etiqueta : null,
+          texto: textoPaso,
+          url: url && etiqueta ? url : null,
+        }
+      : null,
+  };
+}
+
 export function minutosDeFase(minutos: number | null | undefined) {
   if (typeof minutos !== "number" || !Number.isInteger(minutos)) {
     return null;

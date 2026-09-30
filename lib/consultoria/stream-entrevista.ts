@@ -18,14 +18,17 @@ export function streamEntrevista({
   sendReasoning,
   guardar,
   despuesDeGuardar,
+  metadataTurno,
 }: {
   stream: Parameters<typeof toUIMessageStream>[0]["stream"];
   sendReasoning: boolean;
   guardar: (message: ChatMessage) => Promise<void>;
   despuesDeGuardar?: () => void;
+  metadataTurno?: ChatMessage["metadata"];
 }) {
   return toUIMessageStream<ToolSet, ChatMessage>({
     generateMessageId: () => crypto.randomUUID(),
+    messageMetadata: () => metadataTurno,
     onEnd: async ({ responseMessage }) => {
       try {
         await guardar(responseMessage);

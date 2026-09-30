@@ -9,7 +9,9 @@ import type { FlujoEntrevista } from "./consultoria/entrevista-contenido";
 import type { Suggestion } from "./db/schema";
 
 export const messageMetadataSchema = z.object({
+  clase: z.enum(["principal", "obligatoria", "seguimiento"]).optional(),
   createdAt: z.string(),
+  indiceObligatoria: z.number().int().nonnegative().optional(),
 });
 
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;

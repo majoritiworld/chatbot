@@ -388,6 +388,26 @@ function FaseContenido({ fase }: { fase: FaseDelPortal }) {
         </p>
       ) : null}
 
+      {fase.seguimiento ? (
+        <div className="mt-3 flex flex-col gap-2">
+          <p className="text-sm">
+            {fase.seguimiento.completadas} de {fase.seguimiento.asignadas}{" "}
+            completadas
+            {fase.seguimiento.asignadas > 0
+              ? ` (${Math.round((fase.seguimiento.completadas / fase.seguimiento.asignadas) * 100)}%)`
+              : ""}
+            . Sin iniciar: {fase.seguimiento.sinIniciar}. En curso:{" "}
+            {fase.seguimiento.enCurso}.
+          </p>
+          <Link
+            className="w-fit font-medium text-primary text-sm"
+            href={`/portal/fase/${fase.id}`}
+          >
+            Ver seguimiento
+          </Link>
+        </div>
+      ) : null}
+
       {tieneEntrevistas ? (
         <div className="mt-3 flex flex-col gap-2">
           <h3 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">

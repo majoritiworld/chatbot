@@ -172,7 +172,7 @@ export function EditarFaseForm({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="fase-asunto">Asunto del correo</Label>
+          <Label htmlFor="fase-asunto">Asunto del correo de confirmación</Label>
           <Input
             defaultValue={fase.correoAsunto ?? ""}
             id="fase-asunto"
@@ -190,7 +190,7 @@ export function EditarFaseForm({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="fase-cuerpo">Cuerpo del correo</Label>
+          <Label htmlFor="fase-cuerpo">Cuerpo del correo de confirmación</Label>
           <Textarea
             defaultValue={fase.correoCuerpo ?? ""}
             id="fase-cuerpo"
@@ -207,6 +207,65 @@ export function EditarFaseForm({
             placeholder="Vacío: se usa la del proyecto."
           />
         </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-invitacion-asunto">
+            Asunto de la invitación
+          </Label>
+          <Input
+            defaultValue={fase.invitacionAsunto ?? ""}
+            id="fase-invitacion-asunto"
+            name="invitacionAsunto"
+            placeholder="Vacío: se usa el del proyecto."
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="fase-invitacion-cuerpo">
+            Cuerpo de la invitación
+          </Label>
+          <Textarea
+            defaultValue={fase.invitacionCuerpo ?? ""}
+            id="fase-invitacion-cuerpo"
+            name="invitacionCuerpo"
+            placeholder="Vacío: se usa el del proyecto. La duración, el guardado y el acceso se agregan solos."
+          />
+        </div>
+        {fase.acceso ? (
+          <div className="flex flex-col gap-1.5">
+            <input
+              name="accesoEnlacePersonalEditable"
+              type="hidden"
+              value="1"
+            />
+            <div className="flex items-center gap-2">
+              <input
+                className="size-4"
+                defaultChecked={fase.acceso.enlacePersonal}
+                id="fase-acceso-enlace"
+                name="accesoEnlacePersonal"
+                type="checkbox"
+              />
+              <Label htmlFor="fase-acceso-enlace">
+                Invitar con enlace personal
+              </Label>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              El enlace abre la entrevista sin correo ni código. Correo y código
+              siguen disponibles. Al desactivarlo, los enlaces ya enviados dejan
+              de funcionar.
+            </p>
+            {fase.acceso.soloCorreo ? (
+              <p className="text-muted-foreground text-xs">
+                Esta fase también se abre escribiendo solo el correo en la
+                página del proyecto.
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            El modo de acceso de la invitación estará disponible cuando se
+            aplique la migración de acceso.
+          </p>
+        )}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="fase-bloque">Bloque comercial</Label>
           <Textarea

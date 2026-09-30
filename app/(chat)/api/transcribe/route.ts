@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { auth } from "@/app/(auth)/auth";
+import { leerSesionEntrevista } from "@/lib/consultoria/acceso-entrevista";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user) {
+  if (!(session?.user || (await leerSesionEntrevista()))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

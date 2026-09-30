@@ -11,6 +11,8 @@ import {
 
 export type RolTurno = "entrevistador" | "entrevistado";
 
+export type ClaseTurnoAgente = "principal" | "obligatoria" | "seguimiento";
+
 export type TurnoEntrevista = {
   id: string;
   rol: RolTurno;
@@ -18,6 +20,10 @@ export type TurnoEntrevista = {
   at: string;
   seccionId?: string | null;
   ofertaCierre?: boolean;
+  /** Set on the interviewer's turn so obligatory questions do not spend the
+   * optional follow-up cap. Absent on older transcripts. */
+  clase?: ClaseTurnoAgente;
+  indiceObligatoria?: number;
 };
 
 /** RPC append/complete reject empty texto. Silent close-offer turns use this
@@ -58,18 +64,24 @@ export type RespuestaResumen = {
 };
 
 /**
- * `descripcion` is shown to the participant. `instrucciones` and
- * `seguimientos` only reach the agent. With `seguimientos`, `preguntas` holds
- * the main question and the follow-ups are an optional menu capped at
- * `MAX_SEGUIMIENTOS`.
+ * `descripcion` is shown to the participant. `instrucciones`, `seguimientos`
+ * and `obligatorias` only reach the agent. With `seguimientos`, `preguntas`
+ * holds the main question and the follow-ups are an optional menu capped at
+ * `MAX_SEGUIMIENTOS`. `obligatorias` are always asked, unless already
+ * answered, and do not spend that cap. `etiquetaOrganizacion` chooses
+ * "empresa" or the default "firma socia" in the agent prompt.
  */
+export type EtiquetaOrganizacion = "empresa" | "firma";
+
 export type SeccionEntrevista = {
   id: string;
   titulo: string;
   descripcion: string;
   preguntas: string[];
   instrucciones?: string;
+  obligatorias?: string[];
   seguimientos?: string[];
+  etiquetaOrganizacion?: EtiquetaOrganizacion;
 };
 
 export const MAX_SEGUIMIENTOS = 2;
@@ -187,9 +199,18 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
       return [];
     }
 
-    const { descripcion, id, instrucciones, preguntas, seguimientos, titulo } =
-      item as Record<string, unknown>;
+    const {
+      descripcion,
+      etiquetaOrganizacion,
+      id,
+      instrucciones,
+      obligatorias,
+      preguntas,
+      seguimientos,
+      titulo,
+    } = item as Record<string, unknown>;
     const preguntasValidas = parsePreguntas(preguntas);
+    const obligatoriasValidas = parsePreguntas(obligatorias);
     const seguimientosValidos = parsePreguntas(seguimientos);
     const instruccionesValidas =
       typeof instrucciones === "string" ? instrucciones.trim() : "";
@@ -208,8 +229,14 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
       {
         descripcion: typeof descripcion === "string" ? descripcion.trim() : "",
         id,
+        ...(etiquetaOrganizacion === "empresa"
+          ? { etiquetaOrganizacion: "empresa" as const }
+          : {}),
         ...(instruccionesValidas
           ? { instrucciones: instruccionesValidas }
+          : {}),
+        ...(obligatoriasValidas.length > 0
+          ? { obligatorias: obligatoriasValidas }
           : {}),
         preguntas: preguntasValidas,
         ...(seguimientosValidos.length > 0
@@ -231,7 +258,13 @@ export function clonarSecciones(
   return secciones.map((seccion) => ({
     descripcion: seccion.descripcion,
     id: crypto.randomUUID(),
+    ...(seccion.etiquetaOrganizacion === "empresa"
+      ? { etiquetaOrganizacion: "empresa" as const }
+      : {}),
     ...(seccion.instrucciones ? { instrucciones: seccion.instrucciones } : {}),
+    ...(seccion.obligatorias?.length
+      ? { obligatorias: [...seccion.obligatorias] }
+      : {}),
     preguntas: [...seccion.preguntas],
     ...(seccion.seguimientos?.length
       ? { seguimientos: [...seccion.seguimientos] }
@@ -385,10 +418,16 @@ export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
       return [];
     }
 
-    const { at, id, ofertaCierre, rol, seccionId, texto } = item as Record<
-      string,
-      unknown
-    >;
+    const {
+      at,
+      clase,
+      id,
+      indiceObligatoria,
+      ofertaCierre,
+      rol,
+      seccionId,
+      texto,
+    } = item as Record<string, unknown>;
 
     if (!(esRolTurno(rol) && typeof texto === "string")) {
       return [];
@@ -407,6 +446,16 @@ export function parseTranscripcion(value: unknown): TurnoEntrevista[] {
           typeof id === "string" && id.length > 0
             ? id
             : `legacy-${index}-${typeof at === "string" ? at : "unknown"}`,
+        ...(clase === "principal" ||
+        clase === "obligatoria" ||
+        clase === "seguimiento"
+          ? { clase }
+          : {}),
+        ...(typeof indiceObligatoria === "number" &&
+        Number.isInteger(indiceObligatoria) &&
+        indiceObligatoria >= 0
+          ? { indiceObligatoria }
+          : {}),
         ...(oferta ? { ofertaCierre: true } : {}),
         rol,
         seccionId: typeof seccionId === "string" ? seccionId : null,
@@ -531,12 +580,14 @@ export function construirArchivoTranscripcion({
   nombre,
   firma,
   proyecto,
+  fase,
   fecha,
   turnos,
 }: {
   nombre: string;
   firma: string | null;
   proyecto: string | null;
+  fase?: string | null;
   fecha: string | null;
   turnos: TurnoEntrevista[];
 }): ArchivoTranscripcion {
@@ -546,6 +597,7 @@ export function construirArchivoTranscripcion({
     `- **Fecha:** ${new Intl.DateTimeFormat("es", { dateStyle: "long" }).format(momento)}`,
     firma ? `- **Firma:** ${firma}` : null,
     proyecto ? `- **Proyecto:** ${proyecto}` : null,
+    fase ? `- **Fase:** ${fase}` : null,
   ].filter(Boolean);
 
   const hablados = turnos.filter(

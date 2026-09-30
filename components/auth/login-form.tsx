@@ -31,7 +31,7 @@ const CODIGO_LARGO = 8;
 const ESPERA_REENVIO_S = 60;
 const initialState: AuthActionState = { status: "idle" };
 
-function Cabecera({
+export function Cabecera({
   children,
   marca,
 }: {
@@ -62,7 +62,13 @@ function Cabecera({
   );
 }
 
-function Aviso({ mensaje, tono }: { mensaje: string; tono: "error" | "info" }) {
+export function Aviso({
+  mensaje,
+  tono,
+}: {
+  mensaje: string;
+  tono: "error" | "info";
+}) {
   return (
     <p
       className={

@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { EntrevistaEnCurso } from "@/components/portal/entrevista-en-curso";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { MarcaParticipanteProvider } from "@/components/portal/marca-participante";
+import { SeguimientoFase } from "@/components/portal/seguimiento-fase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mostrarPortalFases } from "@/lib/consultoria/acceso-proyecto";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@/lib/consultoria/entrevista-contenido";
 import { getEntrevistaPropiaEnFaseDelProyecto } from "@/lib/consultoria/entrevistas";
 import { getFase } from "@/lib/consultoria/fases";
+import { esFaseColaboradores } from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
 import {
   comunicacionDeEntrevista,
   marcaConTextos,
@@ -19,6 +21,11 @@ import {
 import { turnosAMensajes } from "@/lib/consultoria/mensajes-a-turnos";
 import { requirePortalUser } from "@/lib/consultoria/portal";
 import { resolverVistaFasePortal } from "@/lib/consultoria/portal-carga-acceso";
+import { isClienteRole } from "@/lib/consultoria/roles";
+import {
+  filtroDesdeParametros,
+  listarSeguimientoFase,
+} from "@/lib/consultoria/seguimiento-fase";
 
 const AVISO_FASE = {
   bloqueada: "Esta fase todavía está bloqueada.",
@@ -29,17 +36,32 @@ const AVISO_FASE = {
 
 export default function FasePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   return (
     <Suspense fallback={<FaseSkeleton />}>
-      <FaseContenido id={params.then((routeParams) => routeParams.id)} />
+      <FaseContenido
+        id={params.then((routeParams) => routeParams.id)}
+        searchParams={searchParams}
+      />
     </Suspense>
   );
 }
 
-async function FaseContenido({ id }: { id: Promise<string> }) {
+function textoParametro(valor: string | string[] | undefined) {
+  return typeof valor === "string" ? valor : undefined;
+}
+
+async function FaseContenido({
+  id,
+  searchParams,
+}: {
+  id: Promise<string>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const portalUser = await requirePortalUser();
   const mostrarPortal = mostrarPortalFases({
     proyectoEntrevistaId: portalUser.proyectoId,
@@ -58,6 +80,47 @@ async function FaseContenido({ id }: { id: Promise<string> }) {
       viewerEmail: portalUser.email,
     }),
   ]);
+
+  if (
+    fase &&
+    isClienteRole(portalUser.rol) &&
+    esFaseColaboradores(fase) &&
+    portalUser.proyectoId
+  ) {
+    const crudo = await searchParams;
+    const filtro = filtroDesdeParametros({
+      empresa: textoParametro(crudo.empresa),
+      estado: textoParametro(crudo.estado),
+      orden: textoParametro(crudo.orden),
+      page: textoParametro(crudo.page),
+      pais: textoParametro(crudo.pais),
+      persona: textoParametro(crudo.persona),
+      q: textoParametro(crudo.q),
+      tamano: textoParametro(crudo.tamano),
+    });
+    const pagina = await listarSeguimientoFase(fase.id, filtro);
+    const completadas = fase.seguimiento?.completadas ?? 0;
+    const asignadas = fase.seguimiento?.asignadas ?? 0;
+    return (
+      <FaseLayout
+        correoUsuario={portalUser.email}
+        mostrarPortal={mostrarPortal}
+        nombre={fase.nombre}
+      >
+        <div className="flex flex-col gap-4 px-6 py-8">
+          <p className="text-sm">
+            {completadas} de {asignadas} completadas
+            {asignadas > 0
+              ? ` (${Math.round((completadas / asignadas) * 100)}%)`
+              : ""}
+            . Sin iniciar: {fase.seguimiento?.sinIniciar ?? 0}. En curso:{" "}
+            {fase.seguimiento?.enCurso ?? 0}.
+          </p>
+          <SeguimientoFase faseId={fase.id} filtro={filtro} pagina={pagina} />
+        </div>
+      </FaseLayout>
+    );
+  }
 
   const vista = resolverVistaFasePortal(fase, propia);
 

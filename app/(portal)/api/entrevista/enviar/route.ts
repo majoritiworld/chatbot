@@ -1,24 +1,35 @@
 import { z } from "zod";
 import { auth } from "@/app/(auth)/auth";
-import { enviarCorreoAgradecimiento } from "@/lib/consultoria/email-entrevista";
+import { leerSesionEntrevista } from "@/lib/consultoria/acceso-entrevista";
+import {
+  CorreoBloqueadoError,
+  enviarCorreoAgradecimiento,
+} from "@/lib/consultoria/email-entrevista";
 import {
   entrevistaParaReintentoCorreo,
   enviarEntrevista,
   intentarSintesisConsulta,
   marcarCorreoAgradecimientoEnviado,
 } from "@/lib/consultoria/entrevistas";
-import {
-  comunicacionDeEntrevista,
-  marcaPorProyectoId,
-} from "@/lib/consultoria/marca-publica";
 import { sincronizarTranscripcionNotion } from "@/lib/consultoria/notion-transcripcion";
 
 const ESPERA_SINTESIS_AL_ENVIAR_MS = 15_000;
+const CORREO_EN_REVISION =
+  "El correo de confirmación está pendiente: el equipo del proyecto ya tiene el aviso.";
 
 const bodySchema = z.object({
   entrevistaId: z.guid(),
   soloCorreo: z.boolean().optional(),
 });
+
+function mensajeReintento(error: unknown) {
+  if (error instanceof CorreoBloqueadoError) {
+    return CORREO_EN_REVISION;
+  }
+  return error instanceof Error
+    ? error.message
+    : "No se pudo reenviar el correo";
+}
 
 async function enviarNotificacion(entrevistaId: string) {
   const destino = await entrevistaParaReintentoCorreo(entrevistaId);
@@ -27,11 +38,8 @@ async function enviarNotificacion(entrevistaId: string) {
   }
 
   await enviarCorreoAgradecimiento({
-    comunicacion: (await comunicacionDeEntrevista(entrevistaId)).textos,
-    email: destino.email,
+    emailEsperado: destino.email,
     entrevistaId,
-    marca: await marcaPorProyectoId(destino.proyectoId),
-    nombre: destino.nombre,
   });
   await marcarCorreoAgradecimientoEnviado(entrevistaId);
   return { correoEnviado: true, ok: true as const };
@@ -49,14 +57,15 @@ async function publicarNotion(entrevistaId: string) {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return Response.json({ error: "No autenticado" }, { status: 401 });
-    }
-
     const parsed = bodySchema.safeParse(await request.json());
     if (!parsed.success) {
       return Response.json({ error: "Datos inválidos" }, { status: 400 });
+    }
+
+    const session = await auth();
+    const enlace = await leerSesionEntrevista();
+    if (!(session?.user || enlace?.entrevistaId === parsed.data.entrevistaId)) {
+      return Response.json({ error: "No autenticado" }, { status: 401 });
     }
 
     if (parsed.data.soloCorreo) {
@@ -65,11 +74,10 @@ export async function POST(request: Request) {
           await enviarNotificacion(parsed.data.entrevistaId)
         );
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "No se pudo reenviar el correo";
-        return Response.json({ error: message }, { status: 400 });
+        return Response.json(
+          { error: mensajeReintento(error) },
+          { status: 400 }
+        );
       }
     }
 
@@ -100,12 +108,8 @@ export async function POST(request: Request) {
 
     try {
       await enviarCorreoAgradecimiento({
-        comunicacion: (await comunicacionDeEntrevista(parsed.data.entrevistaId))
-          .textos,
-        email: result.email,
+        emailEsperado: result.email,
         entrevistaId: parsed.data.entrevistaId,
-        marca: await marcaPorProyectoId(result.proyectoId),
-        nombre: result.nombre,
       });
       await marcarCorreoAgradecimientoEnviado(parsed.data.entrevistaId);
       return Response.json({
@@ -113,13 +117,15 @@ export async function POST(request: Request) {
         ok: true,
         ...(warningNotion ? { warning: warningNotion } : {}),
       });
-    } catch {
+    } catch (error) {
+      const pendiente =
+        error instanceof CorreoBloqueadoError
+          ? `La entrevista se envió. ${CORREO_EN_REVISION}`
+          : "La entrevista se envió, pero el correo de confirmación sigue pendiente.";
       return Response.json({
         correoEnviado: false,
         ok: true,
-        warning:
-          warningNotion ??
-          "La entrevista se envió, pero el correo de confirmación sigue pendiente.",
+        warning: warningNotion ?? pendiente,
       });
     }
   } catch (error) {

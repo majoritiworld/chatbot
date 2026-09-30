@@ -62,11 +62,7 @@ export async function POST(request: Request) {
       requestBody;
     const session = await auth();
 
-    if (!session?.user) {
-      return new ChatbotError("unauthorized:chat").toResponse();
-    }
-
-    if (session.user.role === "comite") {
+    if (session?.user?.role === "comite") {
       return new ChatbotError("forbidden:chat").toResponse();
     }
 
@@ -167,12 +163,22 @@ export async function POST(request: Request) {
     const esUltimoTema =
       entrevista.seccion_actual >= entrevista.secciones.length - 1;
     const etiquetaCierre = etiquetaCierreTema(esUltimoTema);
-    const { forzarOferta, seguimientoSiguiente, seguimientosHechos } =
-      await planificarSeguimientos({
-        messages: uiMessages,
-        seccion,
-        seccionesPrevias,
-      });
+    const {
+      clase,
+      forzarOferta,
+      indiceObligatoria,
+      seguimientoSiguiente,
+      seguimientosHechos,
+    } = await planificarSeguimientos({
+      messages: uiMessages,
+      seccion,
+      seccionesPrevias,
+    });
+    const metadataTurno: ChatMessage["metadata"] = {
+      ...(clase === "cierre" ? {} : { clase }),
+      createdAt: new Date().toISOString(),
+      ...(typeof indiceObligatoria === "number" ? { indiceObligatoria } : {}),
+    };
 
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
@@ -221,13 +227,16 @@ export async function POST(request: Request) {
             cerrarSeccion: forzarOferta,
             descripcionSeccion: seccion.descripcion,
             esUltimoTema,
+            etiquetaOrganizacion: seccion.etiquetaOrganizacion,
             firmaEntrevistado: entrevista.stakeholder_firma,
             instruccionesEntrevista: entrevista.instrucciones_agente,
             instruccionesSeccion: seccion.instrucciones,
             nombreEntrevistado: entrevista.stakeholder_nombre,
+            obligatorias: seccion.obligatorias,
             preguntas: seccion.preguntas,
             reanudacion: uiMessages.length > 0,
             seccionesPrevias,
+            seguimientoEsObligatorio: clase === "obligatoria",
             seguimientoSiguiente,
             seguimientos: seccion.seguimientos,
             seguimientosHechos,
@@ -245,7 +254,9 @@ export async function POST(request: Request) {
             }),
           },
           ...pasosTurnoEntrevista<typeof herramientas>({
-            conSeguimientos: Boolean(seccion.seguimientos?.length),
+            conSeguimientos: Boolean(
+              seccion.seguimientos?.length || seccion.obligatorias?.length
+            ),
             forzarOferta,
           }),
           telemetry: {
@@ -273,6 +284,7 @@ export async function POST(request: Request) {
                   persistirOfertaEjecutada: true,
                 }),
               }),
+            metadataTurno,
             sendReasoning: isReasoningModel,
             stream: result.stream,
           })

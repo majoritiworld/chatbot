@@ -6,6 +6,7 @@ import {
   type FaseEstado,
   normalizarEstado,
 } from "@/lib/consultoria/fase-estado";
+import { esFaseColaboradores } from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,6 +34,13 @@ export type TareaDelPortal = {
   createdAt: string;
 };
 
+export type SeguimientoFasePortal = {
+  asignadas: number;
+  completadas: number;
+  enCurso: number;
+  sinIniciar: number;
+};
+
 export type FaseDelPortal = {
   id: string;
   nombre: string;
@@ -44,6 +52,7 @@ export type FaseDelPortal = {
   /** First interview id (compat); prefer `entrevistas` for multi-interview phases. */
   entrevistaId: string | null;
   entrevistas: EntrevistaDelPortal[];
+  seguimiento?: SeguimientoFasePortal | null;
   tareas: TareaDelPortal[];
 };
 
@@ -217,17 +226,31 @@ function toFaseDelPortal(
   tareas.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   const propia = entrevistas.find((item) => item.esPropia);
+  const seguimiento = esFaseColaboradores(row)
+    ? {
+        asignadas: entrevistas.length,
+        completadas: entrevistas.filter((item) => item.estado === "completada")
+          .length,
+        enCurso: entrevistas.filter((item) => item.estado === "en_curso")
+          .length,
+        sinIniciar: entrevistas.filter((item) => item.estado === "pendiente")
+          .length,
+      }
+    : null;
 
   return {
     descripcion: row.descripcion,
-    entrevistaId: propia?.id ?? entrevistas.at(0)?.id ?? null,
-    entrevistas,
+    entrevistaId: seguimiento
+      ? (propia?.id ?? null)
+      : (propia?.id ?? entrevistas.at(0)?.id ?? null),
+    entrevistas: seguimiento ? [] : entrevistas,
     estado: normalizarEstado(row.estado),
     fechaCierre: row.fecha_cierre,
     fechaEstimada: row.fecha_estimada,
     id: row.id,
     nombre: row.nombre,
     orden: row.orden,
+    seguimiento,
     tareas,
   };
 }

@@ -1,8 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import type { CSSProperties } from "react";
 import { Suspense } from "react";
+import { EntradaSoloCorreo } from "@/components/auth/entrada-solo-correo";
 import { LoginForm } from "@/components/auth/login-form";
 import { Skeleton } from "@/components/ui/skeleton";
+import { proyectoTieneAccesoSoloCorreo } from "@/lib/consultoria/acceso-entrevista";
 import { decidirEntradaProyecto } from "@/lib/consultoria/acceso-proyecto";
 import {
   marcaPorSlug,
@@ -12,7 +14,7 @@ import { landingPathForCurrentUser } from "@/lib/consultoria/portal";
 import { createClient } from "@/lib/supabase/server";
 
 type SlugParams = Promise<{ slug: string }>;
-type SlugSearch = Promise<{ error?: string }>;
+type SlugSearch = Promise<{ codigo?: string; error?: string }>;
 
 export default function AccesoProyectoPage({
   params,
@@ -91,7 +93,7 @@ async function AccesoProyecto({
     }
   }
 
-  const { error } = await searchParams;
+  const { codigo, error } = await searchParams;
   const { marca } = encontrada;
   const estilo: CSSProperties | undefined =
     marca.color && marca.colorTexto
@@ -100,15 +102,24 @@ async function AccesoProyecto({
           "--primary-foreground": marca.colorTexto,
         } as CSSProperties)
       : undefined;
+  const soloCorreo =
+    codigo !== "1" &&
+    error !== "auth" &&
+    marca.slug !== null &&
+    (await proyectoTieneAccesoSoloCorreo(encontrada.proyectoId));
 
   return (
     <div className="flex flex-col gap-8" data-acceso="listo" style={estilo}>
-      <LoginForm
-        accesoDirecto={encontrada.accesoDirecto}
-        enlaceInvalido={error === "auth"}
-        marca={marca}
-        proyectoSlug={marca.slug}
-      />
+      {soloCorreo && marca.slug ? (
+        <EntradaSoloCorreo marca={marca} proyectoSlug={marca.slug} />
+      ) : (
+        <LoginForm
+          accesoDirecto={encontrada.accesoDirecto}
+          enlaceInvalido={error === "auth"}
+          marca={marca}
+          proyectoSlug={marca.slug}
+        />
+      )}
     </div>
   );
 }

@@ -12,6 +12,12 @@ import {
 } from "@/lib/consultoria/entrevista-contenido";
 import { accionAlAbrirPlantillaGuion } from "@/lib/consultoria/guion-apertura";
 import {
+  INSTRUCCIONES_AGENTE_CL_COLABORADORES,
+  NOMBRE_PLANTILLA_CL_COLABORADORES,
+  seccionesDeGuionClColaboradores,
+  TRATO_CL_COLABORADORES,
+} from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
+import {
   NOMBRE_PLANTILLA_CL_CORTO,
   seccionesDeGuionClCorto,
 } from "@/lib/consultoria/guiones/compliance-latam-corto";
@@ -349,6 +355,25 @@ export async function asegurarPlantillaGuionClFase2({
     nombre: NOMBRE_PLANTILLA_CL_FASE_2,
     proyectoId,
     seccionesDeseadas: seccionesDeGuionClFase2(),
+  });
+}
+
+export async function asegurarPlantillaGuionClColaboradores({
+  proyectoId,
+  faseId,
+}: {
+  proyectoId: string;
+  faseId: string;
+}) {
+  return await asegurarPlantillaGuion({
+    conduccion: {
+      instruccionesAgente: INSTRUCCIONES_AGENTE_CL_COLABORADORES,
+      trato: TRATO_CL_COLABORADORES,
+    },
+    faseId,
+    nombre: NOMBRE_PLANTILLA_CL_COLABORADORES,
+    proyectoId,
+    seccionesDeseadas: seccionesDeGuionClColaboradores(),
   });
 }
 

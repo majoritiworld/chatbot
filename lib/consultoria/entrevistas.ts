@@ -1,7 +1,9 @@
 import "server-only";
 
 import { cache } from "react";
+import { leerSesionEntrevista } from "@/lib/consultoria/acceso-entrevista";
 import { operacionEntrevistaPermitida } from "@/lib/consultoria/acceso-proyecto";
+import { normalizarEmail } from "@/lib/consultoria/auth";
 import { autorizarCierreDirecto } from "@/lib/consultoria/cierre-seccion";
 import {
   consolidarRespuestasEntrevista,
@@ -34,6 +36,7 @@ import {
   parseSintesisConsulta,
 } from "@/lib/consultoria/sintesis-consulta";
 import { generarSintesisConsulta } from "@/lib/consultoria/sintesis-consulta-modelo";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { Entrevista, UserRole } from "@/lib/supabase/types";
 
@@ -268,6 +271,74 @@ async function membresiaConfirmada(
  * Loads the requested interview and confirms the caller owns it in that
  * project. A session from another project does not pass.
  */
+async function entrevistaPorEnlace(entrevistaId: string) {
+  const sesion = await leerSesionEntrevista();
+  if (sesion?.entrevistaId !== entrevistaId) {
+    return null;
+  }
+  const admin = createAdminClient();
+  if (!admin) {
+    return null;
+  }
+  const { data } = await admin
+    .from("entrevista")
+    .select(ENTREVISTA_CON_TRANSCRIPCION_SELECT)
+    .eq("id", entrevistaId)
+    .maybeSingle();
+  if (!data) {
+    return null;
+  }
+  const row = data as EntrevistaRow;
+  const entrevista = toEntrevista(row);
+  if (
+    !mismoEmail(
+      normalizarEmail(entrevista.stakeholder_email ?? ""),
+      sesion.email
+    )
+  ) {
+    return null;
+  }
+  return {
+    entrevista,
+    turnos: parseTranscripcion(row.transcripcion),
+  };
+}
+
+export async function getEntrevistaEnlace(entrevistaId: string) {
+  return await entrevistaPorEnlace(entrevistaId);
+}
+
+async function canalDeEscritura(entrevistaId: string) {
+  const context = await getUsuarioPerfil();
+  if (context) {
+    const propia = await entrevistaPorId(entrevistaId);
+    if (
+      propia &&
+      mismoEmail(propia.stakeholder_email, context.user.email) &&
+      (await membresiaConfirmada(context.user.email, propia.proyecto_id))
+    ) {
+      return {
+        email: null,
+        supabase: await createClient(),
+        tipo: "sesion" as const,
+      };
+    }
+  }
+  const sesion = await leerSesionEntrevista();
+  if (sesion?.entrevistaId === entrevistaId) {
+    const admin = createAdminClient();
+    if (!admin) {
+      throw new Error("No se pudo guardar la entrevista");
+    }
+    return { email: sesion.email, supabase: admin, tipo: "enlace" as const };
+  }
+  return {
+    email: null,
+    supabase: await createClient(),
+    tipo: "sesion" as const,
+  };
+}
+
 export async function getEntrevistaEscribible(
   entrevistaId?: string | null
 ): Promise<Entrevista | null> {
@@ -276,21 +347,19 @@ export async function getEntrevistaEscribible(
   }
 
   const context = await getUsuarioPerfil();
-  if (!context) {
-    return null;
+  if (context) {
+    const entrevista = await entrevistaPorId(entrevistaId);
+    if (
+      entrevista &&
+      mismoEmail(entrevista.stakeholder_email, context.user.email) &&
+      (await membresiaConfirmada(context.user.email, entrevista.proyecto_id))
+    ) {
+      return entrevista;
+    }
   }
 
-  const entrevista = await entrevistaPorId(entrevistaId);
-
-  if (
-    !entrevista ||
-    !mismoEmail(entrevista.stakeholder_email, context.user.email) ||
-    !(await membresiaConfirmada(context.user.email, entrevista.proyecto_id))
-  ) {
-    return null;
-  }
-
-  return entrevista;
+  const carga = await entrevistaPorEnlace(entrevistaId);
+  return carga?.entrevista ?? null;
 }
 
 /** Turns stored so far, used to rehydrate the chat on reload. */
@@ -472,11 +541,18 @@ export async function avanzarFlujoEntrevista({
 
   const destino: FlujoEntrevista =
     desde === "bienvenida" ? "presentacion" : "chat";
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("advance_interview_flow", {
-    p_desde: desde,
-    p_entrevista_id: entrevista.id,
-  });
+  const canal = await canalDeEscritura(entrevista.id);
+  const { error } =
+    canal.tipo === "enlace"
+      ? await canal.supabase.rpc("advance_interview_flow_enlace", {
+          p_desde: desde,
+          p_email: canal.email,
+          p_entrevista_id: entrevista.id,
+        })
+      : await canal.supabase.rpc("advance_interview_flow", {
+          p_desde: desde,
+          p_entrevista_id: entrevista.id,
+        });
 
   if (error) {
     throw error;
@@ -537,13 +613,23 @@ export async function completarSeccionEntrevista({
     seccionId,
     sintesis,
   };
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("complete_interview_section", {
-    p_completion: completada,
-    p_entrevista_id: entrevista.id,
-    p_seccion_id: seccion.id,
-    p_transcripcion: serializarTurnosParaRpc(turnos),
-  });
+  const canal = await canalDeEscritura(entrevista.id);
+  const transcripcion = serializarTurnosParaRpc(turnos);
+  const { data, error } =
+    canal.tipo === "enlace"
+      ? await canal.supabase.rpc("complete_interview_section_enlace", {
+          p_completion: completada,
+          p_email: canal.email,
+          p_entrevista_id: entrevista.id,
+          p_seccion_id: seccion.id,
+          p_transcripcion: transcripcion,
+        })
+      : await canal.supabase.rpc("complete_interview_section", {
+          p_completion: completada,
+          p_entrevista_id: entrevista.id,
+          p_seccion_id: seccion.id,
+          p_transcripcion: transcripcion,
+        });
 
   if (error) {
     throw error;
@@ -644,11 +730,19 @@ export async function registrarTurnosEntrevista({
   estricto?: boolean;
   turnos: TurnoEntrevista[];
 }) {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("append_interview_turns", {
-    p_entrevista_id: entrevistaId,
-    p_turnos: serializarTurnosParaRpc(turnos),
-  });
+  const canal = await canalDeEscritura(entrevistaId);
+  const turnosRpc = serializarTurnosParaRpc(turnos);
+  const { error } =
+    canal.tipo === "enlace"
+      ? await canal.supabase.rpc("append_interview_turns_enlace", {
+          p_email: canal.email,
+          p_entrevista_id: entrevistaId,
+          p_turnos: turnosRpc,
+        })
+      : await canal.supabase.rpc("append_interview_turns", {
+          p_entrevista_id: entrevistaId,
+          p_turnos: turnosRpc,
+        });
 
   if (error) {
     if (estricto) {
@@ -668,12 +762,20 @@ export async function guardarRespuestasEntrevista({
   respuestas: Array<{ pregunta: string; respuesta_texto: string }>;
   resumen: ResumenEntrevista;
 }) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("submit_interview", {
-    p_entrevista_id: entrevistaId,
-    p_respuestas: respuestas,
-    p_resumen: resumen,
-  });
+  const canal = await canalDeEscritura(entrevistaId);
+  const { data, error } =
+    canal.tipo === "enlace"
+      ? await canal.supabase.rpc("submit_interview_enlace", {
+          p_email: canal.email,
+          p_entrevista_id: entrevistaId,
+          p_respuestas: respuestas,
+          p_resumen: resumen,
+        })
+      : await canal.supabase.rpc("submit_interview", {
+          p_entrevista_id: entrevistaId,
+          p_respuestas: respuestas,
+          p_resumen: resumen,
+        });
 
   if (error) {
     throw error;
@@ -821,10 +923,16 @@ export async function entrevistaParaReintentoCorreo(entrevistaId: string) {
 }
 
 export async function marcarCorreoAgradecimientoEnviado(entrevistaId: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("mark_interview_thank_you_sent", {
-    p_entrevista_id: entrevistaId,
-  });
+  const canal = await canalDeEscritura(entrevistaId);
+  const { error } =
+    canal.tipo === "enlace"
+      ? await canal.supabase.rpc("mark_interview_thank_you_sent_enlace", {
+          p_email: canal.email,
+          p_entrevista_id: entrevistaId,
+        })
+      : await canal.supabase.rpc("mark_interview_thank_you_sent", {
+          p_entrevista_id: entrevistaId,
+        });
 
   if (error) {
     throw error;

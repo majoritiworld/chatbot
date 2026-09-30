@@ -6,10 +6,8 @@ import {
   operacionEntrevistaPermitida,
   proyectoUnicoLegacy,
 } from "@/lib/consultoria/acceso-proyecto";
-import { resolverComunicacion } from "@/lib/consultoria/comunicacion";
 import {
   claveIdempotenciaConfirmacion,
-  contenidoConfirmacionEntrevista,
   enlaceDeProyecto,
   marcaPredeterminada,
   medidasImagen,
@@ -205,69 +203,7 @@ test("the same email keeps independent permission in each project", () => {
   ).toBe(false);
 });
 
-const ENLACE_DEMO = `https://wa.me/972587623357?text=${encodeURIComponent("Hola, me interesaría agendar una demo con Majoriti")}`;
-const BLOQUE_DEMO =
-  "Esta entrevista fue diseñada junto a Majoriti.\n\n¿Te imaginas escuchar así a tus clientes, equipos o socios? Prueba una demo y descubre cómo convertir sus experiencias en información para tomar mejores decisiones.";
-
-test("completion mail uses configured copy and keeps the commercial block on that phase", () => {
-  const marca = presentacionPublica({
-    nombre_publico: "ComplianceLatam",
-    slug: "compliance-latam-2026",
-    titulo_iniciativa: "Iniciativa 2026",
-  });
-  const proyecto = {
-    correo_asunto: "Recibimos tus respuestas",
-    correo_cuerpo: "Gracias por completar la conversación con ComplianceLatam.",
-    correo_firma: "Equipo ComplianceLatam",
-    correo_remitente: "Equipo ComplianceLatam",
-  };
-  const fase2 = resolverComunicacion(proyecto, {
-    bloque_comercial: BLOQUE_DEMO,
-    bloque_comercial_etiqueta: "Probar una demo",
-    bloque_comercial_url: ENLACE_DEMO,
-  });
-  const contenido = contenidoConfirmacionEntrevista({
-    comunicacion: fase2,
-    marca,
-    nombre: "Ana",
-  });
-  expect(contenido.subject).toBe("Recibimos tus respuestas");
-  expect(contenido.remitente).toBe("Equipo ComplianceLatam");
-  expect(contenido.text).toContain("No necesitas hacer nada más.");
-  expect(contenido.text).toContain("Equipo ComplianceLatam");
-  expect(contenido.text).toContain(
-    "Esta entrevista fue diseñada junto a Majoriti."
-  );
-  expect(contenido.text).toContain(
-    "¿Te imaginas escuchar así a tus clientes, equipos o socios?"
-  );
-  expect(contenido.html).toContain(
-    `<a href="${ENLACE_DEMO}">Probar una demo</a>`
-  );
-  expect(contenido.html).toContain("<hr />");
-  expect(contenido.text).not.toMatch(/^Equipo Majoriti$/m);
-  expect(contenido.subject).not.toMatch(/Invitación/);
-
-  const fase1 = resolverComunicacion(proyecto, {});
-  const sinBloque = contenidoConfirmacionEntrevista({
-    comunicacion: fase1,
-    marca,
-    nombre: "Ana",
-  });
-  expect(sinBloque.text).toContain("Equipo ComplianceLatam");
-  expect(sinBloque.text).not.toContain("Probar una demo");
-  expect(sinBloque.html).not.toContain("wa.me");
-
-  const otra = contenidoConfirmacionEntrevista({
-    marca: presentacionPublica({
-      nombre_publico: "Otra Firma",
-      slug: "otra-firma",
-    }),
-    nombre: "Ana",
-  });
-  expect(otra.text).not.toContain("diseñada junto a Majoriti");
-  expect(otra.html).not.toContain("wa.me");
-
+test("the completion idempotency key is stable per interview", () => {
   expect(claveIdempotenciaConfirmacion("entrevista-1")).toBe(
     "entrevista-entrevista-1-agradecimiento"
   );
@@ -283,6 +219,7 @@ test("the server no longer sends portal invitations", () => {
   const acciones = readFileSync("app/(admin)/admin/actions.ts", "utf8");
   expect(auth).not.toContain("inviteUserByEmail");
   expect(correo).not.toContain("enviarCorreoInvitacionEntrevista");
+  expect(correo).toContain('process.env.HABILITAR_INVITACIONES_CORREO === "1"');
   expect(plantillas).not.toContain("enviarInvitacionEntrevista");
   expect(acciones).not.toContain("invitarEntrevistaAsignada");
 });

@@ -70,7 +70,11 @@ export type FaseAdmin = {
   bloqueComercial: string | null;
   bloqueComercialUrl: string | null;
   bloqueComercialEtiqueta: string | null;
+  invitacionAsunto: string | null;
+  invitacionCuerpo: string | null;
   minutos: number | null;
+  /** Null until the migration adds the access settings. */
+  acceso: { enlacePersonal: boolean; soloCorreo: boolean } | null;
 };
 
 export type EntrevistaDeFaseAdmin = {
@@ -395,11 +399,17 @@ type FaseRow = {
   bloque_comercial: string | null;
   bloque_comercial_url: string | null;
   bloque_comercial_etiqueta: string | null;
+  invitacion_asunto: string | null;
+  invitacion_cuerpo: string | null;
   minutos: number | null;
 };
 
-function toFaseAdmin(row: FaseRow): FaseAdmin {
+function toFaseAdmin(
+  row: FaseRow,
+  acceso: FaseAdmin["acceso"] = null
+): FaseAdmin {
   return {
+    acceso,
     avisoRespuestas: row.aviso_respuestas,
     bloqueComercial: row.bloque_comercial,
     bloqueComercialEtiqueta: row.bloque_comercial_etiqueta,
@@ -413,6 +423,8 @@ function toFaseAdmin(row: FaseRow): FaseAdmin {
     fechaCierre: row.fecha_cierre,
     fechaEstimada: row.fecha_estimada,
     id: row.id,
+    invitacionAsunto: row.invitacion_asunto,
+    invitacionCuerpo: row.invitacion_cuerpo,
     minutos: row.minutos,
     nombre: row.nombre,
     orden: row.orden,
@@ -420,8 +432,24 @@ function toFaseAdmin(row: FaseRow): FaseAdmin {
   };
 }
 
+async function accesoDeFase(faseId: string): Promise<FaseAdmin["acceso"]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("fase")
+    .select("acceso_enlace_personal, acceso_solo_correo")
+    .eq("id", faseId)
+    .maybeSingle();
+  if (error || !data) {
+    return null;
+  }
+  return {
+    enlacePersonal: data.acceso_enlace_personal === true,
+    soloCorreo: data.acceso_solo_correo === true,
+  };
+}
+
 const FASE_ADMIN_SELECT =
-  "id, nombre, orden, estado, fecha_estimada, fecha_cierre, descripcion, texto_bienvenida, aviso_respuestas, correo_asunto, correo_remitente, correo_cuerpo, correo_firma, bloque_comercial, bloque_comercial_url, bloque_comercial_etiqueta, minutos";
+  "id, nombre, orden, estado, fecha_estimada, fecha_cierre, descripcion, texto_bienvenida, aviso_respuestas, correo_asunto, correo_remitente, correo_cuerpo, correo_firma, bloque_comercial, bloque_comercial_url, bloque_comercial_etiqueta, invitacion_asunto, invitacion_cuerpo, minutos";
 
 export async function listFasesAdmin(proyectoId: string): Promise<FaseAdmin[]> {
   if (!esUuid(proyectoId)) {
@@ -439,7 +467,7 @@ export async function listFasesAdmin(proyectoId: string): Promise<FaseAdmin[]> {
     throw error;
   }
 
-  return (data ?? []).map(toFaseAdmin);
+  return (data ?? []).map((row) => toFaseAdmin(row));
 }
 
 export async function getFaseAdmin(
@@ -462,7 +490,7 @@ export async function getFaseAdmin(
     throw error;
   }
 
-  return data ? toFaseAdmin(data) : null;
+  return data ? toFaseAdmin(data, await accesoDeFase(faseId)) : null;
 }
 
 type EntrevistaFaseEmbed = {
@@ -649,7 +677,7 @@ export async function getStakeholderDetalle(
       tipo: doc.tipo,
       visibilidad: doc.visibilidad,
     })),
-    fases: (fases ?? []).map(toFaseAdmin),
+    fases: (fases ?? []).map((fase) => toFaseAdmin(fase)),
     faseVinculadaId: tareas?.fase_id ?? null,
     preguntas: parsePreguntas(entrevista?.preguntas),
     resumen: parseResumen(entrevista?.resumen),

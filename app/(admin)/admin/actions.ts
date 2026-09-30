@@ -285,6 +285,8 @@ const actualizarFaseSchema = z.object({
   faseId: z.string().uuid("Fase inválida"),
   fechaCierre: z.string().trim().optional(),
   fechaEstimada: z.string().trim().optional(),
+  invitacionAsunto: z.string().trim().max(200),
+  invitacionCuerpo: z.string().trim().max(2000),
   minutos: z.string().trim().max(3),
   nombre: z.string().trim().min(1, "Nombre requerido"),
   proyectoId: z.string().uuid("Proyecto inválido"),
@@ -310,6 +312,8 @@ export async function actualizarFase(
     faseId: formData.get("faseId"),
     fechaCierre: formData.get("fechaCierre") || undefined,
     fechaEstimada: formData.get("fechaEstimada") || undefined,
+    invitacionAsunto: formData.get("invitacionAsunto") ?? "",
+    invitacionCuerpo: formData.get("invitacionCuerpo") ?? "",
     minutos: formData.get("minutos") ?? "",
     nombre: formData.get("nombre"),
     proyectoId: formData.get("proyectoId"),
@@ -340,6 +344,10 @@ export async function actualizarFase(
     };
   }
   const resultado = await actualizarFaseEnProyecto({
+    // Only sent when the form shows the setting, i.e. after the migration.
+    accesoEnlacePersonal: formData.has("accesoEnlacePersonalEditable")
+      ? formData.get("accesoEnlacePersonal") === "on"
+      : undefined,
     descripcion,
     faseId: parsed.data.faseId,
     fechaCierre,
@@ -355,6 +363,8 @@ export async function actualizarFase(
       correoCuerpo: vacioONull(parsed.data.correoCuerpo),
       correoFirma: vacioONull(parsed.data.correoFirma),
       correoRemitente: vacioONull(parsed.data.correoRemitente),
+      invitacionAsunto: vacioONull(parsed.data.invitacionAsunto),
+      invitacionCuerpo: vacioONull(parsed.data.invitacionCuerpo),
       minutos: minutos.minutos,
       textoBienvenida: vacioONull(parsed.data.textoBienvenida),
     },
@@ -1229,6 +1239,8 @@ const marcaSchema = z.object({
   correoCuerpo: z.string().trim().max(2000),
   correoFirma: z.string().trim().max(160),
   correoRemitente: z.string().trim().max(120),
+  invitacionAsunto: z.string().trim().max(200),
+  invitacionCuerpo: z.string().trim().max(2000),
   nombrePublico: z.string().trim().max(120),
   proyectoId: z.string().uuid("Proyecto inválido"),
   slug: z.string().trim().max(64),
@@ -1277,6 +1289,8 @@ export async function guardarMarca(
     correoCuerpo: formData.get("correoCuerpo") ?? "",
     correoFirma: formData.get("correoFirma") ?? "",
     correoRemitente: formData.get("correoRemitente") ?? "",
+    invitacionAsunto: formData.get("invitacionAsunto") ?? "",
+    invitacionCuerpo: formData.get("invitacionCuerpo") ?? "",
     nombrePublico: formData.get("nombrePublico") ?? "",
     proyectoId: formData.get("proyectoId"),
     slug: formData.get("slug") ?? "",
@@ -1375,9 +1389,26 @@ export async function guardarMarca(
     return { message: error.message, status: "error" };
   }
 
+  const invitacion = formData.has("invitacionAsunto")
+    ? await supabase
+        .from("proyecto")
+        .update({
+          invitacion_asunto: vacioONull(parsed.data.invitacionAsunto),
+          invitacion_cuerpo: vacioONull(parsed.data.invitacionCuerpo),
+        })
+        .eq("id", parsed.data.proyectoId)
+    : { error: null };
+
   revalidateProyecto(parsed.data.proyectoId);
   if (slug) {
     revalidatePath(`/${slug}`);
+  }
+  if (invitacion.error) {
+    return {
+      message:
+        "Marca guardada. Los textos de invitación no se guardaron: falta aplicar la migración de correos.",
+      status: "success",
+    };
   }
   return { message: "Marca guardada.", status: "success" };
 }
