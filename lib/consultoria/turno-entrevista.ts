@@ -139,7 +139,7 @@ function planificarConTopeSustantivo({
   maxSeguimientos: number;
   messages: ChatMessage[];
   tieneSeguimientos: boolean;
-}): Promise<PlanSeguimientos> {
+}): PlanSeguimientos {
   const [herramienta, ...otras] = herramientasCierreActivas(messages);
   const flujoNormal = herramienta === OFERTA && otras.length === 0;
   if (!(flujoNormal && respuestasEnSeccion(messages) > 0)) {
