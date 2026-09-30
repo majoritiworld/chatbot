@@ -5,7 +5,6 @@ import type {
 import type { IdentidadCorreo } from "@/lib/consultoria/correos/asignacion";
 import type { EnlaceAcceso } from "@/lib/consultoria/correos/enlace-acceso";
 import {
-  type AccionCorreo,
   parrafosDeTexto,
   renderCorreo,
 } from "@/lib/consultoria/correos/plantilla";
@@ -74,21 +73,27 @@ export function correoConfirmacion({
       ];
   const cerrada = cuerpo.some((parrafo) => YA_CERRADA.test(parrafo));
   const parrafos = cerrada ? cuerpo : [...cuerpo, CIERRE_CONFIRMACION];
-  let accion: AccionCorreo | null = null;
-  if (siguientePaso) {
-    parrafos.push(...parrafosDeTexto(siguientePaso.texto));
-    if (siguientePaso.url && siguientePaso.etiqueta) {
-      accion = { etiqueta: siguientePaso.etiqueta, url: siguientePaso.url };
-    }
-  }
+  const comercial = siguientePaso
+    ? {
+        accion:
+          siguientePaso.url && siguientePaso.etiqueta
+            ? {
+                etiqueta: siguientePaso.etiqueta,
+                url: siguientePaso.url,
+              }
+            : null,
+        parrafos: parrafosDeTexto(siguientePaso.texto),
+      }
+    : null;
 
   const subject =
     textos.asunto ??
     `Recibimos sus respuestas${identidad.titulo ? ` — ${identidad.titulo}` : ""}`;
   const preview = `${identidad.cliente} confirma que su entrevista quedó completa.`;
   const { html, text } = renderCorreo(identidad, {
-    accion,
+    accion: null,
     ayuda: ayuda(identidad),
+    comercial,
     firma: firma(identidad, textos),
     notas: [],
     parrafos,
@@ -170,6 +175,7 @@ export function correoInvitacion({
   const { html, text } = renderCorreo(identidad, {
     accion: { etiqueta: "Comenzar mi entrevista", url: enlace.url },
     ayuda: ayuda(identidad),
+    comercial: null,
     firma: firma(identidad, textos),
     notas,
     parrafos,

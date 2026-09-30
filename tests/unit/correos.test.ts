@@ -227,7 +227,14 @@ test("confirmation shows a next step and button only when the phase defines one"
     textos: asignacion.textos.confirmacion,
   });
   expect(conPaso.html).toMatch(PARRAFO_COMERCIAL);
+  expect(conPaso.html).toContain(
+    "background-color:#f4f4f5;border:1px solid #e4e4e7;border-radius:12px;padding:20px 22px;"
+  );
   expect(conPaso.html).toContain('href="https://majoriti.world"');
+  expect(conPaso.html).toContain(">Ver más</a>");
+  expect(conPaso.html).not.toContain("Si el botón no funciona");
+  expect(conPaso.html).not.toContain(">https://majoriti.world<");
+  expect(conPaso.text).toContain("Conozca Majoriti.");
   expect(conPaso.text).toContain("Ver más: https://majoriti.world");
 
   const sinPaso = correoConfirmacion({
@@ -341,6 +348,7 @@ test("invitation explains who, why, how long, saving and access, with no bcc hin
   );
   expect(correo.html).toContain("Comenzar mi entrevista");
   expect(correo.html).toContain(`href="${SITE}/cliente-2026?codigo=1"`);
+  expect(correo.html).toContain("Si el botón no funciona");
   expect(correo.text).toContain(`Comenzar mi entrevista: ${SITE}/cliente-2026`);
   expect(correo.text).toContain("aproximadamente 15 minutos");
   expect(correo.text).toContain("su avance queda guardado");

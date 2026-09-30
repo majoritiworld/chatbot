@@ -12,9 +12,16 @@ export type AccionCorreo = {
   url: string;
 };
 
+/** Optional promo after the message. The button has no fallback URL in HTML. */
+export type BloqueComercialCorreo = {
+  accion: AccionCorreo | null;
+  parrafos: string[];
+};
+
 export type ContenidoCorreo = {
   accion: AccionCorreo | null;
   ayuda: string;
+  comercial: BloqueComercialCorreo | null;
   firma: string;
   notas: string[];
   parrafos: string[];
@@ -80,13 +87,42 @@ function cabeceraHtml(identidad: IdentidadVisual) {
   return `<p style="margin:0;font-family:${FUENTE};font-size:18px;font-weight:700;line-height:1.3;color:${TEXTO};">${nombre}</p>`;
 }
 
-function botonHtml(accion: AccionCorreo, acento: string, sobreAcento: string) {
+function botonHtml(
+  accion: AccionCorreo,
+  acento: string,
+  sobreAcento: string,
+  respaldo: boolean
+) {
   const url = escapeHtml(accion.url);
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 12px;">
+  const margen = respaldo ? "8px 0 12px" : "8px 0 0";
+  const boton = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:${margen};">
 <tr><td bgcolor="${acento}" style="border-radius:8px;background-color:${acento};">
 <a href="${url}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 26px;font-family:${FUENTE};font-size:16px;font-weight:600;line-height:1.2;color:${sobreAcento};text-decoration:none;border-radius:8px;">${escapeHtml(accion.etiqueta)}</a>
-</td></tr></table>
+</td></tr></table>`;
+  if (!respaldo) {
+    return boton;
+  }
+  return `${boton}
 <p style="margin:0 0 20px;font-family:${FUENTE};font-size:13px;line-height:1.5;color:${TENUE};">Si el botón no funciona, copie este enlace en su navegador:<br /><a href="${url}" target="_blank" rel="noopener" style="color:${TENUE};word-break:break-all;">${url}</a></p>`;
+}
+
+function bloqueComercialHtml(
+  bloque: BloqueComercialCorreo,
+  cuerpo: string,
+  acento: string,
+  sobreAcento: string
+) {
+  const parrafos = bloque.parrafos
+    .map((parrafo) => parrafoHtml(parrafo, cuerpo))
+    .join("\n");
+  const boton = bloque.accion
+    ? botonHtml(bloque.accion, acento, sobreAcento, false)
+    : "";
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 32px;">
+<tr><td class="comercial" bgcolor="${FONDO}" style="background-color:${FONDO};border:1px solid ${BORDE};border-radius:12px;padding:20px 22px;">
+${parrafos}
+${boton}
+</td></tr></table>`;
 }
 
 export function renderCorreo(
@@ -110,6 +146,7 @@ export function renderCorreo(
 @media (max-width: 620px) {
   .contenedor { width: 100% !important; }
   .interior { padding: 28px 22px !important; }
+  .comercial { padding: 16px !important; }
 }
 </style>
 </head>
@@ -124,7 +161,8 @@ ${cabeceraHtml(identidad)}
 <h1 style="margin:28px 0 20px;font-family:${FUENTE};font-size:24px;font-weight:700;line-height:1.3;color:${TEXTO};">${escapeHtml(contenido.titulo)}</h1>
 ${parrafoHtml(contenido.saludo, cuerpo)}
 ${contenido.parrafos.map((parrafo) => parrafoHtml(parrafo, cuerpo)).join("\n")}
-${contenido.accion ? botonHtml(contenido.accion, acento, sobreAcento) : ""}
+${contenido.comercial ? bloqueComercialHtml(contenido.comercial, cuerpo, acento, sobreAcento) : ""}
+${contenido.accion ? botonHtml(contenido.accion, acento, sobreAcento, true) : ""}
 ${contenido.notas.map((nota) => parrafoHtml(nota, tenue)).join("\n")}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;"><tr><td style="border-top:1px solid ${BORDE};padding-top:20px;">
 ${parrafoHtml(contenido.ayuda, tenue)}
@@ -138,6 +176,12 @@ ${parrafoHtml(contenido.ayuda, tenue)}
 </body>
 </html>`;
 
+  const comercial = contenido.comercial?.parrafos ?? [];
+  const enlaceComercial = contenido.comercial?.accion
+    ? [
+        `${contenido.comercial.accion.etiqueta}: ${contenido.comercial.accion.url}`,
+      ]
+    : [];
   const accion = contenido.accion
     ? [`${contenido.accion.etiqueta}: ${contenido.accion.url}`]
     : [];
@@ -145,6 +189,8 @@ ${parrafoHtml(contenido.ayuda, tenue)}
     contenido.titulo,
     contenido.saludo,
     ...contenido.parrafos,
+    ...comercial,
+    ...enlaceComercial,
     ...accion,
     ...contenido.notas,
     contenido.ayuda,
