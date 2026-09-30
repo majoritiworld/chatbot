@@ -29,10 +29,8 @@ BEGIN
       )
     );
   GET DIAGNOSTICS plantillas = ROW_COUNT;
-  IF plantillas < 1 THEN
-    RAISE EXCEPTION 'No hay una plantilla de firmas socias con los títulos de la pauta';
-  END IF;
 
+  IF plantillas >= 1 THEN
   UPDATE public.entrevista AS e
   SET secciones = (
       SELECT jsonb_agg(
@@ -61,5 +59,6 @@ BEGIN
         WHERE viejo.sv ->> 'titulo' IS DISTINCT FROM nuevo.sn ->> 'titulo'
       )
     );
+  END IF;
 END
 $profundidad$;

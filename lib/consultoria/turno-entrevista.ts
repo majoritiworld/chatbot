@@ -32,6 +32,8 @@ export type PlanSeguimientos = {
   clase: "principal" | "obligatoria" | "seguimiento" | "cierre" | "aclaracion";
   forzarOferta: boolean;
   indiceObligatoria?: number;
+  /** Partner-firm turns formulate the follow-up; the menu is only a reference. */
+  formulacionLibre?: boolean;
   motivoCierre?: MotivoCierreSeccion;
   /** Set when the flow decided to ask this follow-up now. */
   seguimientoSiguiente?: string;
@@ -69,12 +71,9 @@ export async function planificarSeguimientos({
   }
 
   if (typeof seccion.maxSeguimientos === "number") {
-    return await planificarConTopeSustantivo({
+    return planificarConTopeSustantivo({
       maxSeguimientos: seccion.maxSeguimientos,
       messages,
-      seccion,
-      seccionesPrevias,
-      seguimientos,
       tieneSeguimientos,
     });
   }
@@ -132,19 +131,13 @@ function textoMensaje(message: ChatMessage) {
     .trim();
 }
 
-async function planificarConTopeSustantivo({
+function planificarConTopeSustantivo({
   maxSeguimientos,
   messages,
-  seccion,
-  seccionesPrevias,
-  seguimientos,
   tieneSeguimientos,
 }: {
   maxSeguimientos: number;
   messages: ChatMessage[];
-  seccion: SeccionEntrevista;
-  seccionesPrevias: ResumenSeccionPrevia[];
-  seguimientos: string[];
   tieneSeguimientos: boolean;
 }): Promise<PlanSeguimientos> {
   const [herramienta, ...otras] = herramientasCierreActivas(messages);
@@ -190,39 +183,19 @@ async function planificarConTopeSustantivo({
     };
   }
 
-  const turnos = mensajesATurnos(messages);
   const ultimo = messages.findLast((message) => message.role === "user");
-  const siguiente = await siguienteSeguimiento({
-    conversacion: textoConversacionCierre(turnos),
-    dichoPorLaPersona: turnos
-      .filter((turno) => turno.rol === "entrevistado")
-      .map((turno) => turno.texto)
-      .join("\n"),
-    preguntaPrincipal: seccion.preguntas.join(" "),
-    previas: textoSeccionesPrevias(seccionesPrevias),
-    seguimientos,
-  });
-  if (siguiente === undefined) {
-    return {
-      clase: "cierre",
-      forzarOferta: false,
-      seguimientosHechos: decision.seguimientosHechos,
-    };
-  }
-  if (siguiente === null) {
+  if (esNoSabe(ultimo ? textoMensaje(ultimo) : "")) {
     return {
       clase: "cierre",
       forzarOferta: true,
-      motivoCierre: esNoSabe(ultimo ? textoMensaje(ultimo) : "")
-        ? "no_sabe"
-        : "suficiente",
+      motivoCierre: "no_sabe",
       seguimientosHechos: decision.seguimientosHechos,
     };
   }
   return {
     clase: "seguimiento",
+    formulacionLibre: true,
     forzarOferta: false,
-    seguimientoSiguiente: siguiente,
     seguimientosHechos: decision.seguimientosHechos,
   };
 }

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   decidirAntesDelMenu,
+  esElogioDeLaPregunta,
   esIncomprension,
   esNoSabe,
   esRenunciaAProfundizar,
@@ -51,6 +52,37 @@ test("a clarification does not spend a substantive follow-up", () => {
   expect(siguiente.clase).toBe("consultar");
   expect(siguiente.seguimientosHechos).toBe(1);
   expect(siguiente.forzarOferta).toBe(false);
+});
+
+test("praising the question does not count and asks for a concrete reformulation", () => {
+  expect(esElogioDeLaPregunta("buena pregunta")).toBe(true);
+  expect(esElogioDeLaPregunta("qué buena pregunta")).toBe(true);
+  expect(esElogioDeLaPregunta("es una buena pregunta")).toBe(true);
+  expect(
+    esElogioDeLaPregunta(
+      "la prospección de clientes es una buena pregunta para el comité"
+    )
+  ).toBe(false);
+
+  const trasElogio = [
+    mensaje("a1", "assistant", "¿Cómo usan la membresía?", "principal"),
+    mensaje("u1", "user", "nos cuesta la prospección"),
+    mensaje(
+      "a2",
+      "assistant",
+      "¿Qué han intentado para conseguir clientes?",
+      "seguimiento"
+    ),
+    mensaje("u2", "user", "buena pregunta"),
+  ];
+  expect(seguimientosSustantivosHechos(trasElogio)).toBe(0);
+  const decision = decidirAntesDelMenu({
+    maxSeguimientos: 3,
+    messages: trasElogio,
+  });
+  expect(decision.clase).toBe("aclaracion");
+  expect(decision.seguimientosHechos).toBe(0);
+  expect(decision.preguntaAReformular).toContain("conseguir clientes");
 });
 
 test("the first incomprehension reformulates and the second offers to move on", () => {

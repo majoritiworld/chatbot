@@ -803,6 +803,26 @@ test.describe("ComplianceLatam phase 2 guide", () => {
       trato: "usted",
     });
     expect(conRespuesta).toContain("no la repitas, aunque su redacción");
+
+    const desdeLaRespuesta = interviewSystemPrompt({
+      maxSeguimientos: 3,
+      preguntas: GUION_CL_FASE_2.at(2)?.preguntas ?? [],
+      preguntaYaHecha: true,
+      seguimientos: GUION_CL_FASE_2.at(2)?.seguimientos,
+      seguimientosComoEjemplos: true,
+      seguimientosHechos: 1,
+      tituloSeccion: GUION_CL_FASE_2.at(2)?.titulo ?? "",
+      trato: "usted",
+    });
+    expect(desdeLaRespuesta).toContain(
+      "qué han intentado hasta ahora dentro de la red para conseguir nuevos clientes"
+    );
+    expect(desdeLaRespuesta).toContain("no los leas como pregunta obligatoria");
+    expect(desdeLaRespuesta).toContain("no una interrupción");
+    expect(desdeLaRespuesta).not.toContain("sin cambiar el sentido");
+    expect(desdeLaRespuesta).not.toContain(
+      "No inventes seguimientos fuera de los disponibles"
+    );
   });
 
   test("the flow, not only the prompt, caps follow-ups at two per section", () => {

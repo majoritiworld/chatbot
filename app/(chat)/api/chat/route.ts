@@ -191,6 +191,7 @@ export async function POST(request: Request) {
     const etiquetaCierre = etiquetaCierreTema(esUltimoTema);
     const {
       clase,
+      formulacionLibre,
       forzarOferta,
       indiceObligatoria,
       motivoCierre,
@@ -271,6 +272,7 @@ export async function POST(request: Request) {
             seguimientoEsObligatorio: clase === "obligatoria",
             seguimientoSiguiente,
             seguimientos: seccion.seguimientos,
+            seguimientosComoEjemplos: formulacionLibre,
             seguimientosHechos,
             tituloSeccion: seccion.titulo,
             trato: entrevista.trato,

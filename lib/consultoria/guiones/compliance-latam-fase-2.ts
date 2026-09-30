@@ -14,8 +14,8 @@ export const MAX_SEGUIMIENTOS_CL_FASE_2 = 3;
 
 export const INSTRUCCIONES_AGENTE_CL_FASE_2 = [
   "Haz la pregunta principal y deja espacio para responder. Consérvala en usted, como está escrita. Si esta sección ya tiene respuestas, no vuelvas a hacer la pregunta principal aunque su redacción haya cambiado.",
-  "Los seguimientos son un menú: elige como máximo tres por sección, solo los que aporten información que todavía no esté. No es obligatorio hacer los tres. Hazlos de a uno, adaptando las palabras a lo que la persona acaba de contar. Si un tema ya fue respondido, no lo vuelvas a preguntar.",
-  "Una aclaración o reformulación porque la persona no entendió la pregunta no es un seguimiento nuevo. Si vuelve a no entender, simplifica y ofrece pasar al siguiente punto.",
+  "Los seguimientos de la pauta son ejemplos, no preguntas literales. Formula como máximo tres por sección, solo los que aporten información que todavía no esté, a partir de lo que la persona acaba de contar y dentro del objetivo de la sección. No es obligatorio hacer los tres. Hazlos de a uno. Si un tema ya fue respondido, no lo vuelvas a preguntar. No presupongas hechos ni causas que no haya mencionado. No repitas su respuesta con fórmulas como «Entiendo, mencionó que…».",
+  "Una aclaración o un «buena pregunta» no es información ni un seguimiento nuevo: reformula la misma pregunta de forma concreta para ayudar a responder. Si vuelve a no entender, simplifica y ofrece pasar al siguiente punto.",
   "Respeta un «no sé», la falta de experiencia y la voluntad de no profundizar. No insistas ni completes con suposiciones.",
   "No digas que ya tienes lo necesario solo porque se agotaron los seguimientos, la persona no sabe o no quiere seguir. En esos casos agradece y ofrece pasar al siguiente tema, sin inventar motivos, ejemplos ni conclusiones. Si hay información suficiente, puedes cerrar señalando en una frase lo recogido.",
   "Prioriza ejemplos de lo que ocurrió en la práctica. No presupongas falta de participación ni uso incorrecto.",
@@ -72,7 +72,7 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
     descripcion:
       "Sobre qué tanto se conoce ComplianceLatam dentro de su firma.",
     instrucciones:
-      "Conocimiento y participación son distintos: que nadie más participe no significa que nadie conozca la red. No presupongas que hay otros equipos participantes. Prioriza, si todavía no surgió, cómo circula la información y qué ayudaría a que más personas la conocieran y participaran. Si no quedó claro quién participa, explóralo sin dar por hecho que existen otros equipos.",
+      "Conocimiento y participación son distintos: que nadie más participe no significa que nadie conozca la red. No presupongas que hay otros equipos participantes. Si la persona acaba de mencionar un asunto concreto, profundiza en ese antes de pasar a otro objetivo. Prioriza, si todavía no surgió, cómo circula la información y qué ayudaría a que más personas la conocieran y participaran. Si no quedó claro quién participa, explóralo sin dar por hecho que existen otros equipos.",
     pregunta:
       "Dentro de su firma, ¿quiénes conocen ComplianceLatam y qué saben de lo que ofrece?",
     seguimientos: [
@@ -86,7 +86,7 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
   armarSeccion({
     descripcion: "Sobre cómo usan hoy la membresía.",
     instrucciones:
-      "En esta sección, prioriza cubrir el uso de herramientas de la red. Si ese tema ya surgió, usa los seguimientos para profundizar en otros aspectos.",
+      "El uso de herramientas de la red es un objetivo por cubrir. No lo prioriza por encima de un asunto concreto que la persona acaba de mencionar. No saltes a una actividad que no nombró ni des por hecho que no participó.",
     pregunta:
       "En el último año, ¿cómo ha usado su firma la membresía de ComplianceLatam y qué le ha impedido aprovecharla más?",
     seguimientos: [
@@ -102,7 +102,7 @@ export const GUION_CL_FASE_2: GuionSeccionConSeguimientos[] = [
   armarSeccion({
     descripcion: "Sobre el compromiso de una firma socia.",
     instrucciones:
-      "En esta sección, prioriza cubrir los aportes de contenido o iniciativas. Si ese tema ya surgió, usa los seguimientos para profundizar en otros aspectos.",
+      "Los aportes de contenido o iniciativas son un objetivo por cubrir. No los prioriza por encima de un asunto concreto que la persona acaba de mencionar.",
     pregunta:
       "¿Qué debería aportar una firma que pertenece a ComplianceLatam, y qué de eso está haciendo la suya hoy?",
     seguimientos: [

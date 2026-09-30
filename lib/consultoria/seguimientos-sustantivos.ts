@@ -17,6 +17,8 @@ const MENSAJES_DE_CONTROL = new Set([
 ]);
 
 const DIACRITICOS = /[\u0300-\u036f]/g;
+const ELOGIO_DE_LA_PREGUNTA =
+  /^(que |muy |super |es una |una )?buena( esa)? pregunta$/;
 
 /** A reformulation after this many failed clarifications offers to move on. */
 const ACLARACIONES_ANTES_DE_PASAR = 1;
@@ -83,6 +85,16 @@ export function esIncomprension(texto: string) {
   return palabras <= 14;
 }
 
+/** Praise of the question, with no answer. A longer sentence that merely
+ * contains those words is content. */
+export function esElogioDeLaPregunta(texto: string) {
+  const normal = normalizarRespuesta(texto);
+  if (!normal || esControl(texto)) {
+    return false;
+  }
+  return ELOGIO_DE_LA_PREGUNTA.test(normal);
+}
+
 export function esRenunciaAProfundizar(texto: string) {
   const normal = normalizarRespuesta(texto);
   if (!normal || esControl(texto)) {
@@ -129,7 +141,9 @@ export function seguimientosSustantivosHechos(messages: ChatMessage[]) {
     if (!respuestaDeContenido(message) || !pendiente) {
       continue;
     }
-    if (!esIncomprension(textoMensaje(message))) {
+    const texto = textoMensaje(message);
+    const sinContenido = esIncomprension(texto) || esElogioDeLaPregunta(texto);
+    if (!sinContenido) {
       hechos += 1;
       pendiente = false;
     }
@@ -180,7 +194,7 @@ export function decidirAntesDelMenu({
   const ultimo = messages.findLast((message) => message.role === "user");
   const texto = ultimo ? textoMensaje(ultimo) : "";
 
-  if (esIncomprension(texto)) {
+  if (esIncomprension(texto) || esElogioDeLaPregunta(texto)) {
     if (aclaracionesYaHechas(messages) >= ACLARACIONES_ANTES_DE_PASAR) {
       return {
         clase: "cierre",
