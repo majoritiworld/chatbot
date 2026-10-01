@@ -25,6 +25,13 @@ export async function FaseColaboradoresAdmin({ faseId }: { faseId: string }) {
             El aviso de bienvenida dice que las respuestas se guardan de forma
             exclusiva para la marca. No promete anonimato.
           </p>
+          <p>
+            Aviso propuesto, todavía sin aplicar: «Sus respuestas se guardan con
+            su nombre y el de su empresa. El equipo de ComplianceLatam puede
+            consultarlas, y la transcripción queda identificada de la misma
+            forma.» No se muestra al participante hasta decidir si la
+            convocatoria sigue identificada o pasa a anonimizarse.
+          </p>
         </div>
       </AdminSeccion>
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { estadoVisibleEntrevistaPortal } from "@/lib/consultoria/entrevista-piloto";
+import { esParticipantePruebaColaboradores } from "@/lib/consultoria/invitacion-colaboradores";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import {
   type FilaSeguimiento,
@@ -97,7 +98,14 @@ export async function listarSeguimientoFase(
     });
   }
 
-  const ids = filas.map((fila) => fila.entrevistaId);
+  const visibles = filas.filter(
+    (fila) =>
+      !esParticipantePruebaColaboradores({
+        correo: fila.correo,
+        empresa: fila.empresa,
+      })
+  );
+  const ids = visibles.map((fila) => fila.entrevistaId);
   const invitaciones = new Map<string, "enviado" | "error">();
   if (ids.length > 0) {
     const { data: envios } = await supabase
@@ -115,5 +123,5 @@ export async function listarSeguimientoFase(
     }
   }
 
-  return paginarSeguimiento(filas, invitaciones, filtro);
+  return paginarSeguimiento(visibles, invitaciones, filtro);
 }

@@ -6,14 +6,29 @@ import {
   crearEnlaceAcceso,
   validarEnlaceAcceso,
 } from "@/lib/consultoria/correos/enlace-acceso";
-import { construirArchivoTranscripcion } from "@/lib/consultoria/entrevista-contenido";
+import {
+  correoConfirmacion,
+  correoInvitacion,
+} from "@/lib/consultoria/correos/variantes";
+import {
+  construirArchivoTranscripcion,
+  fusionarTurnos,
+  haySeccionesPendientes,
+  resolverAvanceSeccion,
+  type TurnoEntrevista,
+} from "@/lib/consultoria/entrevista-contenido";
 import {
   NOMBRE_FASE_COLABORADORES,
   seccionesDeGuionClColaboradores,
 } from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
 import {
+  asuntoConPrefijoPrueba,
   debeRetenerCorreoColaboradores,
+  EMAIL_PRUEBA_COLABORADORES,
+  ENTREVISTA_PRUEBA_COLABORADORES,
   envioInvitacionesColaboradoresPermitido,
+  esParticipantePruebaColaboradores,
+  excluirDeCampanaColaboradores,
 } from "@/lib/consultoria/invitacion-colaboradores";
 import { resolverTurnoConObligatorias } from "@/lib/consultoria/obligatorias-turno";
 import {
@@ -398,6 +413,190 @@ test("los correos de esta fase siguen retenidos", () => {
   expect(envioInvitacionesColaboradoresPermitido()).toBe(false);
   expect(debeRetenerCorreoColaboradores(NOMBRE_FASE_COLABORADORES)).toBe(true);
   expect(debeRetenerCorreoColaboradores("Firmas socias")).toBe(false);
+  expect(
+    debeRetenerCorreoColaboradores(NOMBRE_FASE_COLABORADORES, {
+      email: EMAIL_PRUEBA_COLABORADORES,
+      entrevistaId: ENTREVISTA_PRUEBA_COLABORADORES,
+    })
+  ).toBe(false);
+  expect(
+    debeRetenerCorreoColaboradores(NOMBRE_FASE_COLABORADORES, {
+      email: "otra@empresa.test",
+      entrevistaId: ENTREVISTA_PRUEBA_COLABORADORES,
+    })
+  ).toBe(true);
+  expect(
+    debeRetenerCorreoColaboradores("Entrevistas a Firmas Socias", {
+      email: EMAIL_PRUEBA_COLABORADORES,
+      entrevistaId: ENTREVISTA_PRUEBA_COLABORADORES,
+    })
+  ).toBe(false);
+});
+
+test("las pruebas no entran en el conteo ni en la campaña de colaboradores", () => {
+  expect(
+    esParticipantePruebaColaboradores({
+      correo: "persona@empresa.test",
+      empresa: "Epiroc",
+    })
+  ).toBe(false);
+  expect(
+    esParticipantePruebaColaboradores({
+      correo: EMAIL_PRUEBA_COLABORADORES,
+      empresa: "PRUEBA · no es firma socia",
+    })
+  ).toBe(true);
+  expect(
+    esParticipantePruebaColaboradores({
+      correo: "prueba-colaborador-20260930@majoriti.world",
+      empresa: "PRUEBA — no es un participante",
+    })
+  ).toBe(true);
+  expect(
+    excluirDeCampanaColaboradores("Entrevistas a Firmas Socias", {
+      correo: EMAIL_PRUEBA_COLABORADORES,
+      empresa: "PRUEBA · no es firma socia",
+    })
+  ).toBe(false);
+  expect(
+    excluirDeCampanaColaboradores(NOMBRE_FASE_COLABORADORES, {
+      correo: "persona@empresa.test",
+      empresa: "Epiroc",
+    })
+  ).toBe(false);
+});
+
+test("la invitación final entra directo y el agradecimiento habla de usted", () => {
+  const token = "vista-previa-sin-acceso";
+  const enlace = crearEnlaceAcceso({
+    entrevistaId: "1190524f-79e3-49e8-b090-7000711d21ad",
+    permitirLocal: false,
+    site: "https://portal.majoriti.world",
+    slug: "compliance-latam",
+    token,
+  });
+  if (!enlace) {
+    throw new Error("No se pudo armar el enlace de la vista previa");
+  }
+  const identidad = {
+    cliente: "ComplianceLatam",
+    color: null,
+    contactoEmail: "crivera@compliancelatam.legal",
+    contactoNombre: null,
+    logoUrl: null,
+    titulo: null,
+  };
+  const invitacion = correoInvitacion({
+    destinatario: { email: "persona@empresa.test", nombre: "Ana" },
+    enlace,
+    identidad,
+    minutos: 15,
+    textos: {
+      asunto: asuntoConPrefijoPrueba(
+        "Su experiencia con ComplianceLatam: entrevista de 15 minutos"
+      ),
+      cuerpo: [
+        "Desde ComplianceLatam queremos conocer su experiencia con la red y entender cómo podemos ser más útiles en su trabajo.",
+        "Le invitamos a una entrevista individual de aproximadamente 15 minutos en la plataforma Majoriti. Su perspectiva nos sirve incluso si hasta ahora ha participado poco o no ha utilizado la red.",
+        "Puede guardar su avance y continuar más adelante desde este mismo enlace.",
+        "Muchas gracias por su tiempo.",
+      ].join("\n\n"),
+      firma: "Equipo ComplianceLatam",
+      remitente: "Equipo ComplianceLatam",
+    },
+  });
+  expect(invitacion.subject).toBe(
+    "[PRUEBA] Su experiencia con ComplianceLatam: entrevista de 15 minutos"
+  );
+  expect(invitacion.replyTo).toBe("crivera@compliancelatam.legal");
+  expect(invitacion.remitenteVisible).toBe(
+    "Equipo ComplianceLatam vía Majoriti"
+  );
+  expect(invitacion.text).toContain("Comenzar mi entrevista");
+  expect(invitacion.text).toContain("no ha utilizado la red");
+  expect(invitacion.text).toContain("guardar su avance");
+  expect(invitacion.text).toContain("Este enlace es personal");
+  expect(invitacion.text).toContain("código de acceso");
+  expect(invitacion.html).toContain(`/e/${token}`);
+
+  const gracias = correoConfirmacion({
+    destinatario: { email: "persona@empresa.test", nombre: "Ana" },
+    identidad,
+    siguientePaso: null,
+    textos: {
+      asunto: "Recibimos sus respuestas",
+      cuerpo:
+        "Gracias por completar la entrevista. Sus respuestas llegaron correctamente a ComplianceLatam y se considerarán en el trabajo del proyecto.",
+      firma: "Equipo ComplianceLatam",
+      remitente: "Equipo ComplianceLatam",
+    },
+  });
+  expect(gracias.subject).toBe("Recibimos sus respuestas");
+  expect(gracias.text).toContain("Sus respuestas");
+  expect(gracias.text).not.toMatch(/\btus\b/);
+  expect(gracias.replyTo).toBe("crivera@compliancelatam.legal");
+});
+
+function turnoFicticio(
+  id: string,
+  seccionId: string,
+  texto: string
+): TurnoEntrevista {
+  return {
+    at: "2026-10-01T12:00:00.000Z",
+    id,
+    ofertaCierre: false,
+    rol: "entrevistado",
+    seccionId,
+    texto,
+  };
+}
+
+test("una asignación ficticia recorre secciones, guardado, reanudación y transcripción", () => {
+  const secciones = seccionesDeGuionClColaboradores();
+  const [primera, segunda] = secciones;
+  if (!(primera && segunda)) {
+    throw new Error("El guion de colaboradores no tiene dos secciones");
+  }
+  const trasPrimera = resolverAvanceSeccion(0, secciones.length);
+  expect(trasPrimera.seccionActual).toBe(1);
+  expect(trasPrimera.flujoEstado).toBe("presentacion");
+
+  const guardado = turnoFicticio(
+    "turno-ficticio-1",
+    primera.id,
+    "He usado poco la red."
+  );
+  const siguiente = turnoFicticio(
+    "turno-ficticio-2",
+    segunda.id,
+    "Necesito información más clara para mi trabajo."
+  );
+  const reanudados = fusionarTurnos([guardado], [guardado, siguiente]);
+  expect(reanudados).toHaveLength(2);
+
+  let indice = trasPrimera.seccionActual;
+  let flujo = trasPrimera.flujoEstado;
+  while (indice < secciones.length) {
+    const avance = resolverAvanceSeccion(indice, secciones.length);
+    indice = avance.seccionActual;
+    flujo = avance.flujoEstado;
+  }
+  expect(flujo).toBe("revision");
+  expect(haySeccionesPendientes(secciones, [])).toBe(true);
+
+  const archivo = construirArchivoTranscripcion({
+    fase: NOMBRE_FASE_COLABORADORES,
+    fecha: "2026-10-01T12:00:00.000Z",
+    firma: "Empresa ficticia",
+    nombre: "Persona ficticia",
+    proyecto: "ComplianceLatam",
+    turnos: reanudados,
+  });
+  expect(archivo.content).toContain("**Fase:** Entrevistas a colaboradores");
+  expect(archivo.content).toContain("Persona ficticia");
+  expect(archivo.content).toContain("He usado poco la red.");
+  expect(archivo.content).not.toContain("seba@majoriti.world");
 });
 
 test("el correo + código ya no se corta para colaboradores", () => {

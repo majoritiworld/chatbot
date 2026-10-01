@@ -7,6 +7,7 @@ import {
   normalizarEstado,
 } from "@/lib/consultoria/fase-estado";
 import { esFaseColaboradores } from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
+import { esParticipantePruebaColaboradores } from "@/lib/consultoria/invitacion-colaboradores";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import { createClient } from "@/lib/supabase/server";
 
@@ -159,6 +160,7 @@ function toFaseDelPortal(
   const email = viewerEmail?.toLowerCase() ?? null;
   const esCliente = viewerRol === "cliente";
   const entrevistas: EntrevistaDelPortal[] = [];
+  const idsPrueba = new Set<string>();
   const tareas: TareaDelPortal[] = [];
 
   for (const tarea of row.tarea ?? []) {
@@ -198,6 +200,15 @@ function toFaseDelPortal(
     const esPropia = Boolean(
       email && stakeholder.email.toLowerCase() === email
     );
+    if (
+      esFaseColaboradores(row) &&
+      esParticipantePruebaColaboradores({
+        correo: stakeholder.email,
+        empresa: stakeholder.firma,
+      })
+    ) {
+      idsPrueba.add(entrevista.id);
+    }
 
     entrevistas.push({
       esPropia,
@@ -226,15 +237,14 @@ function toFaseDelPortal(
   tareas.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   const propia = entrevistas.find((item) => item.esPropia);
+  const reales = entrevistas.filter((item) => !idsPrueba.has(item.id));
   const seguimiento = esFaseColaboradores(row)
     ? {
-        asignadas: entrevistas.length,
-        completadas: entrevistas.filter((item) => item.estado === "completada")
+        asignadas: reales.length,
+        completadas: reales.filter((item) => item.estado === "completada")
           .length,
-        enCurso: entrevistas.filter((item) => item.estado === "en_curso")
-          .length,
-        sinIniciar: entrevistas.filter((item) => item.estado === "pendiente")
-          .length,
+        enCurso: reales.filter((item) => item.estado === "en_curso").length,
+        sinIniciar: reales.filter((item) => item.estado === "pendiente").length,
       }
     : null;
 
