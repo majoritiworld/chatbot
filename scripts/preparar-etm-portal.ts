@@ -7,6 +7,7 @@
  *   MODO=seba         Seba's own run, mentor segment. Its own new assignment.
  *   MODO=verificacion Fictitious people (RONDA=<n>) with a personal link, to
  *                     check the journey without using the real assignments.
+ *                     SOLO_VERIFICACION=mentor keeps one of them.
  *
  * Dry run unless APLICAR=1. On a non-local database it also needs
  * CONFIRMAR_PROYECTO=etm-tuesday. LOGO_ETM=<png> uploads the brand logo.
@@ -123,7 +124,11 @@ function personasDe(modo: "pruebas" | "seba" | "verificacion", ronda: string) {
   if (modo === "seba") {
     return SEBA;
   }
-  return verificacion(ronda);
+  const solo = process.env.SOLO_VERIFICACION?.trim();
+  const personas = verificacion(ronda);
+  return solo
+    ? personas.filter((p) => p.email.startsWith(`verificacion.${solo}.`))
+    : personas;
 }
 
 function escribir(linea: string) {
