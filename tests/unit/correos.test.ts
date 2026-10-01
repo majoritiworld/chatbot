@@ -209,7 +209,7 @@ test("names and configured copy are escaped in HTML and kept plain in text", () 
   expect(correo.remitenteVisible).toBe('Cliente "Uno" <b> vía Majoriti');
 });
 
-test("confirmation shows a next step and button only when the phase defines one", () => {
+test("confirmation shows the configured promotion as a footer after help and signature", () => {
   const asignacion = asignacionOk(
     filas({
       fase: {
@@ -227,9 +227,29 @@ test("confirmation shows a next step and button only when the phase defines one"
     textos: asignacion.textos.confirmacion,
   });
   expect(conPaso.html).toMatch(PARRAFO_COMERCIAL);
-  expect(conPaso.html).toContain(
-    "background-color:#f4f4f5;border:1px solid #e4e4e7;border-radius:12px;padding:20px 22px;"
+  expect(conPaso.html).not.toContain("border-radius:12px;padding:20px 22px;");
+  for (const contenido of [conPaso.html, conPaso.text]) {
+    const ayuda = contenido.indexOf("¿Tiene alguna pregunta?");
+    const firma = contenido.indexOf("Equipo Compliance Demo");
+    const promo = contenido.indexOf("Conozca Majoriti.");
+    const boton = contenido.indexOf("Ver más");
+    const pie = contenido.indexOf("Enviado a través de Majoriti");
+    expect(ayuda).toBeGreaterThan(-1);
+    expect(ayuda).toBeLessThan(firma);
+    expect(firma).toBeLessThan(promo);
+    expect(promo).toBeLessThan(boton);
+    expect(boton).toBeLessThan(pie);
+  }
+  const pieComercial = conPaso.html.slice(
+    conPaso.html.indexOf("Equipo Compliance Demo")
   );
+  expect(pieComercial).toContain(
+    "font-size:13px;line-height:1.55;color:#6b7280;"
+  );
+  expect(pieComercial).toContain(
+    "border:1px solid #e4e4e7;border-radius:8px;background-color:#ffffff;"
+  );
+  expect(pieComercial).not.toContain("background-color:#1f4b3a");
   expect(conPaso.html).toContain('href="https://majoriti.world"');
   expect(conPaso.html).toContain(">Ver más</a>");
   expect(conPaso.html).not.toContain("Si el botón no funciona");

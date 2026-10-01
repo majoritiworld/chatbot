@@ -12,7 +12,7 @@ export type AccionCorreo = {
   url: string;
 };
 
-/** Optional promo after the message. The button has no fallback URL in HTML. */
+/** Optional promo footer below the client signature. The button has no fallback URL in HTML. */
 export type BloqueComercialCorreo = {
   accion: AccionCorreo | null;
   parrafos: string[];
@@ -108,20 +108,21 @@ function botonHtml(
 <p style="margin:0 0 20px;font-family:${FUENTE};font-size:13px;line-height:1.5;color:${TENUE};">Si el botón no funciona, copie este enlace en su navegador:<br /><a href="${url}" target="_blank" rel="noopener" style="color:${TENUE};word-break:break-all;">${url}</a></p>`;
 }
 
-function bloqueComercialHtml(
-  bloque: BloqueComercialCorreo,
-  cuerpo: string,
-  acento: string,
-  sobreAcento: string
-) {
+function botonDiscretoHtml(accion: AccionCorreo) {
+  return `<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:4px auto 0;">
+<tr><td bgcolor="#ffffff" style="border:1px solid ${BORDE};border-radius:8px;background-color:#ffffff;">
+<a href="${escapeHtml(accion.url)}" target="_blank" rel="noopener" style="display:inline-block;padding:9px 18px;font-family:${FUENTE};font-size:13px;font-weight:600;line-height:1.2;color:${TEXTO};text-decoration:none;border-radius:8px;">${escapeHtml(accion.etiqueta)}</a>
+</td></tr></table>`;
+}
+
+function bloqueComercialHtml(bloque: BloqueComercialCorreo) {
+  const estilo = `font-family:${FUENTE};font-size:13px;line-height:1.55;color:${TENUE};`;
   const parrafos = bloque.parrafos
-    .map((parrafo) => parrafoHtml(parrafo, cuerpo))
+    .map((parrafo) => parrafoHtml(parrafo, `${estilo}margin-bottom:12px;`))
     .join("\n");
-  const boton = bloque.accion
-    ? botonHtml(bloque.accion, acento, sobreAcento, false)
-    : "";
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 32px;">
-<tr><td class="comercial" bgcolor="${FONDO}" style="background-color:${FONDO};border:1px solid ${BORDE};border-radius:12px;padding:20px 22px;">
+  const boton = bloque.accion ? botonDiscretoHtml(bloque.accion) : "";
+  return `<table role="presentation" class="contenedor" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;margin-top:24px;">
+<tr><td class="comercial" align="center" style="padding:0 40px;text-align:center;">
 ${parrafos}
 ${boton}
 </td></tr></table>`;
@@ -158,7 +159,7 @@ export function renderCorreo(
 @media (max-width: 620px) {
   .contenedor { width: 100% !important; }
   .interior { padding: 28px 22px !important; }
-  .comercial { padding: 16px !important; }
+  .comercial { padding: 0 22px !important; }
 }
 </style>
 </head>
@@ -173,7 +174,6 @@ ${cabeceraHtml(identidad)}
 <h1 style="margin:28px 0 20px;font-family:${FUENTE};font-size:24px;font-weight:700;line-height:1.3;color:${TEXTO};">${escapeHtml(contenido.titulo)}</h1>
 ${parrafoHtml(contenido.saludo, cuerpo)}
 ${contenido.parrafos.map((parrafo) => parrafoHtml(parrafo, cuerpo)).join("\n")}
-${contenido.comercial ? bloqueComercialHtml(contenido.comercial, cuerpo, acento, sobreAcento) : ""}
 ${boton}
 ${contenido.notas.map((nota) => parrafoHtml(nota, tenue)).join("\n")}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;"><tr><td style="border-top:1px solid ${BORDE};padding-top:20px;">
@@ -182,6 +182,7 @@ ${parrafoHtml(contenido.ayuda, tenue)}
 </td></tr></table>
 </td></tr>
 </table>
+${contenido.comercial ? bloqueComercialHtml(contenido.comercial) : ""}
 <p style="margin:20px 0 0;font-family:${FUENTE};font-size:12px;line-height:1.5;color:${TENUE};">${PIE}</p>
 </td></tr>
 </table>
@@ -201,12 +202,12 @@ ${parrafoHtml(contenido.ayuda, tenue)}
     contenido.titulo,
     contenido.saludo,
     ...contenido.parrafos,
-    ...comercial,
-    ...enlaceComercial,
     ...accion,
     ...contenido.notas,
     contenido.ayuda,
     contenido.firma,
+    ...comercial,
+    ...enlaceComercial,
     `—\n${PIE}`,
   ].join("\n\n");
 

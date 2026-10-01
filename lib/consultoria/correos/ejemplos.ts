@@ -50,8 +50,8 @@ export const EJEMPLOS_CORREO: Ejemplo[] = [
     filas: filas({
       fase: {
         bloque_comercial:
-          "Esta entrevista fue diseñada junto a Majoriti.\n\n¿Se imagina escuchar así a sus clientes, equipos o socios? Conozca cómo convertir sus experiencias en información para decidir mejor.",
-        bloque_comercial_etiqueta: "Conocer Majoriti",
+          "Majoriti te ayuda a escuchar a tus clientes, equipos y socios a escala, para tomar decisiones mejor informadas.",
+        bloque_comercial_etiqueta: "Probar una demo",
         bloque_comercial_url: "https://majoriti.world",
         minutos: 15,
       },
