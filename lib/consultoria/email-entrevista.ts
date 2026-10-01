@@ -331,7 +331,7 @@ async function enviarEnOrden(
     });
     const marca = await registrar({
       correo: correoDestino,
-      detalle: detalleEnvioAceptado(aceptado?.id),
+      detalle: detalleEnvioAceptado(aceptado?.id) ?? undefined,
       entrevistaId,
       estado: "enviado",
     });
