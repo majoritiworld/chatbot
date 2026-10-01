@@ -3,6 +3,10 @@ import { expect, test } from "@playwright/test";
 import { interviewSystemPrompt } from "@/lib/ai/prompts";
 import { planificarColaboradores } from "@/lib/consultoria/cargas/compliance-latam-colaboradores";
 import {
+  lineasAviso,
+  resolverComunicacion,
+} from "@/lib/consultoria/comunicacion";
+import {
   crearEnlaceAcceso,
   validarEnlaceAcceso,
 } from "@/lib/consultoria/correos/enlace-acceso";
@@ -17,8 +21,10 @@ import {
   resolverAvanceSeccion,
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
+import { pantallaParticipanteEntrevista } from "@/lib/consultoria/entrevista-piloto";
 import {
   ASUNTO_INVITACION_CL_COLABORADORES,
+  AVISO_RESPUESTAS_CL_COLABORADORES,
   CUERPO_INVITACION_CL_COLABORADORES,
   NOMBRE_FASE_COLABORADORES,
   seccionesDeGuionClColaboradores,
@@ -411,6 +417,53 @@ test("abrir el enlace no consume el token ni envía correos", () => {
   expect(acceso).not.toContain("resend");
   expect(acceso).not.toContain("enviarCorreo");
   expect(acceso).not.toContain("ensureAuthUser");
+});
+
+test("el aviso de colaboradores nombra a la persona antes de aceptar", () => {
+  const avisoProyecto =
+    "El equipo de ComplianceLatam podrá acceder al contenido completo de sus respuestas. Al continuar, confirma que conoce y acepta este uso.";
+  expect(AVISO_RESPUESTAS_CL_COLABORADORES).toBe(
+    "Sus respuestas estarán asociadas a su nombre y podrán ser consultadas por el equipo de ComplianceLatam para el trabajo de este proyecto"
+  );
+  const deLaFase = resolverComunicacion(
+    { aviso_respuestas: avisoProyecto },
+    { aviso_respuestas: AVISO_RESPUESTAS_CL_COLABORADORES }
+  );
+  expect(lineasAviso(deLaFase.avisoRespuestas ?? "")).toEqual([
+    AVISO_RESPUESTAS_CL_COLABORADORES,
+  ]);
+  const deOtraFase = resolverComunicacion(
+    { aviso_respuestas: avisoProyecto },
+    { aviso_respuestas: null }
+  );
+  expect(deOtraFase.avisoRespuestas).toBe(avisoProyecto);
+
+  const pantalla = readFileSync(
+    "components/portal/entrevista-onboarding.tsx",
+    "utf8"
+  );
+  const aviso = pantalla.indexOf("marca.avisoRespuestas");
+  const aceptar = pantalla.indexOf("Aceptar y empezar");
+  expect(aviso).toBeGreaterThan(-1);
+  expect(aceptar).toBeGreaterThan(aviso);
+  expect(
+    pantallaParticipanteEntrevista({
+      completada: false,
+      errorEntrega: false,
+      flujoEstado: "bienvenida",
+      llegoEnRevision: false,
+      onboardingListo: false,
+    })
+  ).toBe("onboarding");
+  expect(
+    pantallaParticipanteEntrevista({
+      completada: false,
+      errorEntrega: false,
+      flujoEstado: "chat",
+      llegoEnRevision: false,
+      onboardingListo: true,
+    })
+  ).toBe("chat");
 });
 
 test("los correos de esta fase siguen retenidos", () => {

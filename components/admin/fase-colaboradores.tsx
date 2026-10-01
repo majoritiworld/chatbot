@@ -1,4 +1,5 @@
 import { AdminSeccion } from "@/components/admin/admin-seccion";
+import { AVISO_RESPUESTAS_CL_COLABORADORES } from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function FaseColaboradoresAdmin({ faseId }: { faseId: string }) {
@@ -8,8 +9,8 @@ export async function FaseColaboradoresAdmin({ faseId }: { faseId: string }) {
     <>
       <AdminSeccion
         defaultOpen
-        descripcion="La identidad de estas respuestas sigue como está hoy. No hay una decisión nueva de anonimato."
-        titulo="Identidad, pendiente de decisión"
+        descripcion="Las respuestas de esta fase quedan asociadas al nombre. La convocatoria sigue bloqueada."
+        titulo="Identidad de las respuestas"
       >
         <div className="flex flex-col gap-2 text-sm">
           <p>
@@ -22,15 +23,8 @@ export async function FaseColaboradoresAdmin({ faseId }: { faseId: string }) {
             transcripción.
           </p>
           <p>
-            El aviso de bienvenida dice que las respuestas se guardan de forma
-            exclusiva para la marca. No promete anonimato.
-          </p>
-          <p>
-            Aviso propuesto, todavía sin aplicar: «Sus respuestas se guardan con
-            su nombre y el de su empresa. El equipo de ComplianceLatam puede
-            consultarlas, y la transcripción queda identificada de la misma
-            forma.» No se muestra al participante hasta decidir si la
-            convocatoria sigue identificada o pasa a anonimizarse.
+            Antes de aceptar y empezar, el participante lee: «
+            {AVISO_RESPUESTAS_CL_COLABORADORES}».
           </p>
         </div>
       </AdminSeccion>

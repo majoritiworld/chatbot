@@ -6,6 +6,7 @@ import { planificarColaboradores } from "@/lib/consultoria/cargas/compliance-lat
 import { preguntasDeSecciones } from "@/lib/consultoria/entrevista-contenido";
 import {
   ASUNTO_INVITACION_CL_COLABORADORES,
+  AVISO_RESPUESTAS_CL_COLABORADORES,
   CUERPO_INVITACION_CL_COLABORADORES,
   INSTRUCCIONES_AGENTE_CL_COLABORADORES,
   MINUTOS_CL_COLABORADORES,
@@ -298,6 +299,7 @@ async function asegurarFase(admin: Admin, proyectoId: string) {
   const { error: errorTextos } = await admin
     .from("fase")
     .update({
+      aviso_respuestas: AVISO_RESPUESTAS_CL_COLABORADORES,
       invitacion_asunto: ASUNTO_INVITACION_CL_COLABORADORES,
       invitacion_cuerpo: CUERPO_INVITACION_CL_COLABORADORES,
       minutos: MINUTOS_CL_COLABORADORES,

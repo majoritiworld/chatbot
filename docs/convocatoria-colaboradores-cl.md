@@ -37,7 +37,11 @@ Agradecimiento de la fase, en usted, sin enviarlo a la lista: asunto «Recibimos
 
 La prueba autorizada usa esa misma invitación con el prefijo «[PRUEBA]» en el asunto. Sin copia ni copia oculta. El agradecimiento de esa sola entrevista queda preparado igual, también sin copia, y solo sale cuando el cambio esté en el servidor que completa la entrevista.
 
-La primera prueba, `1190524f-79e3-49e8-b090-7000711d21ad`, quedó con consentimiento y un turno. No se resetea. La prueba que se puede completar ahora es `c76190ba-49d7-4bae-bc80-91bc6c628bed`, sin iniciar, con la misma identidad y una plantilla que copia el guion real. Su clave de idempotencia es `entrevista-c76190ba-49d7-4bae-bc80-91bc6c628bed-invitacion`, distinta de la muestra anterior. Reejecutar ese envío no genera otro correo ni otra clave.
+La primera prueba, `1190524f-79e3-49e8-b090-7000711d21ad`, quedó con consentimiento y un turno. No se resetea. La prueba `c76190ba-49d7-4bae-bc80-91bc6c628bed` ya se completó, con su agradecimiento y su página de Notion por ese ID. No se reenvía ni se reinicia. Su clave de idempotencia es `entrevista-c76190ba-49d7-4bae-bc80-91bc6c628bed-invitacion`.
+
+## Aviso antes de aceptar
+
+Las respuestas no son anónimas. En la fase, antes de «Aceptar y empezar», se lee: «Sus respuestas estarán asociadas a su nombre y podrán ser consultadas por el equipo de ComplianceLatam para el trabajo de este proyecto». Las 284 entrevistas reales siguen abiertas y sin ese consentimiento, así que verán el aviso al entrar. Las que ya tienen consentimiento no se reinician.
 
 ## Envío por lotes
 
@@ -49,6 +53,7 @@ Cada reintento usa la misma clave `entrevista-{id}-invitacion` y el mismo conten
 
 ## Pendiente antes de convocar
 
-- Decidir si las respuestas siguen identificadas y, solo entonces, aplicar el aviso propuesto en [Identidad de las entrevistas a colaboradores](identidad-entrevistas-colaboradores.md).
-- Confirmar el envío general. Hasta entonces `envioInvitacionesColaboradoresPermitido` sigue en falso y el lote no sale. El ritmo y los reintentos ya están en el lote; no activan la convocatoria.
-- Corregir, si se quieren incluir, las tres filas sin correo. No inventar direcciones.
+- Autorización final de envío. Hasta entonces `envioInvitacionesColaboradoresPermitido` sigue en falso. Ese mismo freno retiene las invitaciones de los 284 y sus agradecimientos automáticos. El ritmo y los reintentos ya están en el lote; no activan la convocatoria.
+- Corregir, si se quieren incluir, las tres filas sin correo. No inventar direcciones. No forman parte de los 284.
+
+El aviso de identidad ya está decidido y aplicado en esta fase: [Identidad de las entrevistas a colaboradores](identidad-entrevistas-colaboradores.md).

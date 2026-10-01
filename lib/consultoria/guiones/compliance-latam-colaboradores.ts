@@ -14,6 +14,9 @@ export const MINUTOS_CL_COLABORADORES = 15;
 export const ASUNTO_INVITACION_CL_COLABORADORES =
   "Queremos conocer tu experiencia como colaborador de ComplianceLatam";
 
+export const AVISO_RESPUESTAS_CL_COLABORADORES =
+  "Sus respuestas estarán asociadas a su nombre y podrán ser consultadas por el equipo de ComplianceLatam para el trabajo de este proyecto";
+
 export const CUERPO_INVITACION_CL_COLABORADORES = [
   "Desde ComplianceLatam queremos conocer tu experiencia como colaborador, con el objetivo de seguir mejorando nuestra propuesta de valor y generar iniciativas que sean cada vez más relevantes para ti.",
   "Por eso, te invitamos a participar en una breve entrevista individual a través de la plataforma Majoriti, donde podrás compartirnos tu experiencia, opiniones y sugerencias.",
