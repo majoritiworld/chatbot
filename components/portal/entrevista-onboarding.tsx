@@ -26,6 +26,7 @@ export function EntrevistaOnboarding({
   correoUsuario,
   entrevistaId,
   minutos,
+  mostrarDuracion = true,
   mostrarPortal,
   nombre,
   numeroSecciones,
@@ -36,6 +37,7 @@ export function EntrevistaOnboarding({
   correoUsuario?: string | null;
   entrevistaId: string;
   minutos?: number | null;
+  mostrarDuracion?: boolean;
   mostrarPortal: boolean;
   nombre?: string | null;
   numeroSecciones: number;
@@ -72,6 +74,7 @@ export function EntrevistaOnboarding({
       {paso === "saludo" ? (
         <EntrevistaBienvenida
           minutos={minutos}
+          mostrarDuracion={mostrarDuracion}
           nombre={nombre}
           numeroSecciones={numeroSecciones}
           onContinuar={irAlDisclaimer}

@@ -1,6 +1,10 @@
 import "server-only";
 
 import { generateText, Output } from "ai";
+import {
+  entrevistaSimuladaLocal,
+  sintesisConsultaSimulada,
+} from "@/lib/ai/entrevista-simulada";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { getLanguageModel } from "@/lib/ai/providers";
 import { textoConversacionCierre } from "@/lib/consultoria/cierre-seccion";
@@ -17,6 +21,9 @@ export async function generarSintesisConsulta({
   signal?: AbortSignal;
   turnos: TurnoEntrevista[];
 }) {
+  if (entrevistaSimuladaLocal()) {
+    return sintesisConsultaSimulada(turnos);
+  }
   const { output } = await generateText({
     abortSignal: signal,
     instructions: instruccionesSintesisConsulta(),

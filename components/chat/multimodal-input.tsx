@@ -834,7 +834,10 @@ function PureMultimodalInput({
   );
 
   return (
-    <div className={cn("relative flex w-full flex-col gap-4", className)}>
+    <div
+      className={cn("relative flex w-full flex-col gap-4", className)}
+      data-chat-status={status}
+    >
       {editingMessage && onCancelEdit ? (
         <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
           <span>{esEntrevista ? "Editando mensaje" : "Editing message"}</span>
@@ -1054,12 +1057,12 @@ function PureMultimodalInput({
                       : "bg-muted text-muted-foreground/25 cursor-not-allowed"
                 )}
                 data-testid="send-button"
-                size={esEntrevista ? "sm" : "icon-sm"}
                 disabled={
                   !input.trim() ||
                   uploadQueue.length > 0 ||
                   (Boolean(esEntrevista) && vozEntrevista.estado !== "idle")
                 }
+                size={esEntrevista ? "sm" : "icon-sm"}
                 status={status}
                 variant={esEntrevista ? "default" : "secondary"}
               >

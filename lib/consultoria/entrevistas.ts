@@ -23,6 +23,10 @@ import {
   turnosDeSeccion,
 } from "@/lib/consultoria/entrevista-contenido";
 import { decisionReintentoCorreo } from "@/lib/consultoria/entrevista-piloto";
+import {
+  clasificarInicio,
+  respuestaInicio,
+} from "@/lib/consultoria/inicio-en-chat";
 import { MENSAJE_ACEPTACION_NO_REGISTRADA } from "@/lib/consultoria/mensajes-chat";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import {
@@ -1045,6 +1049,79 @@ export async function aceptarConsentimientoEntrevista(entrevistaId: string) {
   }
 
   return { alreadyDone: false as const };
+}
+
+const ORDEN_FLUJO: FlujoEntrevista[] = [
+  "bienvenida",
+  "presentacion",
+  "chat",
+  "revision",
+];
+
+async function avanzarSiSigue(
+  entrevistaId: string,
+  desde: "bienvenida" | "presentacion"
+) {
+  try {
+    await avanzarFlujoEntrevista({ desde, entrevistaId });
+  } catch (error) {
+    const actual = await getEntrevistaEscribible(entrevistaId);
+    const yaPaso =
+      actual &&
+      ORDEN_FLUJO.indexOf(actual.flujo_estado) > ORDEN_FLUJO.indexOf(desde);
+    if (!yaPaso) {
+      throw error;
+    }
+  }
+}
+
+/**
+ * Answers the reply to "¿Comenzamos?". Only a clear yes records the
+ * acceptance shown in the greeting and opens the first question. A repeat
+ * yes after the start is a no-op.
+ */
+export async function iniciarEntrevistaEnChat({
+  entrevistaId,
+  texto,
+}: {
+  entrevistaId: string;
+  texto: string;
+}): Promise<
+  | { iniciada: true; flujoEstado: FlujoEntrevista }
+  | { iniciada: false; respuesta: string }
+> {
+  const entrevista = await getEntrevistaEscribible(entrevistaId);
+  if (!entrevista) {
+    throw new Error("No puedes empezar esta entrevista");
+  }
+  if (entrevista.estado !== "abierta") {
+    throw new Error("Esta entrevista ya fue enviada.");
+  }
+  const inicio = entrevista.secciones.at(
+    entrevista.seccion_actual
+  )?.inicioEnChat;
+  if (!inicio) {
+    throw new Error("Esta entrevista no empieza desde el chat");
+  }
+  if (
+    entrevista.consentimiento_en &&
+    entrevista.flujo_estado !== "bienvenida" &&
+    entrevista.flujo_estado !== "presentacion"
+  ) {
+    return { flujoEstado: entrevista.flujo_estado, iniciada: true };
+  }
+
+  const clase = clasificarInicio(texto);
+  if (clase !== "acepta") {
+    return { iniciada: false, respuesta: respuestaInicio(clase, inicio) };
+  }
+
+  await aceptarConsentimientoEntrevista(entrevista.id);
+  if (entrevista.flujo_estado === "bienvenida") {
+    await avanzarSiSigue(entrevista.id, "bienvenida");
+  }
+  await avanzarSiSigue(entrevista.id, "presentacion");
+  return { flujoEstado: "chat", iniciada: true };
 }
 
 const MENSAJE_SIN_LECTURA = "No puedes leer esta entrevista";

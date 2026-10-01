@@ -8,8 +8,8 @@ import {
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import {
   BASE_TRANSCRIPCIONES_ETM,
-  esConversacionFicticiaEtm,
   esProyectoEtm,
+  fueraDeNotionEtm,
   PAGINA_PROYECTO_NOTION_ETM,
   segmentoNotionEtm,
 } from "@/lib/consultoria/notion-proyecto-etm";
@@ -120,20 +120,20 @@ export async function sincronizarTranscripcionNotion(
     proyecto: proyecto?.nombre ?? null,
     turnos: parseTranscripcion(row.transcripcion),
   });
-  if (
-    esConversacionFicticiaEtm({
-      email: stakeholder?.email,
-      proyectoNombre: proyecto?.nombre,
-    })
-  ) {
-    return { status: "skipped" };
-  }
-
   const destinoEtm = esProyectoEtm({
     cliente: proyecto?.cliente,
     nombre: proyecto?.nombre,
     slug: proyecto?.slug,
   });
+  if (
+    fueraDeNotionEtm({
+      email: stakeholder?.email,
+      proyectoEtm: destinoEtm,
+      proyectoNombre: proyecto?.nombre,
+    })
+  ) {
+    return { status: "skipped" };
+  }
   const segmento = destinoEtm ? segmentoNotionEtm(fase?.nombre) : null;
   const titulo = tituloNotionDeEntrevista(nombre, fase?.nombre);
   const publicado = await publicarPaginaTranscripcionNotion({

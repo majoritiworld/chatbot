@@ -4,13 +4,17 @@ import { type MouseEvent, useCallback, useState } from "react";
 import { DataStreamProvider } from "@/components/chat/data-stream-provider";
 import { ChatShell } from "@/components/chat/shell";
 import { EntrevistaAyuda } from "@/components/portal/entrevista-ayuda";
+import { EntrevistaInfoModales } from "@/components/portal/entrevista-info-modales";
 import {
   DESTINO_CERRAR_SESION,
   enviarCierreSesionPendiente,
 } from "@/components/portal/entrevista-menu-secundario";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { GuardarEntrevistaButton } from "@/components/portal/guardar-entrevista-button";
-import { TerminarTemaAntesProvider } from "@/components/portal/terminar-tema-antes-button";
+import {
+  TerminarTemaAntesButton,
+  TerminarTemaAntesProvider,
+} from "@/components/portal/terminar-tema-antes-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +26,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { ActiveChatProvider } from "@/hooks/use-active-chat";
+import {
+  ActiveChatProvider,
+  type InicioChat,
+  useActiveChat,
+} from "@/hooks/use-active-chat";
 import {
   useConfirmarDestinoPendiente,
   useSalidaEntrevista,
@@ -31,6 +39,58 @@ import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
 import { etiquetaProgresoTema } from "@/lib/consultoria/entrevista-piloto";
 import type { ModoVozEntrevista } from "@/lib/consultoria/entrevista-voz";
 import type { ChatMessage, SectionCompletedData } from "@/lib/types";
+
+function EstadoGuardado() {
+  const { estadoGuardado } = useActiveChat();
+  let texto = "";
+  if (estadoGuardado === "guardado") {
+    texto = "Guardado";
+  } else if (estadoGuardado === "guardando") {
+    texto = "Guardando…";
+  } else if (estadoGuardado === "error") {
+    texto = "No se pudo guardar. Tu texto sigue aquí";
+  }
+  return (
+    <span
+      aria-live="polite"
+      className={
+        estadoGuardado === "error"
+          ? "px-1 text-[12px] text-destructive"
+          : "hidden px-1 text-[12px] text-neutral-400 sm:inline"
+      }
+      data-estado-guardado={estadoGuardado}
+      data-testid="entrevista-estado-guardado"
+    >
+      {texto}
+    </span>
+  );
+}
+
+function AccionesConversacion({
+  demoFalloGuardar,
+  entrevistaId,
+  seccionId,
+}: {
+  demoFalloGuardar?: boolean;
+  entrevistaId: string;
+  seccionId: string;
+}) {
+  const { inicioPendiente } = useActiveChat();
+  if (inicioPendiente) {
+    return null;
+  }
+  return (
+    <>
+      <EstadoGuardado />
+      <GuardarEntrevistaButton
+        compacto
+        demoFalloGuardar={demoFalloGuardar}
+        entrevistaId={entrevistaId}
+        seccionId={seccionId}
+      />
+    </>
+  );
+}
 
 function EntrevistaChatCuerpo({
   correoUsuario,
@@ -94,7 +154,67 @@ function EntrevistaChatCuerpo({
   const handleAbrirAyuda = useCallback(() => {
     setAyudaAbierta(true);
   }, []);
-  const progresoTema = etiquetaProgresoTema(indice, numeroSecciones);
+  const continua = seccion.conversacionContinua === true;
+  const progresoTema = continua
+    ? undefined
+    : etiquetaProgresoTema(indice, numeroSecciones);
+  const dialogoSalida = (
+    <AlertDialog
+      onOpenChange={handleDialogChange}
+      open={Boolean(destinoPendiente)}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Salir de la entrevista?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {aviso ??
+              "Hay cambios que pueden no haberse conservado si sales ahora."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel type="button">Seguir aquí</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmarSalida} type="button">
+            Salir
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  if (seccion.inicioEnChat) {
+    return (
+      <TerminarTemaAntesProvider>
+        <EntrevistaShell
+          acciones={
+            <AccionesConversacion
+              demoFalloGuardar={demoFalloGuardar}
+              entrevistaId={entrevistaId}
+              seccionId={seccion.id}
+            />
+          }
+          cabeceraMarca
+          compactoMovil
+          correoUsuario={correoUsuario}
+          mostrarPortal={mostrarPortal}
+          onIntentarCerrarSesion={handleIntentarCerrarSesion}
+          onIrAlPortal={handleIrAlPortal}
+          titulo={titulo}
+        >
+          <ChatShell
+            onSeccionCompletada={onSeccionCompletada}
+            pieCompositor={
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:justify-between">
+                <EntrevistaInfoModales inicio={seccion.inicioEnChat} />
+                <TerminarTemaAntesButton enConversacion trigger="compositor" />
+              </div>
+            }
+            sinAccionesMensaje
+          />
+          {dialogoSalida}
+        </EntrevistaShell>
+      </TerminarTemaAntesProvider>
+    );
+  }
 
   return (
     <TerminarTemaAntesProvider>
@@ -130,31 +250,12 @@ function EntrevistaChatCuerpo({
         onIntentarCerrarSesion={handleIntentarCerrarSesion}
         onIrAlPortal={handleIrAlPortal}
         progresoTema={progresoTema}
-        seccion={`${progresoTema}: ${seccion.titulo}`}
+        seccion={continua ? undefined : `${progresoTema}: ${seccion.titulo}`}
         titulo={titulo}
-        tituloTema={seccion.titulo}
+        tituloTema={continua ? undefined : seccion.titulo}
       >
         <ChatShell onSeccionCompletada={onSeccionCompletada} />
-        <AlertDialog
-          onOpenChange={handleDialogChange}
-          open={Boolean(destinoPendiente)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>¿Salir de la entrevista?</AlertDialogTitle>
-              <AlertDialogDescription>
-                {aviso ??
-                  "Hay cambios que pueden no haberse conservado si sales ahora."}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel type="button">Seguir aquí</AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmarSalida} type="button">
-                Salir
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {dialogoSalida}
       </EntrevistaShell>
     </TerminarTemaAntesProvider>
   );
@@ -167,6 +268,7 @@ export function EntrevistaChat({
   demoVoz,
   entrevistaId,
   indice,
+  inicio,
   mensajesIniciales,
   mostrarPortal = false,
   numeroSecciones,
@@ -180,6 +282,7 @@ export function EntrevistaChat({
   demoVoz?: ModoVozEntrevista;
   entrevistaId: string;
   indice: number;
+  inicio?: InicioChat;
   mensajesIniciales: ChatMessage[];
   mostrarPortal?: boolean;
   numeroSecciones: number;
@@ -191,10 +294,12 @@ export function EntrevistaChat({
     <DataStreamProvider>
       <SidebarProvider className="h-full min-h-0 bg-white" defaultOpen={false}>
         <ActiveChatProvider
+          conversacionContinua={seccion.conversacionContinua === true}
           demoAislada={demoAislada}
           demoVoz={demoVoz}
           entrevistaId={entrevistaId}
           indiceSeccion={indice}
+          inicio={inicio}
           mensajesIniciales={mensajesIniciales}
           numeroSecciones={numeroSecciones}
           onSeccionCompletada={onSeccionCompletada}

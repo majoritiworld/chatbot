@@ -1,3 +1,4 @@
+import { esParticipantePruebaEtm } from "@/lib/consultoria/invitacion-etm";
 import { claveNotion } from "@/lib/consultoria/notion-transcripcion-contenido";
 
 /** Existing Projects row. Title in Notion: «Consultoria ETM». */
@@ -44,6 +45,21 @@ export function esConversacionFicticiaEtm(datos: {
     return true;
   }
   return claveNotion(datos.proyectoNombre ?? "").includes("demolocal");
+}
+
+/**
+ * Fictitious rows never reach Notion. ETM trials stay out too, only inside
+ * an ETM project: the same address may be a real interview elsewhere.
+ */
+export function fueraDeNotionEtm(datos: {
+  email?: string | null;
+  proyectoEtm: boolean;
+  proyectoNombre?: string | null;
+}) {
+  return (
+    esConversacionFicticiaEtm(datos) ||
+    (datos.proyectoEtm && esParticipantePruebaEtm(datos.email))
+  );
 }
 
 export function segmentoNotionEtm(fase: string | null | undefined) {

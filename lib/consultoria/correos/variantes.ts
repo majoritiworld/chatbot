@@ -24,8 +24,10 @@ export type CorreoPreparado = {
 };
 
 const VIA_MAJORITI = " vía Majoriti";
-const CIERRE_CONFIRMACION =
-  "Su entrevista está completa. No necesita hacer nada más.";
+const CIERRE_CONFIRMACION = {
+  tu: "Tu entrevista está completa. No necesitas hacer nada más.",
+  usted: "Su entrevista está completa. No necesita hacer nada más.",
+} as const;
 const YA_CERRADA = /nada más/i;
 const MENCIONA_MINUTOS = /\bminutos\b/i;
 const MENCIONA_GUARDADO = /guardar (?:su|tu) avance|avance queda guardado/i;
@@ -84,6 +86,20 @@ function tituloInvitacion(
   return subject;
 }
 
+function textoDuracionInvitacion(
+  minutos: number | null,
+  trato: "tu" | "usted"
+) {
+  if (trato === "tu") {
+    return minutos
+      ? `La entrevista toma aproximadamente ${minutos} minutos. Es una conversación guiada: puedes responder por escrito o con la voz.`
+      : "Es una conversación guiada: puedes responder por escrito o con la voz.";
+  }
+  return minutos
+    ? `La entrevista toma aproximadamente ${minutos} minutos. Es una conversación guiada: puede responder por escrito o con la voz.`
+    : "Es una conversación guiada: puede responder por escrito o con la voz.";
+}
+
 function nombreIniciativa(identidad: IdentidadCorreo) {
   return identidad.titulo ? `«${identidad.titulo}»` : null;
 }
@@ -93,11 +109,13 @@ export function correoConfirmacion({
   identidad,
   siguientePaso,
   textos,
+  trato = "usted",
 }: {
   destinatario: { email: string; nombre: string | null };
   identidad: IdentidadCorreo;
   siguientePaso: SiguientePaso | null;
   textos: TextosCorreo;
+  trato?: "tu" | "usted";
 }): CorreoPreparado {
   const iniciativa = nombreIniciativa(identidad);
   const cuerpo = textos.cuerpo
@@ -106,7 +124,7 @@ export function correoConfirmacion({
         `Gracias por completar la entrevista${iniciativa ? ` de ${iniciativa}` : ""}. Sus respuestas llegaron correctamente a ${identidad.cliente} y se considerarán en el trabajo del proyecto.`,
       ];
   const cerrada = cuerpo.some((parrafo) => YA_CERRADA.test(parrafo));
-  const parrafos = cerrada ? cuerpo : [...cuerpo, CIERRE_CONFIRMACION];
+  const parrafos = cerrada ? cuerpo : [...cuerpo, CIERRE_CONFIRMACION[trato]];
   const comercial = siguientePaso
     ? {
         accion:
@@ -120,13 +138,15 @@ export function correoConfirmacion({
       }
     : null;
 
+  const recibimos =
+    trato === "tu" ? "Recibimos tus respuestas" : "Recibimos sus respuestas";
   const subject =
     textos.asunto ??
-    `Recibimos sus respuestas${identidad.titulo ? ` — ${identidad.titulo}` : ""}`;
-  const preview = `${identidad.cliente} confirma que su entrevista quedó completa.`;
+    `${recibimos}${identidad.titulo ? ` — ${identidad.titulo}` : ""}`;
+  const preview = `${identidad.cliente} confirma que ${trato === "tu" ? "tu" : "su"} entrevista quedó completa.`;
   const { html, text } = renderCorreo(identidad, {
     accion: null,
-    ayuda: ayuda(identidad, "usted"),
+    ayuda: ayuda(identidad, trato),
     comercial,
     firma: firma(identidad, textos),
     notas: [],
@@ -134,7 +154,7 @@ export function correoConfirmacion({
     preview,
     saludo: saludo(destinatario.nombre),
     subject,
-    titulo: "Recibimos sus respuestas",
+    titulo: recibimos,
   });
 
   return {
@@ -165,9 +185,7 @@ export function correoInvitacion({
   trato?: "tu" | "usted";
 }): CorreoPreparado {
   const iniciativa = nombreIniciativa(identidad);
-  const duracion = minutos
-    ? `La entrevista toma aproximadamente ${minutos} minutos. Es una conversación guiada: puede responder por escrito o con la voz.`
-    : "Es una conversación guiada: puede responder por escrito o con la voz.";
+  const duracion = textoDuracionInvitacion(minutos, trato);
   const cuerpo = textos.cuerpo
     ? parrafosDeTexto(textos.cuerpo)
     : [
@@ -195,7 +213,9 @@ export function correoInvitacion({
     ...(yaDiceDuracion ? [] : [duracion]),
     ...(enlacePersonal && !yaDiceGuardado
       ? [
-          "Puede guardar su avance y continuar más adelante desde este mismo enlace.",
+          trato === "tu"
+            ? "Puedes guardar tu avance y continuar más adelante desde este mismo enlace."
+            : "Puede guardar su avance y continuar más adelante desde este mismo enlace.",
         ]
       : []),
   ];

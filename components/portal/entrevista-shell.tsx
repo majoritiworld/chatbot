@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeftIcon } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import type { MouseEvent, ReactNode } from "react";
 import { EntrevistaMenuSecundario } from "@/components/portal/entrevista-menu-secundario";
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 export function EntrevistaShell({
   acciones,
+  cabeceraMarca = false,
   children,
   compactoMovil = false,
   correoUsuario,
@@ -26,6 +28,8 @@ export function EntrevistaShell({
   tituloTema,
 }: {
   acciones?: ReactNode;
+  /** Client brand on the left, Majoriti in small print, actions on the right. */
+  cabeceraMarca?: boolean;
   children?: ReactNode;
   compactoMovil?: boolean;
   correoUsuario?: string | null;
@@ -51,6 +55,46 @@ export function EntrevistaShell({
       onIrAlPortal={onIrAlPortal}
     />
   ) : null;
+
+  if (cabeceraMarca) {
+    return (
+      <div
+        className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col bg-white text-neutral-900"
+        data-entrevista-activa="true"
+        style={estiloMarca(marca)}
+      >
+        <header className="shrink-0 bg-white" data-testid="entrevista-cabecera">
+          <div className="mx-auto flex w-full max-w-[1100px] items-center gap-3 px-4 py-3 md:px-6">
+            <div className="min-w-0 flex-1">
+              {marca.personalizada && marca.logoSrc ? (
+                <Image
+                  alt={marca.nombre}
+                  className="h-8 w-auto max-w-full object-contain object-left md:h-10"
+                  height={marca.logoAlto ?? 266}
+                  priority
+                  src={marca.logoSrc}
+                  unoptimized
+                  width={marca.logoAncho ?? 1024}
+                />
+              ) : (
+                <p className="truncate font-semibold text-[16px] tracking-tight">
+                  {marca.nombre}
+                </p>
+              )}
+              <p className="text-[11px] text-neutral-400 leading-4">
+                con Majoriti
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {acciones}
+              {menu}
+            </div>
+          </div>
+        </header>
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      </div>
+    );
+  }
 
   return (
     <div

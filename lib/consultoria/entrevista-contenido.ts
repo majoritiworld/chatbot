@@ -1,4 +1,12 @@
 import {
+  type InicioEnChat,
+  parseInicioEnChat,
+} from "@/lib/consultoria/inicio-en-chat";
+import {
+  esModeloEntrevista,
+  type ModeloEntrevista,
+} from "@/lib/consultoria/modelos-entrevista";
+import {
   parseSintesisConsulta,
   type SintesisConsulta,
 } from "@/lib/consultoria/sintesis-consulta";
@@ -89,7 +97,39 @@ export type SeccionEntrevista = {
    * does not spend it. Absent means the shared cap of `MAX_SEGUIMIENTOS`. */
   maxSeguimientos?: number;
   etiquetaOrganizacion?: EtiquetaOrganizacion;
+  /** One chat for every guide question. Other projects leave this unset and
+   * keep a screen and a close button per section. */
+  conversacionContinua?: boolean;
+  /** Opens in the chat with a greeting instead of the welcome screens. */
+  inicioEnChat?: InicioEnChat;
+  /** What the person had to live for some objectives to apply. */
+  actividad?: string;
+  /** Objectives that only apply if the person took part in `actividad`. */
+  requierenExperiencia?: number[];
+  /** Continuous mode reads each reply before planning the next turn. */
+  escucha?: EscuchaEntrevista;
 };
+
+export type EscuchaEntrevista = {
+  /** Writes the turns. Absent keeps the global chat model. */
+  modeloAgente?: ModeloEntrevista;
+  /** Classifies replies. Kept apart so agent comparisons share one reader. */
+  modeloLectura?: ModeloEntrevista;
+};
+
+function parseEscucha(value: unknown): EscuchaEntrevista | undefined {
+  if (value === true) {
+    return {};
+  }
+  if (typeof value !== "object" || value === null) {
+    return;
+  }
+  const { modeloAgente, modeloLectura } = value as Record<string, unknown>;
+  return {
+    ...(esModeloEntrevista(modeloAgente) ? { modeloAgente } : {}),
+    ...(esModeloEntrevista(modeloLectura) ? { modeloLectura } : {}),
+  };
+}
 
 export const MAX_SEGUIMIENTOS = 2;
 
@@ -139,12 +179,23 @@ export function partirSeguimiento(seguimiento: string) {
 export function seccionesPublicas(
   secciones: SeccionEntrevista[]
 ): SeccionEntrevista[] {
-  return secciones.map(({ descripcion, id, preguntas, titulo }) => ({
-    descripcion,
-    id,
-    preguntas,
-    titulo,
-  }));
+  return secciones.map(
+    ({
+      conversacionContinua,
+      descripcion,
+      id,
+      inicioEnChat,
+      preguntas,
+      titulo,
+    }) => ({
+      ...(conversacionContinua ? { conversacionContinua: true as const } : {}),
+      descripcion,
+      id,
+      ...(inicioEnChat ? { inicioEnChat } : {}),
+      preguntas,
+      titulo,
+    })
+  );
 }
 
 export function seccionesConDescripcionInterna(secciones: SeccionEntrevista[]) {
@@ -207,16 +258,33 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
     }
 
     const {
+      actividad,
+      conversacionContinua,
       descripcion,
+      escucha,
       etiquetaOrganizacion,
       id,
+      inicioEnChat,
       instrucciones,
       maxSeguimientos,
       obligatorias,
       preguntas,
+      requierenExperiencia,
       seguimientos,
       titulo,
     } = item as Record<string, unknown>;
+    const inicioValido = parseInicioEnChat(inicioEnChat);
+    const escuchaValida = parseEscucha(escucha);
+    const actividadValida =
+      typeof actividad === "string" ? actividad.trim() : "";
+    const experienciaValida = Array.isArray(requierenExperiencia)
+      ? requierenExperiencia.filter(
+          (indice): indice is number =>
+            typeof indice === "number" &&
+            Number.isInteger(indice) &&
+            indice >= 0
+        )
+      : [];
     const preguntasValidas = parsePreguntas(preguntas);
     const obligatoriasValidas = parsePreguntas(obligatorias);
     const seguimientosValidos = parsePreguntas(seguimientos);
@@ -241,8 +309,14 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
 
     return [
       {
+        ...(actividadValida ? { actividad: actividadValida } : {}),
+        ...(conversacionContinua === true
+          ? { conversacionContinua: true as const }
+          : {}),
         descripcion: typeof descripcion === "string" ? descripcion.trim() : "",
+        ...(escuchaValida ? { escucha: escuchaValida } : {}),
         id,
+        ...(inicioValido ? { inicioEnChat: inicioValido } : {}),
         ...(etiquetaOrganizacion === "empresa"
           ? { etiquetaOrganizacion: "empresa" as const }
           : {}),
@@ -254,6 +328,9 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
           ? { obligatorias: obligatoriasValidas }
           : {}),
         preguntas: preguntasValidas,
+        ...(experienciaValida.length > 0
+          ? { requierenExperiencia: experienciaValida }
+          : {}),
         ...(seguimientosValidos.length > 0
           ? { seguimientos: seguimientosValidos }
           : {}),
@@ -271,8 +348,17 @@ export function clonarSecciones(
   secciones: SeccionEntrevista[]
 ): SeccionEntrevista[] {
   return secciones.map((seccion) => ({
+    ...(seccion.actividad ? { actividad: seccion.actividad } : {}),
     descripcion: seccion.descripcion,
+    ...(seccion.escucha ? { escucha: { ...seccion.escucha } } : {}),
     id: crypto.randomUUID(),
+    ...(seccion.conversacionContinua
+      ? { conversacionContinua: true as const }
+      : {}),
+    ...(seccion.inicioEnChat ? { inicioEnChat: seccion.inicioEnChat } : {}),
+    ...(seccion.requierenExperiencia?.length
+      ? { requierenExperiencia: [...seccion.requierenExperiencia] }
+      : {}),
     ...(seccion.etiquetaOrganizacion === "empresa"
       ? { etiquetaOrganizacion: "empresa" as const }
       : {}),

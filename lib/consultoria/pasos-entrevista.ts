@@ -15,10 +15,12 @@ const OFERTA = "ofrecerCierreSeccion" as const;
 export function herramientasDelTurno({
   forzarOferta,
   messages,
+  ocultarCierre = false,
   seguimientoSiguiente,
 }: {
   forzarOferta: boolean;
   messages: ChatMessage[];
+  ocultarCierre?: boolean;
   seguimientoSiguiente?: string;
 }): Array<
   "completarSeccion" | "ofrecerCierreSeccion" | "ofrecerContinuarOGuardar"
@@ -26,7 +28,7 @@ export function herramientasDelTurno({
   if (forzarOferta) {
     return [OFERTA];
   }
-  if (seguimientoSiguiente) {
+  if (seguimientoSiguiente || ocultarCierre) {
     return [];
   }
   return [...herramientasCierreActivas(messages)];

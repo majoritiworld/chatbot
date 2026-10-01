@@ -11,11 +11,13 @@ import {
 /** Undelivered review from a previous visit, or a failed submit after close. */
 
 export function EntrevistaRevision({
+  conversacionContinua = false,
   errorEntrega = false,
   numeroSecciones,
   onEnviar,
   pending,
 }: {
+  conversacionContinua?: boolean;
   errorEntrega?: boolean;
   numeroSecciones: number;
   onEnviar: () => void;
@@ -25,11 +27,12 @@ export function EntrevistaRevision({
     <EntrevistaPantallaTransicion>
       <div className="flex flex-col gap-3">
         <h1 className="font-semibold text-3xl tracking-tight">
-          Finalizar entrevista
+          {conversacionContinua ? "Enviar entrevista" : "Finalizar entrevista"}
         </h1>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          {textoTemasTerminados(numeroSecciones)}{" "}
-          {explicacionEntregaPendiente()}
+          {conversacionContinua
+            ? "La conversación ya está lista. Todavía no se envió: puedes enviarla ahora."
+            : `${textoTemasTerminados(numeroSecciones)} ${explicacionEntregaPendiente()}`}
         </p>
         <p className="text-muted-foreground text-sm leading-relaxed">
           Al finalizar, la entrevista quedará cerrada y ya no podrás agregar
@@ -49,7 +52,9 @@ export function EntrevistaRevision({
         onClick={onEnviar}
         type="button"
       >
-        {etiquetaEntregaPendiente({ errorEntrega, pending })}
+        {conversacionContinua && !pending && !errorEntrega
+          ? "Enviar entrevista"
+          : etiquetaEntregaPendiente({ errorEntrega, pending })}
       </Button>
     </EntrevistaPantallaTransicion>
   );

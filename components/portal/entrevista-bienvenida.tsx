@@ -9,11 +9,13 @@ import { partirNombre } from "@/lib/consultoria/nombre";
 
 export function EntrevistaBienvenida({
   minutos,
+  mostrarDuracion = true,
   nombre,
   numeroSecciones,
   onContinuar,
 }: {
   minutos?: number | null;
+  mostrarDuracion?: boolean;
   nombre?: string | null;
   numeroSecciones: number;
   onContinuar: () => void;
@@ -33,8 +35,10 @@ export function EntrevistaBienvenida({
           {marca.textoBienvenida ?? textoBienvenidaParticipante(marca, temas)}
         </p>
         <p className="text-lg leading-relaxed">
-          {textoDuracionEntrevista(numeroSecciones, minutos)} No hace falta
-          terminarla de una: puedes guardar y volver otro día.
+          {mostrarDuracion
+            ? `${textoDuracionEntrevista(numeroSecciones, minutos)} `
+            : null}
+          No hace falta terminarla de una: puedes guardar y volver otro día.
         </p>
         <p className="text-muted-foreground text-base leading-relaxed">
           A continuación te pediremos que confirmes cómo se usan tus respuestas.

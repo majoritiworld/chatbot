@@ -12,7 +12,14 @@ import {
   seguimientosHechosEnSeccion,
   textoConversacionCierre,
 } from "@/lib/consultoria/cierre-seccion";
+import {
+  esConversacionContinua,
+  type GuiaEscucha,
+  objetivoActivo,
+  planificarConversacionContinua,
+} from "@/lib/consultoria/conversacion-continua";
 import type { SeccionEntrevista } from "@/lib/consultoria/entrevista-contenido";
+import { leerRespuesta } from "@/lib/consultoria/leer-respuesta";
 import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
 import { resolverTurnoConObligatorias } from "@/lib/consultoria/obligatorias-turno";
 import {
@@ -30,10 +37,14 @@ const OFERTA = "ofrecerCierreSeccion";
 
 export type PlanSeguimientos = {
   clase: "principal" | "obligatoria" | "seguimiento" | "cierre" | "aclaracion";
+  /** Continuous mode with listening: how the turn connects to the reply. */
+  escucha?: GuiaEscucha;
   forzarOferta: boolean;
   indiceObligatoria?: number;
   /** Partner-firm turns formulate the follow-up; the menu is only a reference. */
   formulacionLibre?: boolean;
+  /** Continuous mode: guidance that replaces the generic one for this turn. */
+  guiaTurno?: string;
   motivoCierre?: MotivoCierreSeccion;
   /** Set when the flow decided to ask this follow-up now. */
   seguimientoSiguiente?: string;
@@ -54,6 +65,27 @@ export async function planificarSeguimientos({
   seccion: SeccionEntrevista;
   seccionesPrevias: ResumenSeccionPrevia[];
 }): Promise<PlanSeguimientos> {
+  if (esConversacionContinua(seccion)) {
+    if (ofertaCierreVigenteEnChat(messages)) {
+      return {
+        clase: "cierre",
+        forzarOferta: true,
+        motivoCierre: "limite",
+        seguimientosHechos: 1,
+      };
+    }
+    const lectura =
+      seccion.escucha && messages.at(-1)?.role === "user"
+        ? await leerRespuesta({
+            activo: objetivoActivo(messages),
+            messages,
+            modelo: seccion.escucha.modeloLectura,
+            objetivos: seccion.preguntas,
+          })
+        : undefined;
+    return planificarConversacionContinua({ lectura, messages, seccion });
+  }
+
   const seguimientos = seccion.seguimientos ?? [];
   const obligatorias = seccion.obligatorias ?? [];
   const seguimientosHechos = seguimientosHechosEnSeccion(messages);

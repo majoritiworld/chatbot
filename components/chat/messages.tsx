@@ -23,7 +23,28 @@ type MessagesProps = {
   isLoading?: boolean;
   selectedModelId: string;
   onEditMessage?: (message: ChatMessage) => void;
+  sinAcciones?: boolean;
+  /** The opening greeting is still appearing paragraph by paragraph. */
+  saludoEscribiendo?: boolean;
 };
+
+function EscribiendoSaludo() {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex h-6 items-center gap-1"
+      data-testid="saludo-escribiendo"
+    >
+      {[0, 150, 300].map((retraso) => (
+        <span
+          className="size-1.5 rounded-full bg-neutral-400 motion-safe:animate-pulse"
+          key={retraso}
+          style={{ animationDelay: `${retraso}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
 
 function PureMessages({
   addToolApprovalResponse,
@@ -39,6 +60,8 @@ function PureMessages({
   isLoading,
   selectedModelId: _selectedModelId,
   onEditMessage,
+  saludoEscribiendo = false,
+  sinAcciones = false,
 }: MessagesProps) {
   const {
     containerRef: messagesContainerRef,
@@ -122,6 +145,7 @@ function PureMessages({
                   hasSentMessage && index === messages.length - 1
                 }
                 setMessages={setMessages}
+                sinAcciones={sinAcciones}
                 vote={
                   votes
                     ? votes.find((vote) => vote.messageId === message.id)
@@ -134,6 +158,7 @@ function PureMessages({
               messages.at(-1)?.role !== "assistant" && (
                 <ThinkingMessage esEntrevista={esEntrevista} />
               )}
+            {saludoEscribiendo ? <EscribiendoSaludo /> : null}
           </div>
 
           <div

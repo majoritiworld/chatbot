@@ -7,6 +7,7 @@ import {
   BASE_TRANSCRIPCIONES_ETM,
   esConversacionFicticiaEtm,
   esProyectoEtm,
+  fueraDeNotionEtm,
   PAGINA_PROYECTO_NOTION_COMPLIANCE_LATAM,
   PAGINA_PROYECTO_NOTION_ETM,
   segmentoNotionEtm,
@@ -416,4 +417,35 @@ test.describe("ETM Notion destination", () => {
       PAGINA_PROYECTO_NOTION_COMPLIANCE_LATAM
     );
   });
+});
+
+test("las pruebas de recorrido de ETM no llegan a Notion, solo dentro de ETM", () => {
+  for (const email of [
+    "gabriel.fuentes@emprendetumente.org",
+    "Amelia.Somavia@emprendetumente.org",
+    "juan.lobos@emprendetumente.org",
+    "seba@majoriti.world",
+  ]) {
+    expect(
+      fueraDeNotionEtm({
+        email,
+        proyectoEtm: true,
+        proyectoNombre: "ETM Tuesday",
+      })
+    ).toBe(true);
+  }
+  expect(
+    fueraDeNotionEtm({
+      email: "otra.persona@emprendetumente.org",
+      proyectoEtm: true,
+      proyectoNombre: "ETM Tuesday",
+    })
+  ).toBe(false);
+  expect(
+    fueraDeNotionEtm({
+      email: "seba@majoriti.world",
+      proyectoEtm: false,
+      proyectoNombre: "Compliance Latam",
+    })
+  ).toBe(false);
 });

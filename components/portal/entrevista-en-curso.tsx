@@ -1,7 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { toast } from "sonner";
 import { EntrevistaChat } from "@/components/portal/entrevista-chat";
 import { EntrevistaCompletada } from "@/components/portal/entrevista-completada";
@@ -13,6 +20,7 @@ import { EntrevistaRevision } from "@/components/portal/entrevista-revision";
 import { EntrevistaShell } from "@/components/portal/entrevista-shell";
 import { useMarcaParticipante } from "@/components/portal/marca-participante";
 import { Button } from "@/components/ui/button";
+import type { InicioChat } from "@/hooks/use-active-chat";
 import type {
   FlujoEntrevista,
   SeccionEntrevista,
@@ -24,6 +32,7 @@ import {
   siguienteTransicionInicial,
   textoFinalizandoEntrevista,
 } from "@/lib/consultoria/entrevista-piloto";
+import { saludoInicial } from "@/lib/consultoria/inicio-en-chat";
 import { textoContactoFallo } from "@/lib/consultoria/marca";
 import { createClient } from "@/lib/supabase/client";
 import type { ChatMessage } from "@/lib/types";
@@ -136,6 +145,10 @@ export function EntrevistaEnCurso({
       }
     });
   }, [postAvance]);
+
+  const conversacionContinua = secciones.some(
+    (item) => item.conversacionContinua
+  );
 
   useEffect(() => {
     if (!onboardingListo || completada) {
@@ -275,6 +288,22 @@ export function EntrevistaEnCurso({
     });
   }, [postAvance]);
 
+  useEffect(() => {
+    if (!(conversacionContinua && onboardingListo) || completada) {
+      return;
+    }
+    if (flujoEstado !== "presentacion") {
+      return;
+    }
+    contestarSeccion();
+  }, [
+    completada,
+    contestarSeccion,
+    conversacionContinua,
+    flujoEstado,
+    onboardingListo,
+  ]);
+
   const reintentarCorreo = useCallback(() => {
     startTransition(async () => {
       try {
@@ -305,6 +334,57 @@ export function EntrevistaEnCurso({
     });
   }, [entrevistaId]);
 
+  const seccionInicio = secciones.at(seccionActual);
+  const configInicio = seccionInicio?.inicioEnChat;
+  const iniciar = useCallback(
+    async (texto: string) => {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/entrevista/inicio`,
+        {
+          body: JSON.stringify({ entrevistaId, texto }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        }
+      );
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        iniciada?: boolean;
+        respuesta?: string;
+      } | null;
+      if (!(response.ok && data)) {
+        throw new Error(
+          data?.error ?? "No se pudo enviar. Tu texto sigue en el campo."
+        );
+      }
+      if (data.iniciada) {
+        flujoRef.current = "chat";
+        setFlujoEstado("chat");
+        setOnboardingListo(true);
+        return { iniciada: true as const };
+      }
+      return {
+        iniciada: false as const,
+        respuesta: data.respuesta ?? "¿Comenzamos?",
+      };
+    },
+    [entrevistaId]
+  );
+  const saludo = configInicio
+    ? saludoInicial({
+        inicio: configInicio,
+        nombre: stakeholderNombre,
+        numeroPreguntas: seccionInicio?.preguntas.length ?? 0,
+      })
+    : "";
+  const inicioPendiente = !(onboardingListo && flujoEstado === "chat");
+  const inicio = useMemo<InicioChat | undefined>(
+    () =>
+      saludo
+        ? { onIniciar: iniciar, pendiente: inicioPendiente, saludo }
+        : undefined,
+    [iniciar, inicioPendiente, saludo]
+  );
+
   const pantalla = pantallaParticipanteEntrevista({
     completada,
     errorEntrega,
@@ -316,6 +396,7 @@ export function EntrevistaEnCurso({
   if (pantalla === "completada") {
     return (
       <EntrevistaShell
+        cabeceraMarca={secciones.some((s) => Boolean(s.inicioEnChat))}
         compactoMovil
         correoUsuario={correoUsuario}
         mostrarPortal={mostrarPortal}
@@ -331,6 +412,30 @@ export function EntrevistaEnCurso({
     );
   }
 
+  if (
+    inicio &&
+    seccionInicio &&
+    (pantalla === "onboarding" || pantalla === "avance" || pantalla === "chat")
+  ) {
+    return (
+      <EntrevistaChat
+        correoUsuario={correoUsuario}
+        entrevistaId={entrevistaId}
+        indice={seccionActual}
+        inicio={inicio}
+        key={seccionInicio.id}
+        mensajesIniciales={
+          seccionActual === seccionActualInicial ? mensajesIniciales : []
+        }
+        mostrarPortal={mostrarPortal}
+        numeroSecciones={secciones.length}
+        onSeccionCompletada={marcarSeccionCompletada}
+        seccion={seccionInicio}
+        titulo={titulo}
+      />
+    );
+  }
+
   if (pantalla === "onboarding") {
     return (
       <EntrevistaOnboarding
@@ -338,6 +443,7 @@ export function EntrevistaEnCurso({
         correoUsuario={correoUsuario}
         entrevistaId={entrevistaId}
         minutos={minutos}
+        mostrarDuracion={!secciones.some((item) => item.conversacionContinua)}
         mostrarPortal={mostrarPortal}
         nombre={stakeholderNombre}
         numeroSecciones={secciones.length}
@@ -369,6 +475,7 @@ export function EntrevistaEnCurso({
         titulo={titulo}
       >
         <EntrevistaRevision
+          conversacionContinua={conversacionContinua}
           errorEntrega={errorEntrega}
           numeroSecciones={secciones.length}
           onEnviar={enviar}
@@ -422,6 +529,19 @@ export function EntrevistaEnCurso({
             {textoContactoFallo(marca)}
           </p>
         </EntrevistaPantallaTransicion>
+      </EntrevistaShell>
+    );
+  }
+
+  if (flujoEstado === "presentacion" && conversacionContinua) {
+    return (
+      <EntrevistaShell
+        compactoMovil
+        correoUsuario={correoUsuario}
+        mostrarPortal={mostrarPortal}
+        titulo={titulo}
+      >
+        <EntrevistaEspera texto="Abriendo la conversación…" />
       </EntrevistaShell>
     );
   }

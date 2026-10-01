@@ -7,6 +7,10 @@ import {
 } from "ai";
 import { auth } from "@/app/(auth)/auth";
 import {
+  entrevistaSimuladaLocal,
+  modeloEntrevistaSimulada,
+} from "@/lib/ai/entrevista-simulada";
+import {
   allowedModelIds,
   chatModels,
   DEFAULT_CHAT_MODEL,
@@ -22,6 +26,12 @@ import {
   pausaSeccionInputSchema,
   respuestasEnSeccion,
 } from "@/lib/consultoria/cierre-seccion";
+import {
+  ejemploDelObjetivo,
+  esConversacionContinua,
+  promptConversacionContinua,
+  turnoDeClase,
+} from "@/lib/consultoria/conversacion-continua";
 import {
   entrevistaAceptaChat,
   etiquetaCierreTema,
@@ -40,6 +50,7 @@ import {
   MENSAJE_NO_PUEDE_RESPONDER,
   MENSAJE_SECCION_INACTIVA,
 } from "@/lib/consultoria/mensajes-chat";
+import { opcionesModeloEntrevista } from "@/lib/consultoria/modelos-entrevista";
 import {
   herramientasDelTurno,
   pasosTurnoEntrevista,
@@ -174,7 +185,8 @@ export async function POST(request: Request) {
     const haySeccionesPrevias = seccionesPrevias.length > 0;
     // The portal opens the interview with no user turn: the agent speaks
     // first. This opener is never persisted to the transcript.
-    const kickoff = textoKickoffEntrevista(haySeccionesPrevias);
+    const continua = esConversacionContinua(seccion);
+    const kickoff = textoKickoffEntrevista(haySeccionesPrevias, continua);
     const mensajesModelo = mensajesTextoParaModelo(uiMessages);
     const modelMessages =
       mensajesModelo.length > 0
@@ -188,11 +200,16 @@ export async function POST(request: Request) {
 
     const esUltimoTema =
       entrevista.seccion_actual >= entrevista.secciones.length - 1;
-    const etiquetaCierre = etiquetaCierreTema(esUltimoTema);
+    const etiquetaCierre = continua
+      ? "Enviar entrevista"
+      : etiquetaCierreTema(esUltimoTema);
+    const modeloAgente = continua ? seccion.escucha?.modeloAgente : undefined;
     const {
       clase,
+      escucha,
       formulacionLibre,
       forzarOferta,
+      guiaTurno,
       indiceObligatoria,
       motivoCierre,
       seguimientoSiguiente,
@@ -250,43 +267,71 @@ export async function POST(request: Request) {
           activeTools: herramientasDelTurno({
             forzarOferta,
             messages: uiMessages,
+            ocultarCierre: continua && clase === "seguimiento",
             seguimientoSiguiente,
           }),
-          instructions: interviewSystemPrompt({
-            cerrarSeccion: forzarOferta,
-            descripcionSeccion: seccion.descripcion,
-            esUltimoTema,
-            etiquetaOrganizacion: seccion.etiquetaOrganizacion,
-            firmaEntrevistado: entrevista.stakeholder_firma,
-            instruccionesEntrevista: entrevista.instrucciones_agente,
-            instruccionesSeccion: seccion.instrucciones,
-            maxSeguimientos: seccion.maxSeguimientos,
-            motivoCierre,
-            nombreEntrevistado: entrevista.stakeholder_nombre,
-            obligatorias: seccion.obligatorias,
-            preguntas: seccion.preguntas,
-            preguntaYaHecha: respuestasEnSeccion(uiMessages) > 0,
-            reanudacion: uiMessages.length > 0,
-            seccionesPrevias,
-            seguimientoEsAclaracion: clase === "aclaracion",
-            seguimientoEsObligatorio: clase === "obligatoria",
-            seguimientoSiguiente,
-            seguimientos: seccion.seguimientos,
-            seguimientosComoEjemplos: formulacionLibre,
-            seguimientosHechos,
-            tituloSeccion: seccion.titulo,
-            trato: entrevista.trato,
-          }),
+          instructions: continua
+            ? promptConversacionContinua({
+                ejemploSeguimiento: ejemploDelObjetivo(
+                  seccion,
+                  indiceObligatoria
+                ),
+                escucha,
+                guiaTurno,
+                instrucciones: [
+                  entrevista.instrucciones_agente,
+                  seccion.instrucciones,
+                ]
+                  .filter((texto) => texto && texto.trim().length > 0)
+                  .join("\n"),
+                motivoCierre,
+                nombre: entrevista.stakeholder_nombre,
+                organizacion: entrevista.stakeholder_firma,
+                preguntaActual:
+                  seguimientoSiguiente ??
+                  seccion.preguntas[indiceObligatoria ?? 0],
+                trato: entrevista.trato,
+                turno: turnoDeClase(clase),
+              })
+            : interviewSystemPrompt({
+                cerrarSeccion: forzarOferta,
+                descripcionSeccion: seccion.descripcion,
+                esUltimoTema,
+                etiquetaOrganizacion: seccion.etiquetaOrganizacion,
+                firmaEntrevistado: entrevista.stakeholder_firma,
+                instruccionesEntrevista: entrevista.instrucciones_agente,
+                instruccionesSeccion: seccion.instrucciones,
+                maxSeguimientos: seccion.maxSeguimientos,
+                motivoCierre,
+                nombreEntrevistado: entrevista.stakeholder_nombre,
+                obligatorias: seccion.obligatorias,
+                preguntas: seccion.preguntas,
+                preguntaYaHecha: respuestasEnSeccion(uiMessages) > 0,
+                reanudacion: uiMessages.length > 0,
+                seccionesPrevias,
+                seguimientoEsAclaracion: clase === "aclaracion",
+                seguimientoEsObligatorio: clase === "obligatoria",
+                seguimientoSiguiente,
+                seguimientos: seccion.seguimientos,
+                seguimientosComoEjemplos: formulacionLibre,
+                seguimientosHechos,
+                tituloSeccion: seccion.titulo,
+                trato: entrevista.trato,
+              }),
           messages: modelMessages,
-          model: getLanguageModel(chatModel),
-          providerOptions: {
-            ...(modelConfig?.gatewayOrder && {
-              gateway: { order: modelConfig.gatewayOrder },
-            }),
-            ...(modelConfig?.reasoningEffort && {
-              openai: { reasoningEffort: modelConfig.reasoningEffort },
-            }),
-          },
+          model: entrevistaSimuladaLocal()
+            ? modeloEntrevistaSimulada
+            : getLanguageModel(modeloAgente ?? chatModel),
+          providerOptions: modeloAgente
+            ? opcionesModeloEntrevista(modeloAgente)
+            : {
+                ...(modelConfig?.gatewayOrder && {
+                  gateway: { order: modelConfig.gatewayOrder },
+                }),
+                ...(modelConfig?.reasoningEffort && {
+                  openai: { reasoningEffort: modelConfig.reasoningEffort },
+                }),
+              },
           ...pasosTurnoEntrevista<typeof herramientas>({
             conSeguimientos: Boolean(
               seccion.seguimientos?.length || seccion.obligatorias?.length
@@ -303,6 +348,13 @@ export async function POST(request: Request) {
         dataStream.merge(
           streamEntrevista({
             despuesDeGuardar: () => {
+              if (seccion.inicioEnChat) {
+                dataStream.write({
+                  data: { seccionId: seccion.id },
+                  transient: true,
+                  type: "data-turno-guardado",
+                });
+              }
               if (ofertaPersistida) {
                 dataStream.write({
                   data: { seccionId: seccion.id },

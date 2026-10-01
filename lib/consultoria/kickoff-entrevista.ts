@@ -25,7 +25,13 @@ export function reiniciarKickoffsParaPruebas() {
   kickoffsIniciados.clear();
 }
 
-export function textoKickoffEntrevista(haySeccionesPrevias: boolean) {
+export function textoKickoffEntrevista(
+  haySeccionesPrevias: boolean,
+  conversacionContinua = false
+) {
+  if (conversacionContinua) {
+    return "La persona ya leyó la explicación inicial. No la repitas, no saludes de nuevo y no menciones secciones. Haz solo la primera pregunta.";
+  }
   if (haySeccionesPrevias) {
     return "Estoy listo para continuar con esta sección. No te presentes de nuevo ni expliques el tema: haz solo la primera pregunta.";
   }

@@ -25,6 +25,7 @@ import {
   useArtifact,
   useArtifactSelector,
 } from "@/hooks/use-artifact";
+import { useSaludoProgresivo } from "@/hooks/use-saludo-progresivo";
 import type {
   Attachment,
   ChatMessage,
@@ -41,9 +42,15 @@ import { MultimodalInput } from "./multimodal-input";
 export function ChatShell({
   composerAction,
   onSeccionCompletada,
+  pieCompositor,
+  sinAccionesMensaje = false,
 }: {
   composerAction?: ReactNode;
   onSeccionCompletada?: (data: SectionCompletedData) => void;
+  /** Links under the composer, such as privacy and how the AI works. */
+  pieCompositor?: ReactNode;
+  /** Hides copy and edit controls under each message. */
+  sinAccionesMensaje?: boolean;
 } = {}) {
   const {
     chatId,
@@ -69,7 +76,46 @@ export function ChatShell({
     setCurrentModelId,
     showCreditCardAlert,
     setShowCreditCardAlert,
+    enviarInicio,
+    inicioEnviando,
+    inicioPendiente,
+    mensajesInicio,
   } = useActiveChat();
+
+  const saludo = useSaludoProgresivo({
+    mensajesInicio,
+    pendiente: inicioPendiente,
+    sinHistorial: messages.length === 0,
+  });
+  const completarSaludoRef = useRef(saludo.completar);
+  completarSaludoRef.current = saludo.completar;
+  const inicioPendienteRef = useRef(inicioPendiente);
+  inicioPendienteRef.current = inicioPendiente;
+  const enviarInicioRef = useRef(enviarInicio);
+  enviarInicioRef.current = enviarInicio;
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
+  const enviarDesdeCompositor = useCallback<typeof sendMessage>(
+    (mensaje, opciones) => {
+      if (inicioPendienteRef.current) {
+        const partes =
+          mensaje && "parts" in mensaje && Array.isArray(mensaje.parts)
+            ? mensaje.parts
+            : [];
+        const texto = partes
+          .map((parte) => (parte.type === "text" ? parte.text : ""))
+          .join(" ");
+        completarSaludoRef.current();
+        enviarInicioRef.current(texto);
+        return Promise.resolve();
+      }
+      return sendMessageRef.current(mensaje, opciones);
+    },
+    []
+  );
+  const mensajesVisibles =
+    saludo.mensajes.length > 0 ? [...saludo.mensajes, ...messages] : messages;
+  const estadoVisible = inicioEnviando ? "submitted" : status;
 
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(
     null
@@ -186,6 +232,11 @@ export function ChatShell({
                 "md:rounded-tl-[12px] md:border-t md:border-l md:border-border/40"
             )}
           >
+            {saludo.escribiendo ? (
+              <p className="sr-only" data-testid="saludo-completo">
+                {saludo.textoCompleto}
+              </p>
+            ) : null}
             <Messages
               addToolApprovalResponse={addToolApprovalResponse}
               chatId={chatId}
@@ -193,12 +244,14 @@ export function ChatShell({
               isArtifactVisible={isArtifactVisible}
               isLoading={isLoading}
               isReadonly={isReadonly}
-              messages={messages}
-              onEditMessage={handleEditMessage}
+              messages={mensajesVisibles}
+              onEditMessage={sinAccionesMensaje ? undefined : handleEditMessage}
               regenerate={regenerate}
+              saludoEscribiendo={saludo.escribiendo}
               selectedModelId={currentModelId}
               setMessages={setMessages}
-              status={status}
+              sinAcciones={sinAccionesMensaje}
+              status={estadoVisible}
               votes={votes}
             />
 
@@ -236,16 +289,23 @@ export function ChatShell({
                   selectedModelId={currentModelId}
                   selectedVisibilityType={visibilityType}
                   sendMessage={
-                    editingMessage ? handleSendEditedMessage : sendMessage
+                    editingMessage
+                      ? handleSendEditedMessage
+                      : enviarDesdeCompositor
                   }
                   setAttachments={setAttachments}
                   setInput={setInput}
                   setMessages={setMessages}
-                  status={status}
+                  status={estadoVisible}
                   stop={stop}
                 />
               )}
             </div>
+            {pieCompositor && !isReadonly ? (
+              <div className="mx-auto w-full max-w-[760px] bg-white px-3 pb-3 md:px-4">
+                {pieCompositor}
+              </div>
+            ) : null}
           </div>
         </div>
 

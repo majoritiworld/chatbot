@@ -32,6 +32,11 @@ import {
   pendientesDeLote,
   tratoDeInvitacion,
 } from "@/lib/consultoria/invitacion-colaboradores";
+import {
+  debeRetenerCorreoEtm,
+  esFaseEtm,
+  esPruebaSebaEtm,
+} from "@/lib/consultoria/invitacion-etm";
 import { claveIdempotenciaConfirmacion } from "@/lib/consultoria/marca";
 import {
   detalleEnvioAceptado,
@@ -62,6 +67,13 @@ const INVITACIONES_DESHABILITADAS =
  */
 export function invitacionesHabilitadas() {
   return process.env.HABILITAR_INVITACIONES_CORREO === "1";
+}
+
+function retenidoEtm(faseNombre: string | null, email: string) {
+  return debeRetenerCorreoEtm(faseNombre, {
+    email,
+    resendBaseUrl: process.env.RESEND_BASE_URL,
+  });
 }
 
 function correoBloqueadoLocal() {
@@ -181,20 +193,38 @@ export async function enviarCorreoAgradecimiento({
     debeRetenerCorreoColaboradores(asignacion.faseNombre, {
       email: asignacion.destinatario.email,
       entrevistaId,
-    })
+    }) ||
+    retenidoEtm(asignacion.faseNombre, asignacion.destinatario.email)
   ) {
     throw new Error("El correo de esta fase sigue pendiente de confirmación.");
   }
+  const etm = esFaseEtm(asignacion.faseNombre);
+  const textosConfirmacion = asignacion.textos.confirmacion;
   const correo = correoConfirmacion({
     destinatario: asignacion.destinatario,
     identidad: asignacion.identidad,
-    siguientePaso: asignacion.textos.siguientePaso,
-    textos: asignacion.textos.confirmacion,
+    siguientePaso: etm ? null : asignacion.textos.siguientePaso,
+    textos: esPruebaSebaEtm(
+      asignacion.faseNombre,
+      asignacion.destinatario.email
+    )
+      ? {
+          ...textosConfirmacion,
+          asunto: asuntoConPrefijoPrueba(
+            textosConfirmacion.asunto ?? "Recibimos tus respuestas"
+          ),
+        }
+      : textosConfirmacion,
+    trato: etm ? "tu" : "usted",
   });
 
   try {
     const data = await enviarCorreoPreparado({
-      copiarEquipo: !(excepcion || confirmacionSinCopia(asignacion.faseNombre)),
+      copiarEquipo: !(
+        etm ||
+        excepcion ||
+        confirmacionSinCopia(asignacion.faseNombre)
+      ),
       correo,
       idempotencyKey: claveIdempotenciaConfirmacion(entrevistaId),
     });
@@ -248,7 +278,8 @@ async function prepararCorreoInvitacion(entrevistaId: string) {
     debeRetenerCorreoColaboradores(asignacion.faseNombre, {
       email: asignacion.destinatario.email,
       entrevistaId,
-    })
+    }) ||
+    retenidoEtm(asignacion.faseNombre, asignacion.destinatario.email)
   ) {
     throw new Error(
       "El envío de invitaciones de esta fase sigue pendiente de confirmación."
@@ -273,22 +304,26 @@ async function prepararCorreoInvitacion(entrevistaId: string) {
     );
   }
 
-  const textos = excepcion
-    ? {
-        ...asignacion.textos.invitacion,
-        asunto: asuntoConPrefijoPrueba(
-          asignacion.textos.invitacion.asunto ??
-            `${asignacion.identidad.cliente} le invita a una entrevista`
-        ),
-      }
-    : asignacion.textos.invitacion;
+  const textos =
+    excepcion ||
+    esPruebaSebaEtm(asignacion.faseNombre, asignacion.destinatario.email)
+      ? {
+          ...asignacion.textos.invitacion,
+          asunto: asuntoConPrefijoPrueba(
+            asignacion.textos.invitacion.asunto ??
+              `${asignacion.identidad.cliente} le invita a una entrevista`
+          ),
+        }
+      : asignacion.textos.invitacion;
   const correo = correoInvitacion({
     destinatario: asignacion.destinatario,
     enlace,
     identidad: asignacion.identidad,
     minutos: asignacion.minutos,
     textos,
-    trato: tratoDeInvitacion(asignacion.faseNombre),
+    trato: esFaseEtm(asignacion.faseNombre)
+      ? "tu"
+      : tratoDeInvitacion(asignacion.faseNombre),
   });
   return correo;
 }
@@ -388,7 +423,11 @@ export async function enviarInvitacionesDeFase(
         "Esta fase entra solo con el correo y no envía invitaciones desde el portal.",
     };
   }
-  if (!fase || debeRetenerCorreoColaboradores(fase.nombre)) {
+  if (
+    !fase ||
+    debeRetenerCorreoColaboradores(fase.nombre) ||
+    debeRetenerCorreoEtm(fase.nombre)
+  ) {
     return {
       ...SIN_ENVIOS,
       bloqueado:
@@ -468,4 +507,79 @@ export async function enviarInvitacionesDeFase(
     dormirMs
   );
   return { ...resultado, omitidos: resultado.omitidos + lote.omitidos };
+}
+
+export type ResultadoInvitacionEtm =
+  | { estado: "enviado"; resendId: string | null }
+  | { detalle: string | null; estado: "ya_enviada" };
+
+/**
+ * One ETM trial invitation. A second call after an accepted send does not
+ * mail again: the stored send wins, and Resend dedupes the same key.
+ */
+export async function enviarInvitacionPruebaEtm(
+  entrevistaId: string
+): Promise<ResultadoInvitacionEtm> {
+  if (!invitacionesHabilitadas()) {
+    throw new Error(INVITACIONES_DESHABILITADAS);
+  }
+  const admin = createAdminClient();
+  if (!admin) {
+    throw new Error("El servidor no puede leer la entrevista");
+  }
+  const { data: previa, error: errorPrevia } = await admin
+    .from("invitacion_envio")
+    .select("detalle")
+    .eq("entrevista_id", entrevistaId)
+    .eq("estado", "enviado")
+    .maybeSingle();
+  if (errorPrevia) {
+    throw new Error(errorPrevia.message);
+  }
+  if (previa) {
+    return { detalle: previa.detalle, estado: "ya_enviada" };
+  }
+  const destino = await resolverAsignacionCorreo(entrevistaId, "invitacion");
+  if (!destino.ok) {
+    throw new CorreoBloqueadoError(destino.motivo);
+  }
+  if (!esFaseEtm(destino.asignacion.faseNombre)) {
+    throw new Error("Esta entrevista no es de ETM Tuesday.");
+  }
+  const correoDestino = destino.asignacion.destinatario.email;
+  const ritmo = ritmoInvitacionDesdeEntorno(process.env);
+  try {
+    const correo = await prepararCorreoInvitacion(entrevistaId);
+    const aceptado = await ejecutarEnvioConReintentos({
+      dormir: dormirMs,
+      enviar: async () =>
+        await enviarCorreoPreparado({
+          copiarEquipo: false,
+          correo,
+          idempotencyKey: claveIdempotenciaInvitacion(entrevistaId),
+        }),
+      intentosMaximos: ritmo.intentosMaximos,
+      intervaloBaseMs: ritmo.intervaloMs,
+    });
+    const { error } = await admin.from("invitacion_envio").insert({
+      correo: correoDestino,
+      detalle: detalleEnvioAceptado(aceptado?.id),
+      entrevista_id: entrevistaId,
+      estado: "enviado",
+    });
+    if (error && error.code !== "23505") {
+      throw new Error(
+        `Resend aceptó el envío (${aceptado?.id ?? "sin id"}), pero no quedó registrado: ${error.message}`
+      );
+    }
+    return { estado: "enviado", resendId: aceptado?.id ?? null };
+  } catch (error) {
+    await admin.from("invitacion_envio").insert({
+      correo: correoDestino,
+      detalle: error instanceof Error ? error.message : "Error de envío",
+      entrevista_id: entrevistaId,
+      estado: "error",
+    });
+    throw error;
+  }
 }

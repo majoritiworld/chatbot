@@ -31,6 +31,20 @@ import {
 } from "@/lib/consultoria/entrevista-piloto";
 import { cn } from "@/lib/utils";
 
+const AVISO_TERMINAR_CONVERSACION =
+  "Se enviará lo que respondiste hasta este momento. Las preguntas que faltan quedarán sin responder y ya no podrás agregar más.";
+const AVISO_BORRADOR_CONVERSACION =
+  "El texto que escribiste y no enviaste no se incluirá. Si quieres incluirlo, elige Seguir respondiendo: lo encontrarás tal como lo dejaste.";
+
+function tituloConfirmacion(continua: boolean, esUltimo: boolean) {
+  if (continua) {
+    return "¿Terminar y enviar ahora?";
+  }
+  return esUltimo
+    ? "¿Finalizar y entregar la entrevista?"
+    : "¿Terminar este tema antes de tiempo?";
+}
+
 type CierreAnticipadoContexto = {
   abrir: () => void;
   busy: boolean;
@@ -44,7 +58,13 @@ export function TerminarTemaAntesProvider({
 }: {
   children: ReactNode;
 }) {
-  const { indiceSeccion, input, numeroSecciones, setInput } = useActiveChat();
+  const {
+    conversacionContinua,
+    indiceSeccion,
+    input,
+    numeroSecciones,
+    setInput,
+  } = useActiveChat();
   const { busy, errorCierre, exitoCierre, forzarCierre } =
     useCerrarSeccionEntrevista();
   const [confirmar, setConfirmar] = useState(false);
@@ -55,12 +75,14 @@ export function TerminarTemaAntesProvider({
     indiceSeccion >= numeroSecciones - 1;
 
   const abrir = useCallback(() => {
-    if (debeConfirmarCierrePorBorrador(input)) {
+    if (!conversacionContinua && debeConfirmarCierrePorBorrador(input)) {
       setConfirmarBorrador(true);
       return;
     }
     setConfirmar(true);
-  }, [input]);
+  }, [conversacionContinua, input]);
+  const conBorrador =
+    Boolean(conversacionContinua) && debeConfirmarCierrePorBorrador(input);
 
   const seguirRespondiendo = useCallback(() => {
     setConfirmar(false);
@@ -137,13 +159,21 @@ export function TerminarTemaAntesProvider({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {esUltimo
-                ? "¿Finalizar y entregar la entrevista?"
-                : "¿Terminar este tema antes de tiempo?"}
+              {tituloConfirmacion(Boolean(conversacionContinua), esUltimo)}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {avisoCierreAnticipado(esUltimo)}
+              {conversacionContinua
+                ? AVISO_TERMINAR_CONVERSACION
+                : avisoCierreAnticipado(esUltimo)}
             </AlertDialogDescription>
+            {conBorrador ? (
+              <p
+                className="text-muted-foreground text-sm"
+                data-testid="entrevista-aviso-borrador"
+              >
+                {AVISO_BORRADOR_CONVERSACION}
+              </p>
+            ) : null}
           </AlertDialogHeader>
           {mostrarError ? (
             <p className="text-destructive text-sm" role="alert">
@@ -164,11 +194,13 @@ export function TerminarTemaAntesProvider({
               onClick={confirmarCierre}
               type="button"
             >
-              {etiquetaAccionCierreAnticipado({
-                busy,
-                esUltimo,
-                mostrarError,
-              })}
+              {conversacionContinua && !(busy || mostrarError)
+                ? "Terminar y enviar"
+                : etiquetaAccionCierreAnticipado({
+                    busy,
+                    esUltimo,
+                    mostrarError,
+                  })}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -178,15 +210,37 @@ export function TerminarTemaAntesProvider({
 }
 
 export function TerminarTemaAntesButton({
+  enConversacion = false,
   trigger = "link",
 }: {
-  trigger?: "link" | "menu";
+  /** Continuous chats show it only where the caller places it. */
+  enConversacion?: boolean;
+  trigger?: "link" | "menu" | "compositor";
 }) {
   const contexto = useContext(AbrirCierreAnticipadoContext);
+  const { conversacionContinua, inicioPendiente } = useActiveChat();
   const etiqueta = etiquetaCierreAnticipado();
 
-  if (!contexto) {
+  if (!contexto || (conversacionContinua && !enConversacion)) {
     return null;
+  }
+
+  if (trigger === "compositor") {
+    if (inicioPendiente) {
+      return null;
+    }
+    return (
+      <Button
+        className="h-9 rounded-full border-neutral-300 px-3.5 font-medium text-[13px] text-neutral-700 shadow-none hover:bg-neutral-50 hover:text-neutral-900"
+        data-testid="entrevista-terminar"
+        disabled={contexto.busy}
+        onClick={contexto.abrir}
+        type="button"
+        variant="outline"
+      >
+        {contexto.busy ? "Enviando…" : "Terminar entrevista"}
+      </Button>
+    );
   }
 
   if (trigger === "menu") {

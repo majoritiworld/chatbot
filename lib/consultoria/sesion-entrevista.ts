@@ -245,6 +245,7 @@ const RUTAS_API_ENTREVISTA = new Set([
   "/api/entrevista/finalizar",
   "/api/entrevista/flujo",
   "/api/entrevista/guardar",
+  "/api/entrevista/inicio",
   "/api/entrevista/sintesis",
   "/api/transcribe",
 ]);

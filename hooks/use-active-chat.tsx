@@ -47,6 +47,19 @@ import { ChatbotError } from "@/lib/errors";
 import type { ChatMessage, SectionCompletedData } from "@/lib/types";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 
+export type RespuestaInicioChat =
+  | { iniciada: true }
+  | { iniciada: false; respuesta: string };
+
+export type InicioChat = {
+  onIniciar: (texto: string) => Promise<RespuestaInicioChat>;
+  /** True until the person accepts and the first question can be asked. */
+  pendiente: boolean;
+  saludo: string;
+};
+
+export type EstadoGuardado = "error" | "guardado" | "guardando" | "sin_cambios";
+
 type ActiveChatContextValue = {
   chatId: string;
   /** True when the chat is pinned to an interview (client portal embed). */
@@ -70,6 +83,7 @@ type ActiveChatContextValue = {
   setCurrentModelId: (id: string) => void;
   showCreditCardAlert: boolean;
   setShowCreditCardAlert: Dispatch<SetStateAction<boolean>>;
+  conversacionContinua?: boolean;
   entrevistaId?: string;
   seccionId?: string;
   indiceSeccion?: number;
@@ -83,6 +97,13 @@ type ActiveChatContextValue = {
   ofertaCierrePersistida: boolean;
   demoAislada: boolean;
   demoVoz?: ModoVozEntrevista;
+  /** Greeting and the replies before "¿Comenzamos?" was accepted. Never sent to the model. */
+  mensajesInicio: ChatMessage[];
+  inicioPendiente: boolean;
+  inicioEnviando: boolean;
+  enviarInicio: (texto: string) => void;
+  /** "guardado" only after the server confirmed the last turn. */
+  estadoGuardado: EstadoGuardado;
 };
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
@@ -94,16 +115,20 @@ function extractChatId(pathname: string): string | null {
 
 export function ActiveChatProvider({
   children,
+  conversacionContinua = false,
   demoAislada = false,
   demoVoz,
   entrevistaId,
   indiceSeccion,
+  inicio,
   mensajesIniciales,
   numeroSecciones,
   onSeccionCompletada,
   seccionId,
 }: {
   children: ReactNode;
+  inicio?: InicioChat;
+  conversacionContinua?: boolean;
   demoAislada?: boolean;
   demoVoz?: ModoVozEntrevista;
   entrevistaId?: string;
@@ -162,6 +187,12 @@ export function ActiveChatProvider({
     ofertaCierreVigenteEnChat(mensajesIniciales ?? [])
   );
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
+  const [intercambiosInicio, setIntercambiosInicio] = useState<ChatMessage[]>(
+    []
+  );
+  const [inicioEnviando, setInicioEnviando] = useState(false);
+  const inicioEnviandoRef = useRef(false);
+  const [turnoConfirmado, setTurnoConfirmado] = useState(false);
   const [claveGuardada, setClaveGuardada] = useState<string | null>(null);
   const [mensajeFallido, setMensajeFallido] = useState<ChatMessage | null>(
     null
@@ -203,6 +234,10 @@ export function ActiveChatProvider({
     onData: (dataPart) => {
       if (dataPart.type === "data-oferta-cierre-persistida") {
         setOfertaCierrePersistida(true);
+        return;
+      }
+      if (dataPart.type === "data-turno-guardado") {
+        setTurnoConfirmado(true);
         return;
       }
       if (dataPart.type === "data-waiting-status") {
@@ -339,10 +374,11 @@ export function ActiveChatProvider({
     }
   }, [sendMessage, chatId, esEntrevista]);
 
+  const inicioPendiente = inicio?.pendiente === true;
   const kickoffClave =
     entrevistaId && seccionId ? claveKickoff(entrevistaId, seccionId) : null;
   useEffect(() => {
-    if (!esEntrevista || !kickoffClave || demoAislada) {
+    if (!esEntrevista || !kickoffClave || demoAislada || inicioPendiente) {
       return;
     }
     if (messages.length > 0) {
@@ -363,11 +399,87 @@ export function ActiveChatProvider({
   }, [
     demoAislada,
     esEntrevista,
+    inicioPendiente,
     kickoffClave,
     messages.length,
     sendMessage,
     status,
   ]);
+
+  useEffect(() => {
+    if (status === "submitted") {
+      setTurnoConfirmado(false);
+    }
+  }, [status]);
+
+  const onIniciar = inicio?.onIniciar;
+  const enviarInicio = useCallback(
+    (texto: string) => {
+      const limpio = texto.trim();
+      if (!(limpio && onIniciar) || inicioEnviandoRef.current) {
+        return;
+      }
+      inicioEnviandoRef.current = true;
+      setInicioEnviando(true);
+      const mensajeUsuario: ChatMessage = {
+        id: generateUUID(),
+        metadata: { createdAt: new Date().toISOString() },
+        parts: [{ text: limpio, type: "text" }],
+        role: "user",
+      };
+      setIntercambiosInicio((previos) => [...previos, mensajeUsuario]);
+      setInput("");
+      onIniciar(limpio)
+        .then((resultado) => {
+          if (resultado.iniciada) {
+            return;
+          }
+          setIntercambiosInicio((previos) => [
+            ...previos,
+            {
+              id: generateUUID(),
+              metadata: { createdAt: new Date().toISOString() },
+              parts: [{ text: resultado.respuesta, type: "text" }],
+              role: "assistant",
+            },
+          ]);
+        })
+        .catch((error: unknown) => {
+          setIntercambiosInicio((previos) =>
+            previos.filter((mensaje) => mensaje.id !== mensajeUsuario.id)
+          );
+          setInput(limpio);
+          toast({
+            description:
+              error instanceof Error
+                ? error.message
+                : "No se pudo enviar. Tu texto sigue en el campo.",
+            type: "error",
+          });
+        })
+        .finally(() => {
+          inicioEnviandoRef.current = false;
+          setInicioEnviando(false);
+        });
+    },
+    [onIniciar, setInput]
+  );
+
+  const saludo = inicio?.saludo;
+  const mensajesInicio = useMemo<ChatMessage[]>(() => {
+    if (!(saludo && entrevistaId)) {
+      return [];
+    }
+    return [
+      {
+        id: `saludo-${entrevistaId}`,
+        metadata: { createdAt: new Date(0).toISOString() },
+        parts: [{ text: saludo, type: "text" }],
+        role: "assistant",
+      },
+      ...intercambiosInicio,
+    ];
+  }, [entrevistaId, intercambiosInicio, saludo]);
 
   useAutoResume({
     autoResume: !isNewChat && !!chatData,
@@ -402,23 +514,37 @@ export function ActiveChatProvider({
   }, [clearError, mensajeFallido, sendMessage]);
 
   const hayMensajeFallido = status === "error" && Boolean(mensajeFallido);
+  let estadoGuardado: EstadoGuardado = "sin_cambios";
+  if (status === "error") {
+    estadoGuardado = "error";
+  } else if (status === "submitted" || status === "streaming") {
+    estadoGuardado = "guardando";
+  } else if (turnoConfirmado || progresoGuardado) {
+    estadoGuardado = "guardado";
+  }
 
   const value = useMemo<ActiveChatContextValue>(
     () => ({
       addToolApprovalResponse,
       chatId,
+      conversacionContinua,
       currentModelId,
       demoAislada,
       demoVoz,
       entrevistaId,
+      enviarInicio,
       esEntrevista,
+      estadoGuardado,
       guardadoEnCurso,
       hayMensajeFallido,
       indiceSeccion,
+      inicioEnviando,
+      inicioPendiente,
       input,
       isLoading: !isNewChat && isLoading,
       isReadonly,
       marcarProgresoGuardado,
+      mensajesInicio,
       messages,
       numeroSecciones,
       ofertaCierrePersistida,
@@ -442,19 +568,25 @@ export function ActiveChatProvider({
     [
       addToolApprovalResponse,
       chatId,
+      conversacionContinua,
       currentModelId,
       demoAislada,
       demoVoz,
       entrevistaId,
+      enviarInicio,
       esEntrevista,
+      estadoGuardado,
       guardadoEnCurso,
       hayMensajeFallido,
       indiceSeccion,
+      inicioEnviando,
+      inicioPendiente,
       input,
       isLoading,
       isNewChat,
       isReadonly,
       marcarProgresoGuardado,
+      mensajesInicio,
       messages,
       numeroSecciones,
       ofertaCierrePersistida,

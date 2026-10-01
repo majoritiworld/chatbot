@@ -545,3 +545,33 @@ test("invitations stay disabled on the server and no app code imports the sender
   );
   expect(importan).toEqual([]);
 });
+
+test("the thank-you can use tú and still defaults to usted", () => {
+  const identidad = {
+    cliente: "Emprendetumente",
+    color: null,
+    contactoEmail: "seba@majoriti.world",
+    contactoNombre: "Equipo ETM Tuesday",
+    logoUrl: null,
+    titulo: null,
+  };
+  const tu = correoConfirmacion({
+    destinatario: { email: "ana@example.test", nombre: "Ana" },
+    identidad,
+    siguientePaso: null,
+    textos: { asunto: null, cuerpo: null, firma: null, remitente: null },
+    trato: "tu",
+  });
+  expect(tu.text).toContain("Tu entrevista está completa");
+  expect(tu.text).toContain("¿Tienes alguna pregunta?");
+  expect(tu.subject).toBe("Recibimos tus respuestas");
+  expect(tu.text).not.toMatch(/\bSu entrevista|Responda\b/);
+  const usted = correoConfirmacion({
+    destinatario: { email: "ana@example.test", nombre: "Ana" },
+    identidad,
+    siguientePaso: null,
+    textos: { asunto: null, cuerpo: null, firma: null, remitente: null },
+  });
+  expect(usted.text).toContain("Su entrevista está completa");
+  expect(usted.subject).toBe("Recibimos sus respuestas");
+});

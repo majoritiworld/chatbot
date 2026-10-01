@@ -79,6 +79,7 @@ export type CustomUIDataTypes = {
   "waiting-status": WaitingStatusData;
   "seccion-completada": SectionCompletedData;
   "oferta-cierre-persistida": { seccionId: string };
+  "turno-guardado": { seccionId: string };
 };
 
 export type ChatMessage = UIMessage<

@@ -1,6 +1,10 @@
 import "server-only";
 
 import { generateText, Output } from "ai";
+import {
+  entrevistaSimuladaLocal,
+  resumenCierreSimulado,
+} from "@/lib/ai/entrevista-simulada";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { getLanguageModel } from "@/lib/ai/providers";
 import {
@@ -23,6 +27,9 @@ export async function generarResumenCierreSeccion({
   tituloSeccion: string;
   turnos: TurnoEntrevista[];
 }) {
+  if (entrevistaSimuladaLocal()) {
+    return resumenCierreSimulado({ preguntas, tituloSeccion, turnos });
+  }
   const { output } = await generateText({
     instructions: instruccionesSintesisCierre({
       forzar,

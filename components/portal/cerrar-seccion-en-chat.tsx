@@ -31,6 +31,7 @@ export function CerrarSeccionEnChat({
   visible?: boolean;
 }) {
   const {
+    conversacionContinua,
     indiceSeccion,
     input,
     messages,
@@ -50,12 +51,12 @@ export function CerrarSeccionEnChat({
     indiceSeccion >= numeroSecciones - 1;
 
   const intentarCerrar = useCallback(() => {
-    if (esUltimo) {
+    if (esUltimo && !conversacionContinua) {
       setConfirmarEntrega(true);
       return;
     }
     pedirCierre();
-  }, [esUltimo, pedirCierre]);
+  }, [conversacionContinua, esUltimo, pedirCierre]);
 
   const handleClick = useCallback(() => {
     if (debeConfirmarCierrePorBorrador(input)) {
@@ -121,11 +122,19 @@ export function CerrarSeccionEnChat({
     return null;
   }
 
-  let etiqueta = etiquetaCierreTema(esUltimo);
+  let etiqueta = conversacionContinua
+    ? "Enviar entrevista"
+    : etiquetaCierreTema(esUltimo);
   if (guardandoCierre) {
     etiqueta = "Guardando…";
   } else if (busy) {
-    etiqueta = esUltimo ? "Finalizando…" : "Cerrando tema…";
+    if (conversacionContinua) {
+      etiqueta = "Enviando…";
+    } else if (esUltimo) {
+      etiqueta = "Finalizando…";
+    } else {
+      etiqueta = "Cerrando tema…";
+    }
   }
 
   return (
