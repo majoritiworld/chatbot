@@ -33,6 +33,7 @@ import {
   tratoDeInvitacion,
 } from "@/lib/consultoria/invitacion-colaboradores";
 import {
+  copiaOcultaInvitacionEtm,
   debeRetenerCorreoEtm,
   esFaseEtm,
   esPruebaSebaEtm,
@@ -88,10 +89,13 @@ async function enviarCorreoPreparado({
   correo,
   idempotencyKey,
   copiarEquipo = true,
+  copiaOculta = null,
 }: {
   correo: CorreoPreparado;
   idempotencyKey: string;
   copiarEquipo?: boolean;
+  /** Explicit hidden copy for this one mail, any type. */
+  copiaOculta?: string | null;
 }) {
   if (correo.tipo === "invitacion" && !invitacionesHabilitadas()) {
     throw new Error(INVITACIONES_DESHABILITADAS);
@@ -126,6 +130,7 @@ async function enviarCorreoPreparado({
         text: correo.text,
         to: [correo.destinatario],
         ...(copiar && { bcc: [copiaEquipo] }),
+        ...(copiaOculta && { bcc: [copiaOculta] }),
       },
       { idempotencyKey }
     );
@@ -554,6 +559,10 @@ export async function enviarInvitacionPruebaEtm(
       dormir: dormirMs,
       enviar: async () =>
         await enviarCorreoPreparado({
+          copiaOculta: copiaOcultaInvitacionEtm(
+            destino.asignacion.faseNombre,
+            correoDestino
+          ),
           copiarEquipo: false,
           correo,
           idempotencyKey: claveIdempotenciaInvitacion(entrevistaId),

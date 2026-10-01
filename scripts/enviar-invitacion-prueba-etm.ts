@@ -1,6 +1,6 @@
 /**
- * Sends one ETM invitation: Seba's run, or a fictitious address while mail is
- * intercepted locally. Gabriel, Amelia and Juan Pablo stay held by the gate.
+ * Sends one ETM invitation: Seba's run, one of the three approved trials (with
+ * a hidden copy to Seba), or a fictitious address while mail is intercepted.
  *
  *   ENTREVISTA_ID=<uuid> CONFIRMAR_ENVIO=<same uuid> HABILITAR_INVITACIONES_CORREO=1 \
  *   NODE_OPTIONS=--conditions=react-server pnpm exec tsx scripts/enviar-invitacion-prueba-etm.ts
@@ -9,7 +9,7 @@ import { enviarInvitacionPruebaEtm } from "@/lib/consultoria/email-entrevista";
 import {
   correoInterceptado,
   EMAIL_PRUEBA_SEBA_ETM,
-  PARTICIPANTES_PENDIENTES_ETM,
+  PARTICIPANTES_APROBADOS_ETM,
 } from "@/lib/consultoria/invitacion-etm";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -46,15 +46,18 @@ async function main() {
     throw new Error("CONFIRMAR_ENVIO debe repetir ENTREVISTA_ID");
   }
   const email = await destinatario(entrevistaId);
-  if (PARTICIPANTES_PENDIENTES_ETM.has(email)) {
-    throw new Error("Este envío espera la aprobación explícita de Seba.");
-  }
   const ficticio =
     email.endsWith(DOMINIO_FICTICIO) &&
     correoInterceptado(process.env.RESEND_BASE_URL);
-  if (!(email === EMAIL_PRUEBA_SEBA_ETM || ficticio)) {
+  if (
+    !(
+      email === EMAIL_PRUEBA_SEBA_ETM ||
+      PARTICIPANTES_APROBADOS_ETM.has(email) ||
+      ficticio
+    )
+  ) {
     throw new Error(
-      "Solo la prueba de Seba o un correo ficticio interceptado."
+      "Solo Seba, las tres pruebas aprobadas o un correo ficticio interceptado."
     );
   }
   const resultado = await enviarInvitacionPruebaEtm(entrevistaId);

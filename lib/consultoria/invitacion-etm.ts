@@ -3,21 +3,21 @@ import { FASES_ETM_TUESDAY } from "@/lib/consultoria/guiones/etm-tuesday";
 const fases = new Set<string>(FASES_ETM_TUESDAY);
 
 /**
- * Prepared walkthrough assignments. Their mail stays held until Seba
- * approves it explicitly after his own run.
+ * Walkthrough trials approved by Seba on 1 Oct 2026 after his own run:
+ * one invitation each, with a hidden copy to him, and the thank-you.
  */
-export const PARTICIPANTES_PENDIENTES_ETM: ReadonlySet<string> = new Set([
+export const PARTICIPANTES_APROBADOS_ETM: ReadonlySet<string> = new Set([
   "amelia.somavia@emprendetumente.org",
   "gabriel.fuentes@emprendetumente.org",
   "juan.lobos@emprendetumente.org",
 ]);
 
-/** Seba's own run: the only real address that gets ETM mail today. */
+/** Seba's own run. Its mail carries [PRUEBA] in the subject. */
 export const EMAIL_PRUEBA_SEBA_ETM = "seba@majoriti.world";
 
 /** Internal trials. Out of the real pilot and out of Notion. */
 export const PARTICIPANTES_PRUEBA_ETM: ReadonlySet<string> = new Set([
-  ...PARTICIPANTES_PENDIENTES_ETM,
+  ...PARTICIPANTES_APROBADOS_ETM,
   EMAIL_PRUEBA_SEBA_ETM,
 ]);
 
@@ -56,20 +56,34 @@ export function esPruebaSebaEtm(
 }
 
 /**
- * Seba's run, or fictitious addresses while mail is intercepted. The three
- * prepared ETM people and the real pilot stay held.
+ * Seba's run, the three approved trials, or fictitious addresses while mail
+ * is intercepted. Any other ETM address and the real pilot stay held.
  */
 export function envioCorreoEtmPermitido(
   email: string | null | undefined,
   resendBaseUrl: string | undefined
 ) {
   const destino = normalizado(email);
-  if (destino === EMAIL_PRUEBA_SEBA_ETM) {
+  if (
+    destino === EMAIL_PRUEBA_SEBA_ETM ||
+    PARTICIPANTES_APROBADOS_ETM.has(destino)
+  ) {
     return true;
   }
   return (
     correoInterceptado(resendBaseUrl) && destino.endsWith(DOMINIO_FICTICIO)
   );
+}
+
+/** Seba gets a hidden copy of each approved trial invitation, never of thank-yous. */
+export function copiaOcultaInvitacionEtm(
+  faseNombre: string | null,
+  email: string | null | undefined
+) {
+  return esFaseEtm(faseNombre) &&
+    PARTICIPANTES_APROBADOS_ETM.has(normalizado(email))
+    ? EMAIL_PRUEBA_SEBA_ETM
+    : null;
 }
 
 /** Phase batches stay held for ETM: trials go one by one. */

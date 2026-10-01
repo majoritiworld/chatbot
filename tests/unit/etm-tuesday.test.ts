@@ -31,10 +31,11 @@ import {
   seccionesDeGuionEtm,
 } from "@/lib/consultoria/guiones/etm-tuesday";
 import {
+  copiaOcultaInvitacionEtm,
   debeRetenerCorreoEtm,
   esParticipantePruebaEtm,
   esPruebaSebaEtm,
-  PARTICIPANTES_PENDIENTES_ETM,
+  PARTICIPANTES_APROBADOS_ETM,
   PARTICIPANTES_PRUEBA_ETM,
 } from "@/lib/consultoria/invitacion-etm";
 import { herramientasDelTurno } from "@/lib/consultoria/pasos-entrevista";
@@ -282,18 +283,21 @@ test("el recordatorio excluye a quien ya completó y no tiene un envío", () => 
   expect(CUERPO_RECORDATORIO_ETM).not.toMatch(/prueba|demo/i);
 });
 
-test("ETM retiene el lote y a las tres personas; solo pasa la prueba de Seba", () => {
+test("ETM retiene el lote; pasan Seba y las tres pruebas aprobadas", () => {
   for (const fase of FASES_ETM_TUESDAY) {
     expect(debeRetenerCorreoEtm(fase)).toBe(true);
-    for (const email of PARTICIPANTES_PENDIENTES_ETM) {
-      expect(debeRetenerCorreoEtm(fase, { email })).toBe(true);
+    for (const email of PARTICIPANTES_APROBADOS_ETM) {
+      expect(debeRetenerCorreoEtm(fase, { email })).toBe(false);
       expect(
-        debeRetenerCorreoEtm(fase, {
-          email,
-          resendBaseUrl: "http://127.0.0.1:54329",
-        })
-      ).toBe(true);
+        debeRetenerCorreoEtm(fase, { email: ` ${email.toUpperCase()} ` })
+      ).toBe(false);
+      expect(esPruebaSebaEtm(fase, email)).toBe(false);
+      expect(copiaOcultaInvitacionEtm(fase, email)).toBe("seba@majoriti.world");
     }
+    expect(copiaOcultaInvitacionEtm(fase, "seba@majoriti.world")).toBeNull();
+    expect(
+      copiaOcultaInvitacionEtm(fase, "otra.persona@emprendetumente.org")
+    ).toBeNull();
     expect(debeRetenerCorreoEtm(fase, { email: " Seba@Majoriti.world " })).toBe(
       false
     );
@@ -317,7 +321,13 @@ test("ETM retiene el lote y a las tres personas; solo pasa la prueba de Seba", (
       })
     ).toBe(true);
   }
-  expect(PARTICIPANTES_PENDIENTES_ETM.size).toBe(3);
+  expect(PARTICIPANTES_APROBADOS_ETM.size).toBe(3);
+  expect(
+    copiaOcultaInvitacionEtm(
+      "Entrevistas a colaboradores",
+      "gabriel.fuentes@emprendetumente.org"
+    )
+  ).toBeNull();
   expect(esPruebaSebaEtm("Colaboradores", "seba@majoriti.world")).toBe(false);
   expect(debeRetenerCorreoEtm("Entrevistas a Firmas Socias")).toBe(false);
   expect(debeRetenerCorreoEtm("Mentores")).toBe(false);
