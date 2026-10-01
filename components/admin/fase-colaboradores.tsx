@@ -9,7 +9,7 @@ export async function FaseColaboradoresAdmin({ faseId }: { faseId: string }) {
     <>
       <AdminSeccion
         defaultOpen
-        descripcion="Las respuestas de esta fase quedan asociadas al nombre. La convocatoria sigue bloqueada."
+        descripcion="Las respuestas de esta fase quedan asociadas al nombre. El agradecimiento va solo a quien respondió."
         titulo="Identidad de las respuestas"
       >
         <div className="flex flex-col gap-2 text-sm">

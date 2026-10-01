@@ -188,6 +188,7 @@ test("a simulated provider accepts one id and a resumed batch skips it", async (
   expect(entregas).toBe(1);
 
   const lote = pendientesDeLote(["nueva", "real", "prueba", "vacia"], {
+    completadas: [],
     enviados: ["nueva"],
     pruebas: ["prueba"],
     sinCorreo: ["vacia"],

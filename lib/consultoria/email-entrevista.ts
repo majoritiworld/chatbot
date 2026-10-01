@@ -25,6 +25,7 @@ import {
 import { debeBloquearCorreoEntrevista } from "@/lib/consultoria/entrevista-piloto";
 import {
   asuntoConPrefijoPrueba,
+  confirmacionSinCopia,
   debeRetenerCorreoColaboradores,
   esExcepcionEnvioPruebaColaboradores,
   excluirDeCampanaColaboradores,
@@ -193,7 +194,7 @@ export async function enviarCorreoAgradecimiento({
 
   try {
     const data = await enviarCorreoPreparado({
-      copiarEquipo: !excepcion,
+      copiarEquipo: !(excepcion || confirmacionSinCopia(asignacion.faseNombre)),
       correo,
       idempotencyKey: claveIdempotenciaConfirmacion(entrevistaId),
     });
@@ -411,7 +412,7 @@ export async function enviarInvitacionesDeFase(
   const { data: marcas } = ids.length
     ? await admin
         .from("entrevista")
-        .select("id, stakeholder:stakeholder_id(email, firma)")
+        .select("id, estado, stakeholder:stakeholder_id(email, firma)")
         .in("id", ids)
     : { data: [] };
   const yaEnviadas = new Set(
@@ -419,11 +420,15 @@ export async function enviarInvitacionesDeFase(
   );
   const sinCorreo = new Set<string>();
   const pruebas = new Set<string>();
+  const completadas = new Set<string>();
   for (const fila of marcas ?? []) {
     const stakeholder = Array.isArray(fila.stakeholder)
       ? fila.stakeholder[0]
       : fila.stakeholder;
     const entrevistaId = String(fila.id);
+    if (fila.estado === "completada") {
+      completadas.add(entrevistaId);
+    }
     if (!stakeholder?.email?.trim()) {
       sinCorreo.add(entrevistaId);
     }
@@ -437,6 +442,7 @@ export async function enviarInvitacionesDeFase(
     }
   }
   const lote = pendientesDeLote(ids, {
+    completadas,
     enviados: yaEnviadas,
     pruebas,
     sinCorreo,

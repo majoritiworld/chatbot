@@ -1,11 +1,11 @@
 import { NOMBRE_FASE_COLABORADORES } from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
 
 /**
- * Stays false until an explicit later confirmation of the whole phase.
- * Do not flip this to send the campaign.
+ * The 284 real collaborators are authorized. Trial rows stay out of the batch.
+ * Thank-you mail for this phase sends when someone finishes, and only to them.
  */
 export function envioInvitacionesColaboradoresPermitido() {
-  return false;
+  return true;
 }
 
 /**
@@ -75,15 +75,22 @@ export function tratoDeInvitacion(faseNombre: string | null) {
   return "usted" as const;
 }
 
+/** This phase never copies the thank-you. Other phases keep their team copy. */
+export function confirmacionSinCopia(faseNombre: string | null) {
+  return faseNombre?.trim() === NOMBRE_FASE_COLABORADORES;
+}
+
 export function pendientesDeLote(
   ids: readonly string[],
   grupos: {
+    completadas: Iterable<string>;
     enviados: Iterable<string>;
     pruebas: Iterable<string>;
     sinCorreo: Iterable<string>;
   }
 ) {
   const fuera = new Set([
+    ...grupos.completadas,
     ...grupos.enviados,
     ...grupos.pruebas,
     ...grupos.sinCorreo,

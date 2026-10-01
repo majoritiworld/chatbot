@@ -31,6 +31,7 @@ import {
 } from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
 import {
   asuntoConPrefijoPrueba,
+  confirmacionSinCopia,
   debeRetenerCorreoColaboradores,
   EMAIL_PRUEBA_COLABORADORES,
   ENTREVISTA_PRUEBA_COLABORADORES,
@@ -466,9 +467,11 @@ test("el aviso de colaboradores nombra a la persona antes de aceptar", () => {
   ).toBe("chat");
 });
 
-test("los correos de esta fase siguen retenidos", () => {
-  expect(envioInvitacionesColaboradoresPermitido()).toBe(false);
-  expect(debeRetenerCorreoColaboradores(NOMBRE_FASE_COLABORADORES)).toBe(true);
+test("la convocatoria de esta fase ya está autorizada y no copia el agradecimiento", () => {
+  expect(envioInvitacionesColaboradoresPermitido()).toBe(true);
+  expect(confirmacionSinCopia(NOMBRE_FASE_COLABORADORES)).toBe(true);
+  expect(confirmacionSinCopia("Entrevistas a Firmas Socias")).toBe(false);
+  expect(debeRetenerCorreoColaboradores(NOMBRE_FASE_COLABORADORES)).toBe(false);
   expect(debeRetenerCorreoColaboradores("Firmas socias")).toBe(false);
   expect(
     debeRetenerCorreoColaboradores(NOMBRE_FASE_COLABORADORES, {
@@ -481,7 +484,7 @@ test("los correos de esta fase siguen retenidos", () => {
       email: "otra@empresa.test",
       entrevistaId: ENTREVISTA_PRUEBA_COLABORADORES,
     })
-  ).toBe(true);
+  ).toBe(false);
   expect(
     debeRetenerCorreoColaboradores("Entrevistas a Firmas Socias", {
       email: EMAIL_PRUEBA_COLABORADORES,
@@ -491,12 +494,13 @@ test("los correos de esta fase siguen retenidos", () => {
   expect(tratoDeInvitacion(NOMBRE_FASE_COLABORADORES)).toBe("tu");
   expect(tratoDeInvitacion("Entrevistas a Firmas Socias")).toBe("usted");
   expect(
-    pendientesDeLote(["enviada", "real", "prueba", "vacia"], {
+    pendientesDeLote(["enviada", "real", "prueba", "vacia", "cerrada"], {
+      completadas: ["cerrada"],
       enviados: ["enviada"],
       pruebas: ["prueba"],
       sinCorreo: ["vacia"],
     })
-  ).toEqual({ omitidos: 3, pendientes: ["real"] });
+  ).toEqual({ omitidos: 4, pendientes: ["real"] });
 });
 
 test("las pruebas no entran en el conteo ni en la campaña de colaboradores", () => {
