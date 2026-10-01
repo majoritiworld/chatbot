@@ -45,10 +45,9 @@ export class ErrorEnvioCorreo extends Error {
   }
 }
 
-export function ritmoInvitacionDesdeEntorno(env: {
-  INVITACION_INTENTOS_MAX?: string;
-  INVITACION_RITMO_MS?: string;
-}) {
+export function ritmoInvitacionDesdeEntorno(
+  env: Record<string, string | undefined>
+) {
   return {
     intentosMaximos: enteroAcotado(
       env.INVITACION_INTENTOS_MAX,
