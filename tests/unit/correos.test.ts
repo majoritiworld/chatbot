@@ -380,6 +380,45 @@ test("invitation explains who, why, how long, saving and access, with no bcc hin
   expect(correo.text).not.toContain("sin código");
 });
 
+test("an invitation never carries the phase promotion", () => {
+  const asignacion = asignacionOk(
+    filas({
+      fase: {
+        bloque_comercial: "Conozca Majoriti.",
+        bloque_comercial_etiqueta: "Probar una demo",
+        bloque_comercial_url: "https://majoriti.world",
+        minutos: 15,
+        proyecto_id: PROYECTO,
+      },
+    })
+  );
+  const enlace = crearEnlaceAcceso({
+    entrevistaId: ENTREVISTA,
+    permitirLocal: false,
+    site: SITE,
+    slug: asignacion.slug,
+    token: "token-personal-de-prueba-123",
+  });
+  if (!enlace) {
+    throw new Error("sin enlace");
+  }
+  for (const trato of ["tu", "usted"] as const) {
+    const correo = correoInvitacion({
+      destinatario: asignacion.destinatario,
+      enlace,
+      identidad: asignacion.identidad,
+      minutos: asignacion.minutos,
+      textos: asignacion.textos.invitacion,
+      trato,
+    });
+    for (const contenido of [correo.html, correo.text]) {
+      expect(contenido).not.toContain("Conozca Majoriti.");
+      expect(contenido).not.toContain("Probar una demo");
+      expect(contenido).not.toContain("https://majoriti.world");
+    }
+  }
+});
+
 test("a personal-link invitation needs no email and names no other client", () => {
   const asignacion = asignacionOk(filas());
   const enlace = crearEnlaceAcceso({
