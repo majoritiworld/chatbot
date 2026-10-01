@@ -4,13 +4,23 @@ import {
   tituloTranscripcion,
 } from "@/lib/consultoria/entrevista-contenido";
 import {
+  BASE_TRANSCRIPCIONES_ETM,
+  esConversacionFicticiaEtm,
+  esProyectoEtm,
+  PAGINA_PROYECTO_NOTION_COMPLIANCE_LATAM,
+  PAGINA_PROYECTO_NOTION_ETM,
+  segmentoNotionEtm,
+} from "@/lib/consultoria/notion-proyecto-etm";
+import {
   bloquesDesdeMarkdown,
   configuracionNotionTranscripcion,
   lotesDeBloques,
   matchUnicoPorNombre,
   propiedadesPaginaTranscripcion,
+  tituloNotionDeEntrevista,
   urlPaginaNotion,
 } from "@/lib/consultoria/notion-transcripcion-contenido";
+import { publicarPaginaTranscripcionNotion } from "@/lib/consultoria/notion-transcripcion-publicar";
 
 test.describe("Notion transcript mapping", () => {
   test("turns markdown into headings, a divider and spoken turns", () => {
@@ -173,5 +183,237 @@ test.describe("Notion transcript mapping", () => {
     });
     expect(propiedades.Estado).toEqual({ select: { name: "Procesada" } });
     expect(propiedades.Firma).toBeUndefined();
+  });
+
+  test("two interviews of one person get different Notion titles", () => {
+    const nombre = "PRUEBA Seba Majoriti";
+    expect(tituloNotionDeEntrevista(nombre, null)).toBe(
+      tituloTranscripcion(nombre)
+    );
+    expect(
+      tituloNotionDeEntrevista(nombre, "Entrevistas a colaboradores")
+    ).toBe(`${tituloTranscripcion(nombre)} — Entrevistas a colaboradores`);
+    expect(
+      tituloNotionDeEntrevista(nombre, "Entrevistas a colaboradores")
+    ).not.toBe(tituloNotionDeEntrevista(nombre, "Entrevistas a Firmas Socias"));
+  });
+});
+
+const PERSONAS = "ad23ef07-d313-4849-aaf7-6c6c03f06485";
+const PAGINA_FIRMAS = "3eb31b45-3629-8197-b8c9-e470c12c1e56";
+
+test.describe("ETM Notion destination", () => {
+  test("links the existing Consultoria ETM project and does not reuse a title", async () => {
+    const paginas = new Map<string, string>();
+    const llamadas: string[] = [];
+    let creadas = 0;
+    const fetchImpl: typeof fetch = (input, init) => {
+      const ruta = String(input).replace("https://api.notion.com/v1/", "");
+      llamadas.push(`${init?.method ?? "GET"} ${ruta}`);
+      const body =
+        typeof init?.body === "string"
+          ? (JSON.parse(init.body) as {
+              filter?: { rich_text?: { equals?: string }; title?: unknown };
+              properties?: {
+                "ID entrevista"?: {
+                  rich_text?: { text?: { content?: string } }[];
+                };
+                Proyecto?: { relation?: { id?: string }[] };
+                Segmento?: { select?: { name?: string } };
+              };
+            })
+          : null;
+      if (ruta === `data_sources/${BASE_TRANSCRIPCIONES_ETM}`) {
+        return Promise.resolve(
+          Response.json({
+            properties: {
+              "ID entrevista": { type: "rich_text" },
+              Name: { type: "title" },
+              Participante: {
+                relation: { data_source_id: PERSONAS },
+                type: "relation",
+              },
+              Proyecto: {
+                relation: {
+                  data_source_id: "4e10d8e1-eda6-49c0-b200-41cec303207d",
+                },
+                type: "relation",
+              },
+              Segmento: {
+                select: {
+                  options: [
+                    { name: "Mentor" },
+                    { name: "Mentoreado" },
+                    { name: "Sponsor" },
+                  ],
+                },
+                type: "select",
+              },
+            },
+          })
+        );
+      }
+      if (ruta === `data_sources/${PERSONAS}`) {
+        return Promise.resolve(
+          Response.json({
+            properties: {
+              Email: { type: "email" },
+              Name: { type: "title" },
+            },
+          })
+        );
+      }
+      if (ruta === `data_sources/${PERSONAS}/query`) {
+        return Promise.resolve(
+          Response.json({
+            results: [{ id: "persona-1", properties: {} }],
+          })
+        );
+      }
+      if (ruta === `data_sources/${BASE_TRANSCRIPCIONES_ETM}/query`) {
+        expect(body?.filter?.title).toBeUndefined();
+        const entrevistaId = body?.filter?.rich_text?.equals ?? "";
+        const pageId = paginas.get(entrevistaId);
+        return Promise.resolve(
+          Response.json({
+            results: pageId ? [{ id: pageId }] : [],
+          })
+        );
+      }
+      if (ruta === "pages") {
+        creadas += 1;
+        const entrevistaId =
+          body?.properties?.["ID entrevista"]?.rich_text?.at(0)?.text
+            ?.content ?? "";
+        const pageId = `pagina-etm-${creadas}`;
+        paginas.set(entrevistaId, pageId);
+        expect(body?.properties?.Proyecto?.relation?.at(0)?.id).toBe(
+          PAGINA_PROYECTO_NOTION_ETM
+        );
+        expect(body?.properties?.Proyecto?.relation?.at(0)?.id).not.toBe(
+          PAGINA_PROYECTO_NOTION_COMPLIANCE_LATAM
+        );
+        return Promise.resolve(Response.json({ id: pageId }));
+      }
+      return Promise.resolve(
+        Response.json({ message: `ruta inesperada ${ruta}` }, { status: 400 })
+      );
+    };
+
+    const datos = {
+      destinoEtm: true,
+      email: "ana@empresa.real",
+      estado: "completada",
+      fecha: "2026-10-01T12:00:00.000Z",
+      firma: "Norte",
+      markdown: "Conversación de prueba de asociación.",
+      nombre: "Ana Real",
+      proyectoCliente: "Emprendetumente",
+      proyectoNombre: "ETM Tuesday",
+      proyectoNotionId: PAGINA_PROYECTO_NOTION_ETM,
+      segmento: "Mentor",
+      titulo: "Transcripción — PRUEBA Seba Majoriti",
+    };
+    const config = {
+      databaseId: BASE_TRANSCRIPCIONES_ETM,
+      token: "token-de-prueba",
+    };
+    const primera = await publicarPaginaTranscripcionNotion({
+      config,
+      datos: {
+        ...datos,
+        entrevistaId: "11111111-1111-4111-8111-111111111111",
+      },
+      fetchImpl,
+    });
+    const reintento = await publicarPaginaTranscripcionNotion({
+      config,
+      datos: {
+        ...datos,
+        entrevistaId: "11111111-1111-4111-8111-111111111111",
+      },
+      fetchImpl,
+    });
+    const otra = await publicarPaginaTranscripcionNotion({
+      config,
+      datos: {
+        ...datos,
+        entrevistaId: "22222222-2222-4222-8222-222222222222",
+        segmento: "Mentoreado",
+      },
+      fetchImpl,
+    });
+
+    expect(primera).toEqual({ pageId: "pagina-etm-1", status: "created" });
+    expect(reintento).toEqual({
+      pageId: "pagina-etm-1",
+      status: "alreadyDone",
+    });
+    expect(otra.pageId).toBe("pagina-etm-2");
+    expect(primera.pageId).not.toBe(PAGINA_FIRMAS);
+    expect(creadas).toBe(2);
+    expect(
+      llamadas.some((llamada) => llamada.includes("4e10d8e1-eda6-49c0-b200"))
+    ).toBe(false);
+    expect(
+      llamadas.some((llamada) => llamada.includes("e043fecb-df40-4496-baae"))
+    ).toBe(false);
+  });
+
+  test("rejects the ComplianceLatam database for an ETM interview", async () => {
+    const fetchImpl: typeof fetch = () =>
+      Promise.reject(new Error("No debía consultar Notion"));
+    await expect(
+      publicarPaginaTranscripcionNotion({
+        config: {
+          databaseId: "e043fecb-df40-4496-baae-8a46daedc03f",
+          token: "token-de-prueba",
+        },
+        datos: {
+          destinoEtm: true,
+          email: "ana@empresa.real",
+          entrevistaId: "33333333-3333-4333-8333-333333333333",
+          estado: "completada",
+          fecha: null,
+          firma: null,
+          markdown: "No publicar",
+          nombre: "Ana Real",
+          proyectoCliente: "Emprendetumente",
+          proyectoNombre: "ETM Tuesday",
+          proyectoNotionId: PAGINA_PROYECTO_NOTION_ETM,
+          segmento: "Sponsor",
+          titulo: "Transcripción — Ana Real",
+        },
+        fetchImpl,
+      })
+    ).rejects.toThrow("destino de ComplianceLatam");
+  });
+
+  test("keeps fictional demo conversations out of Notion", () => {
+    expect(
+      esConversacionFicticiaEtm({
+        email: "marina.lagos.demo@example.test",
+        proyectoNombre: "ETM Tuesday (demo local)",
+      })
+    ).toBe(true);
+    expect(
+      esProyectoEtm({
+        cliente: "Emprendetumente",
+        nombre: "ETM Tuesday",
+        slug: "etm-tuesday",
+      })
+    ).toBe(true);
+    expect(
+      esConversacionFicticiaEtm({
+        email: "ana@empresa.real",
+        proyectoNombre: "ETM Tuesday",
+      })
+    ).toBe(false);
+    expect(segmentoNotionEtm("Mentores ETM Tuesday")).toBe("Mentor");
+    expect(segmentoNotionEtm("Mentoreados ETM Tuesday")).toBe("Mentoreado");
+    expect(segmentoNotionEtm("Sponsors ETM Tuesday")).toBe("Sponsor");
+    expect(PAGINA_PROYECTO_NOTION_ETM).not.toBe(
+      PAGINA_PROYECTO_NOTION_COMPLIANCE_LATAM
+    );
   });
 });

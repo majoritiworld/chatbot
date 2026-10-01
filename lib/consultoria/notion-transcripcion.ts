@@ -4,11 +4,18 @@ import { leerSesionEntrevista } from "@/lib/consultoria/acceso-entrevista";
 import {
   construirArchivoTranscripcion,
   parseTranscripcion,
-  tituloTranscripcion,
 } from "@/lib/consultoria/entrevista-contenido";
 import { nombreCompleto } from "@/lib/consultoria/nombre";
 import {
+  BASE_TRANSCRIPCIONES_ETM,
+  esConversacionFicticiaEtm,
+  esProyectoEtm,
+  PAGINA_PROYECTO_NOTION_ETM,
+  segmentoNotionEtm,
+} from "@/lib/consultoria/notion-proyecto-etm";
+import {
   configuracionNotionTranscripcion,
+  tituloNotionDeEntrevista,
   urlPaginaNotion,
 } from "@/lib/consultoria/notion-transcripcion-contenido";
 import { publicarPaginaTranscripcionNotion } from "@/lib/consultoria/notion-transcripcion-publicar";
@@ -22,7 +29,11 @@ export type ResultadoNotionTranscripcion =
   | { pageId: string; status: "alreadyDone"; url: string }
   | { pageId: string; status: "created"; url: string };
 
-type ProyectoEmbed = { cliente?: string | null; nombre: string } | null;
+type ProyectoEmbed = {
+  cliente?: string | null;
+  nombre: string;
+  slug?: string | null;
+} | null;
 type StakeholderEmbed = {
   apellido: string | null;
   email?: string | null;
@@ -57,7 +68,7 @@ const SELECT_ENTREVISTA = `
         apellido,
         firma,
         email,
-        proyecto:proyecto_id ( nombre, cliente )
+        proyecto:proyecto_id ( nombre, cliente, slug )
       )
     `;
 
@@ -109,11 +120,30 @@ export async function sincronizarTranscripcionNotion(
     proyecto: proyecto?.nombre ?? null,
     turnos: parseTranscripcion(row.transcripcion),
   });
-  const titulo = tituloTranscripcion(nombre);
+  if (
+    esConversacionFicticiaEtm({
+      email: stakeholder?.email,
+      proyectoNombre: proyecto?.nombre,
+    })
+  ) {
+    return { status: "skipped" };
+  }
+
+  const destinoEtm = esProyectoEtm({
+    cliente: proyecto?.cliente,
+    nombre: proyecto?.nombre,
+    slug: proyecto?.slug,
+  });
+  const segmento = destinoEtm ? segmentoNotionEtm(fase?.nombre) : null;
+  const titulo = tituloNotionDeEntrevista(nombre, fase?.nombre);
   const publicado = await publicarPaginaTranscripcionNotion({
-    config,
+    config: destinoEtm
+      ? { databaseId: BASE_TRANSCRIPCIONES_ETM, token: config.token }
+      : config,
     datos: {
+      destinoEtm,
       email: stakeholder?.email ?? null,
+      entrevistaId,
       estado: row.estado,
       fecha: row.fecha_completada ?? row.ultima_actividad,
       firma: stakeholder?.firma ?? null,
@@ -121,6 +151,8 @@ export async function sincronizarTranscripcionNotion(
       nombre,
       proyectoCliente: proyecto?.cliente ?? null,
       proyectoNombre: proyecto?.nombre ?? null,
+      proyectoNotionId: destinoEtm ? PAGINA_PROYECTO_NOTION_ETM : null,
+      segmento,
       titulo,
     },
     fetchImpl,

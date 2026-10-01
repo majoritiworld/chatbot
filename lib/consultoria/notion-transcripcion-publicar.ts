@@ -1,4 +1,9 @@
 import {
+  BASE_TRANSCRIPCIONES_ETM,
+  PAGINA_PROYECTO_NOTION_COMPLIANCE_LATAM,
+  PAGINA_PROYECTO_NOTION_ETM,
+} from "@/lib/consultoria/notion-proyecto-etm";
+import {
   bloquesDesdeMarkdown,
   claveNotion,
   lotesDeBloques,
@@ -6,6 +11,7 @@ import {
   type NotionPropertySchema,
   type NotionRelacionMatch,
   propiedadesPaginaTranscripcion,
+  propiedadIdEntrevista,
   variantesBusquedaNotion,
 } from "@/lib/consultoria/notion-transcripcion-contenido";
 
@@ -40,7 +46,9 @@ type NotionPageResult = {
 };
 
 export type DatosPublicacionNotion = {
+  destinoEtm?: boolean;
   email: string | null;
+  entrevistaId: string;
   estado: string;
   fecha: string | null;
   firma: string | null;
@@ -48,6 +56,8 @@ export type DatosPublicacionNotion = {
   nombre: string;
   proyectoCliente: string | null;
   proyectoNombre: string | null;
+  proyectoNotionId?: string | null;
+  segmento?: string | null;
   titulo: string;
 };
 
@@ -302,6 +312,28 @@ export async function publicarPaginaTranscripcionNotion({
   const bloques = bloquesDesdeMarkdown(datos.markdown);
   const lotes = lotesDeBloques(bloques, LOTES_BLOQUES);
 
+  const entrevistaId = datos.entrevistaId.trim();
+  if (!entrevistaId) {
+    throw new Error("La transcripción no tiene el ID de la entrevista");
+  }
+  if (datos.destinoEtm) {
+    if (config.databaseId !== BASE_TRANSCRIPCIONES_ETM) {
+      throw new Error(
+        "La entrevista ETM no puede publicarse en el destino de ComplianceLatam"
+      );
+    }
+    if (datos.proyectoNotionId !== PAGINA_PROYECTO_NOTION_ETM) {
+      throw new Error(
+        "La entrevista ETM debe vincularse al proyecto Consultoria ETM"
+      );
+    }
+    if (!datos.segmento) {
+      throw new Error(
+        "La entrevista ETM no tiene segmento de mentor, mentoreado o sponsor"
+      );
+    }
+  }
+
   const database = await notionJson({
     fetchImpl,
     method: "GET",
@@ -309,34 +341,49 @@ export async function publicarPaginaTranscripcionNotion({
     token: config.token,
   });
   const esquema = esquemaDesdeDatabase(database?.properties);
-  const tituloProp = esquema.find((propiedad) => propiedad.type === "title");
+  const idEntrevista = propiedadIdEntrevista(esquema);
+  if (!idEntrevista) {
+    throw new Error(
+      "Notion no tiene la propiedad «ID entrevista» para asociar la página"
+    );
+  }
 
-  if (tituloProp) {
-    const existentes = await notionJson({
-      body: {
-        filter: {
-          property: tituloProp.name,
-          title: { equals: datos.titulo },
-        },
-        page_size: 1,
+  const existentes = await notionJson({
+    body: {
+      filter: {
+        property: idEntrevista.name,
+        rich_text: { equals: entrevistaId },
       },
-      fetchImpl,
-      method: "POST",
-      ruta: `data_sources/${config.databaseId}/query`,
-      token: config.token,
-    });
-    const pageId = existentes?.results?.at(0)?.id;
-    if (typeof pageId === "string") {
-      return { pageId, status: "alreadyDone" };
-    }
+      page_size: 2,
+    },
+    fetchImpl,
+    method: "POST",
+    ruta: `data_sources/${config.databaseId}/query`,
+    token: config.token,
+  });
+  const paginas = (existentes?.results ?? []).flatMap((pagina) =>
+    typeof pagina.id === "string" ? [pagina.id] : []
+  );
+  if (paginas.length > 1) {
+    throw new Error(
+      "Hay más de una página de Notion para esta entrevista. No se creó otra."
+    );
+  }
+  const paginaExistente = paginas.at(0);
+  if (paginaExistente) {
+    return { pageId: paginaExistente, status: "alreadyDone" };
   }
 
   const personaProp = esquema.find(
     (propiedad) =>
       propiedad.type === "relation" &&
-      ["entrevistado", "people", "persona", "stakeholder"].includes(
-        claveNotion(propiedad.name)
-      )
+      [
+        "entrevistado",
+        "people",
+        "persona",
+        "stakeholder",
+        "participante",
+      ].includes(claveNotion(propiedad.name))
   );
   const orgProp = esquema.find(
     (propiedad) =>
@@ -351,7 +398,12 @@ export async function publicarPaginaTranscripcionNotion({
       ["proyecto", "project"].includes(claveNotion(propiedad.name))
   );
 
-  const [entrevistadoId, organizacionId, proyectoId] = await Promise.all([
+  const proyectoForzado = datos.proyectoNotionId?.trim() || null;
+  if (proyectoForzado === PAGINA_PROYECTO_NOTION_COMPLIANCE_LATAM) {
+    throw new Error("Esa página de Notion es el proyecto de ComplianceLatam");
+  }
+
+  const [entrevistadoId, organizacionId, proyectoBuscado] = await Promise.all([
     personaProp?.relationDatabaseId
       ? buscarPersona({
           config,
@@ -376,17 +428,38 @@ export async function publicarPaginaTranscripcionNotion({
           )
         )
       : Promise.resolve(null),
-    proyectoProp?.relationDatabaseId
-      ? buscarPorNombre({
+    proyectoForzado || !proyectoProp?.relationDatabaseId
+      ? Promise.resolve(null)
+      : buscarPorNombre({
           config,
           databaseId: proyectoProp.relationDatabaseId,
           fetchImpl,
           terminos: datos.proyectoNombre ? [datos.proyectoNombre] : [],
         }).then((candidatos) =>
           primerMatchUnico([datos.proyectoNombre], candidatos)
-        )
-      : Promise.resolve(null),
+        ),
   ]);
+  const proyectoId = proyectoForzado ?? proyectoBuscado;
+  if (datos.destinoEtm && proyectoId !== PAGINA_PROYECTO_NOTION_ETM) {
+    throw new Error(
+      "La entrevista ETM debe vincularse al proyecto Consultoria ETM"
+    );
+  }
+  if (datos.segmento) {
+    const segmentoProp = esquema.find(
+      (propiedad) =>
+        propiedad.type === "select" &&
+        ["segmento", "tipodestakeholder", "audiencia"].includes(
+          claveNotion(propiedad.name)
+        )
+    );
+    const opciones = segmentoProp?.selectOptions ?? [];
+    if (!opciones.includes(datos.segmento)) {
+      throw new Error(
+        "Notion no tiene el segmento de esta entrevista. No se creó la página."
+      );
+    }
+  }
 
   const creado = await notionJson({
     body: {
@@ -397,6 +470,7 @@ export async function publicarPaginaTranscripcionNotion({
       },
       properties: propiedadesPaginaTranscripcion({
         entrevistadoId,
+        entrevistaId,
         esquema,
         estado: datos.estado,
         fecha: datos.fecha,
@@ -405,6 +479,7 @@ export async function publicarPaginaTranscripcionNotion({
         organizacionId,
         proyecto: datos.proyectoNombre,
         proyectoId,
+        segmento: datos.segmento,
         titulo: datos.titulo,
       }),
     },

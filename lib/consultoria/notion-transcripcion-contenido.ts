@@ -1,3 +1,5 @@
+import { tituloTranscripcion } from "@/lib/consultoria/entrevista-contenido";
+
 const LIMITE_TEXTO = 2000;
 const DIACRITICOS = /[\u0300-\u036f]/g;
 const NO_ALFANUMERICO = /[^a-z0-9]+/g;
@@ -142,6 +144,15 @@ function propiedadPorClaves(esquema: NotionPropertySchema[], claves: string[]) {
   return esquema.find((propiedad) => buscadas.has(claveNotion(propiedad.name)));
 }
 
+/** The transcript page is found by this property, never by the person's name. */
+export function propiedadIdEntrevista(esquema: NotionPropertySchema[]) {
+  const propiedad = propiedadPorClaves(esquema, ["id entrevista"]);
+  if (propiedad?.type !== "rich_text") {
+    return null;
+  }
+  return propiedad;
+}
+
 export function variantesBusquedaNotion(nombre: string) {
   const limpio = nombre.trim();
   if (limpio.length === 0) {
@@ -196,6 +207,7 @@ export function matchUnicoPorNombre(
 }
 
 export function propiedadesPaginaTranscripcion({
+  entrevistaId,
   esquema,
   entrevistadoId,
   estado,
@@ -205,8 +217,10 @@ export function propiedadesPaginaTranscripcion({
   organizacionId,
   proyecto,
   proyectoId,
+  segmento,
   titulo,
 }: {
+  entrevistaId?: string | null;
   esquema: NotionPropertySchema[];
   entrevistadoId?: string | null;
   estado?: string | null;
@@ -216,6 +230,7 @@ export function propiedadesPaginaTranscripcion({
   organizacionId?: string | null;
   proyecto: string | null;
   proyectoId?: string | null;
+  segmento?: string | null;
   titulo: string;
 }): NotionPageProperties {
   const propiedades: NotionPageProperties = {};
@@ -273,11 +288,18 @@ export function propiedadesPaginaTranscripcion({
     propiedades[propiedad.name] = { select: { name: valor } };
   };
 
+  const idEntrevista = propiedadIdEntrevista(esquema);
+  if (entrevistaId && idEntrevista) {
+    propiedades[idEntrevista.name] = {
+      rich_text: textosNotion(entrevistaId),
+    };
+  }
+
   asignarTexto(["nombre", "entrevistado", "stakeholder", "persona"], nombre);
   asignarTexto(["firma", "empresa", "company"], firma);
   asignarTexto(["proyecto", "project"], proyecto);
   asignarRelacion(
-    ["entrevistado", "people", "persona", "stakeholder"],
+    ["entrevistado", "people", "persona", "stakeholder", "participante"],
     entrevistadoId
   );
   asignarRelacion(
@@ -289,6 +311,7 @@ export function propiedadesPaginaTranscripcion({
     ["estado", "status"],
     estado === "completada" ? "Procesada" : null
   );
+  asignarSelect(["segmento", "tipo de stakeholder", "audiencia"], segmento);
 
   const fechaProp = propiedadPorClaves(esquema, [
     "fecha",
@@ -316,6 +339,19 @@ export function lotesDeBloques<T>(items: T[], tamanio: number): T[][] {
 
 export function urlPaginaNotion(pageId: string) {
   return `https://notion.so/${pageId.replaceAll("-", "")}`;
+}
+
+/** Phase in the title keeps two interviews of the same person on different pages. */
+export function tituloNotionDeEntrevista(
+  nombre: string,
+  fase: string | null | undefined
+) {
+  const base = tituloTranscripcion(nombre);
+  const distinguida = fase?.trim() ?? "";
+  if (!distinguida) {
+    return base;
+  }
+  return `${base} — ${distinguida}`;
 }
 
 export function configuracionNotionTranscripcion({

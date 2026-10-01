@@ -23,7 +23,12 @@ import {
   correoInvitacion,
 } from "@/lib/consultoria/correos/variantes";
 import { debeBloquearCorreoEntrevista } from "@/lib/consultoria/entrevista-piloto";
-import { debeRetenerCorreoColaboradores } from "@/lib/consultoria/invitacion-colaboradores";
+import {
+  asuntoConPrefijoPrueba,
+  debeRetenerCorreoColaboradores,
+  esExcepcionEnvioPruebaColaboradores,
+  excluirDeCampanaColaboradores,
+} from "@/lib/consultoria/invitacion-colaboradores";
 import { claveIdempotenciaConfirmacion } from "@/lib/consultoria/marca";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -59,9 +64,11 @@ function correoBloqueadoLocal() {
 async function enviarCorreoPreparado({
   correo,
   idempotencyKey,
+  copiarEquipo = true,
 }: {
   correo: CorreoPreparado;
   idempotencyKey: string;
+  copiarEquipo?: boolean;
 }) {
   if (correo.tipo === "invitacion" && !invitacionesHabilitadas()) {
     throw new Error(INVITACIONES_DESHABILITADAS);
@@ -79,6 +86,7 @@ async function enviarCorreoPreparado({
   const copiaEquipo =
     process.env.INTERVIEW_EMAIL_BCC?.trim() || "hello@majoriti.world";
   const copiar =
+    copiarEquipo &&
     correo.tipo === "confirmacion" &&
     correo.destinatario.toLowerCase() !== copiaEquipo.toLowerCase();
 
@@ -132,7 +140,17 @@ export async function enviarCorreoAgradecimiento({
   }
 
   const { asignacion } = resultado;
-  if (debeRetenerCorreoColaboradores(asignacion.faseNombre)) {
+  const excepcion = esExcepcionEnvioPruebaColaboradores({
+    email: asignacion.destinatario.email,
+    entrevistaId,
+    faseNombre: asignacion.faseNombre,
+  });
+  if (
+    debeRetenerCorreoColaboradores(asignacion.faseNombre, {
+      email: asignacion.destinatario.email,
+      entrevistaId,
+    })
+  ) {
     throw new Error("El correo de esta fase sigue pendiente de confirmación.");
   }
   const correo = correoConfirmacion({
@@ -144,6 +162,7 @@ export async function enviarCorreoAgradecimiento({
 
   try {
     const data = await enviarCorreoPreparado({
+      copiarEquipo: !excepcion,
       correo,
       idempotencyKey: claveIdempotenciaConfirmacion(entrevistaId),
     });
@@ -180,7 +199,17 @@ export async function enviarCorreoInvitacion(entrevistaId: string) {
   }
 
   const { asignacion } = resultado;
-  if (debeRetenerCorreoColaboradores(asignacion.faseNombre)) {
+  const excepcion = esExcepcionEnvioPruebaColaboradores({
+    email: asignacion.destinatario.email,
+    entrevistaId,
+    faseNombre: asignacion.faseNombre,
+  });
+  if (
+    debeRetenerCorreoColaboradores(asignacion.faseNombre, {
+      email: asignacion.destinatario.email,
+      entrevistaId,
+    })
+  ) {
     throw new Error(
       "El envío de invitaciones de esta fase sigue pendiente de confirmación."
     );
@@ -204,12 +233,21 @@ export async function enviarCorreoInvitacion(entrevistaId: string) {
     );
   }
 
+  const textos = excepcion
+    ? {
+        ...asignacion.textos.invitacion,
+        asunto: asuntoConPrefijoPrueba(
+          asignacion.textos.invitacion.asunto ??
+            `${asignacion.identidad.cliente} le invita a una entrevista`
+        ),
+      }
+    : asignacion.textos.invitacion;
   const correo = correoInvitacion({
     destinatario: asignacion.destinatario,
     enlace,
     identidad: asignacion.identidad,
     minutos: asignacion.minutos,
-    textos: asignacion.textos.invitacion,
+    textos,
   });
   return await enviarCorreoPreparado({
     correo,
@@ -308,10 +346,31 @@ export async function enviarInvitacionesDeFase(
         .eq("estado", "enviado")
         .in("entrevista_id", ids)
     : { data: [] };
+  const { data: marcas } = ids.length
+    ? await admin
+        .from("entrevista")
+        .select("id, stakeholder:stakeholder_id(email, firma)")
+        .in("id", ids)
+    : { data: [] };
   const yaEnviadas = new Set(
     (previos ?? []).map((fila) => String(fila.entrevista_id))
   );
-  const pendientes = ids.filter((id) => !yaEnviadas.has(id));
+  const pruebas = new Set<string>();
+  for (const fila of marcas ?? []) {
+    const stakeholder = Array.isArray(fila.stakeholder)
+      ? fila.stakeholder[0]
+      : fila.stakeholder;
+    if (
+      excluirDeCampanaColaboradores(fase.nombre, {
+        correo: stakeholder?.email,
+        empresa: stakeholder?.firma,
+      })
+    ) {
+      pruebas.add(String(fila.id));
+    }
+  }
+  const omitir = new Set([...yaEnviadas, ...pruebas]);
+  const pendientes = ids.filter((id) => !omitir.has(id));
   const resultado = await enviarEnOrden(pendientes, async (fila) => {
     await admin.from("invitacion_envio").insert({
       correo: fila.correo,
@@ -320,5 +379,5 @@ export async function enviarInvitacionesDeFase(
       estado: fila.estado,
     });
   });
-  return { ...resultado, omitidos: resultado.omitidos + yaEnviadas.size };
+  return { ...resultado, omitidos: resultado.omitidos + omitir.size };
 }
