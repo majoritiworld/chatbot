@@ -233,6 +233,7 @@ test("confirmation shows a next step and button only when the phase defines one"
   expect(conPaso.html).toContain('href="https://majoriti.world"');
   expect(conPaso.html).toContain(">Ver más</a>");
   expect(conPaso.html).not.toContain("Si el botón no funciona");
+  expect(conPaso.html).not.toContain("margin:8px 0 24px");
   expect(conPaso.html).not.toContain(">https://majoriti.world<");
   expect(conPaso.text).toContain("Conozca Majoriti.");
   expect(conPaso.text).toContain("Ver más: https://majoriti.world");
@@ -349,6 +350,8 @@ test("invitation explains who, why, how long, saving and access, with no bcc hin
   expect(correo.html).toContain("Comenzar mi entrevista");
   expect(correo.html).toContain(`href="${SITE}/cliente-2026?codigo=1"`);
   expect(correo.html).toContain("Si el botón no funciona");
+  expect(correo.html).toContain("margin:8px 0 12px");
+  expect(correo.html).not.toContain("margin:8px 0 24px");
   expect(correo.text).toContain(`Comenzar mi entrevista: ${SITE}/cliente-2026`);
   expect(correo.text).toContain("aproximadamente 15 minutos");
   expect(correo.text).toContain("su avance queda guardado");
@@ -376,14 +379,39 @@ test("a personal-link invitation needs no email and names no other client", () =
     minutos: asignacion.minutos,
     textos: asignacion.textos.invitacion,
   });
-  expect(correo.html).toContain(
-    `href="${SITE}/e/token-personal-de-prueba-123"`
-  );
-  expect(correo.text).toContain("basta con abrir");
+  const url = `${SITE}/e/token-personal-de-prueba-123`;
+  expect(enlace.alternativa).toContain("/login?next=");
+  expect(correo.html).toContain(`href="${url}"`);
+  expect(correo.html).toContain("margin:8px 0 24px");
+  expect(correo.html).not.toContain("Si el botón no funciona");
+  expect(correo.html).not.toContain(`>${url}<`);
+  expect(correo.html).not.toContain("basta con abrir");
+  expect(correo.html).not.toContain("Este enlace es personal");
+  expect(correo.html).not.toContain("código de acceso");
+  expect(correo.html).not.toContain(enlace.alternativa ?? "");
+  expect(correo.text).toContain(`Comenzar mi entrevista: ${url}`);
+  expect(correo.text).not.toContain("basta con abrir");
   expect(correo.text).not.toContain("use como usuario");
-  expect(correo.text).toContain(enlace.alternativa ?? "falta alternativa");
+  expect(correo.text).not.toContain("Este enlace es personal");
+  expect(correo.text).not.toContain("código de acceso");
+  expect(correo.text).not.toContain(enlace.alternativa ?? "");
   expect(correo.text).toContain("Compliance Demo le invita");
   expect(correo.html).not.toContain("ComplianceLatam");
+
+  const boton = correo.html.indexOf(">Comenzar mi entrevista</a>");
+  const ayuda = correo.html.indexOf("¿Tiene alguna pregunta?");
+  const firma = correo.html.indexOf("Equipo Compliance Demo");
+  const pie = correo.html.indexOf("Enviado a través de Majoriti");
+  expect(correo.html.indexOf("Puede guardar su avance")).toBeLessThan(boton);
+  expect(boton).toBeLessThan(ayuda);
+  expect(ayuda).toBeLessThan(firma);
+  expect(firma).toBeLessThan(pie);
+  const entreBotonYAyuda = correo.html.slice(boton, ayuda);
+  expect(entreBotonYAyuda).not.toContain("Si el botón");
+  expect(entreBotonYAyuda).not.toContain("http");
+  expect(correo.text.indexOf(`Comenzar mi entrevista: ${url}`)).toBeLessThan(
+    correo.text.indexOf("¿Tiene alguna pregunta?")
+  );
 
   const conCuerpo = correoInvitacion({
     destinatario: asignacion.destinatario,
@@ -398,6 +426,12 @@ test("a personal-link invitation needs no email and names no other client", () =
   });
   expect(conCuerpo.text.match(/minutos/g)).toHaveLength(1);
   expect(conCuerpo.text.match(/guardar su avance/g)).toHaveLength(1);
+  const botonCuerpo = conCuerpo.html.indexOf(">Comenzar mi entrevista</a>");
+  const ayudaCuerpo = conCuerpo.html.indexOf("¿Tiene alguna pregunta?");
+  expect(botonCuerpo).toBeLessThan(ayudaCuerpo);
+  expect(conCuerpo.html.slice(botonCuerpo, ayudaCuerpo)).not.toContain("http");
+  expect(conCuerpo.text).toContain(`Comenzar mi entrevista: ${url}`);
+  expect(conCuerpo.html).not.toContain("código de acceso");
 });
 
 test("sender reads «Cliente vía Majoriti» and is not duplicated", () => {

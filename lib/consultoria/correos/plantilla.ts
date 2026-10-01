@@ -26,6 +26,8 @@ export type ContenidoCorreo = {
   notas: string[];
   parrafos: string[];
   preview: string;
+  /** When false, the main button does not repeat its URL underneath. */
+  respaldoAccion?: boolean;
   saludo: string;
   subject: string;
   titulo: string;
@@ -91,10 +93,10 @@ function botonHtml(
   accion: AccionCorreo,
   acento: string,
   sobreAcento: string,
-  respaldo: boolean
+  respaldo: boolean,
+  margen = respaldo ? "8px 0 12px" : "8px 0 0"
 ) {
   const url = escapeHtml(accion.url);
-  const margen = respaldo ? "8px 0 12px" : "8px 0 0";
   const boton = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:${margen};">
 <tr><td bgcolor="${acento}" style="border-radius:8px;background-color:${acento};">
 <a href="${url}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 26px;font-family:${FUENTE};font-size:16px;font-weight:600;line-height:1.2;color:${sobreAcento};text-decoration:none;border-radius:8px;">${escapeHtml(accion.etiqueta)}</a>
@@ -132,6 +134,16 @@ export function renderCorreo(
   const { acento, sobreAcento } = colores(identidad.color);
   const cuerpo = `font-family:${FUENTE};font-size:16px;line-height:1.6;color:${TEXTO};`;
   const tenue = `font-family:${FUENTE};font-size:14px;line-height:1.55;color:${TENUE};`;
+  const muestraRespaldo = contenido.respaldoAccion !== false;
+  const boton = contenido.accion
+    ? botonHtml(
+        contenido.accion,
+        acento,
+        sobreAcento,
+        muestraRespaldo,
+        muestraRespaldo ? "8px 0 12px" : "8px 0 24px"
+      )
+    : "";
 
   const html = `<!doctype html>
 <html lang="es">
@@ -162,7 +174,7 @@ ${cabeceraHtml(identidad)}
 ${parrafoHtml(contenido.saludo, cuerpo)}
 ${contenido.parrafos.map((parrafo) => parrafoHtml(parrafo, cuerpo)).join("\n")}
 ${contenido.comercial ? bloqueComercialHtml(contenido.comercial, cuerpo, acento, sobreAcento) : ""}
-${contenido.accion ? botonHtml(contenido.accion, acento, sobreAcento, true) : ""}
+${boton}
 ${contenido.notas.map((nota) => parrafoHtml(nota, tenue)).join("\n")}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;"><tr><td style="border-top:1px solid ${BORDE};padding-top:20px;">
 ${parrafoHtml(contenido.ayuda, tenue)}

@@ -143,7 +143,16 @@ export function correoInvitacion({
   const yaDiceGuardado = cuerpo.some((parrafo) =>
     MENCIONA_GUARDADO.test(parrafo)
   );
-  const parrafos = yaDiceDuracion ? cuerpo : [...cuerpo, duracion];
+  const enlacePersonal = enlace.modo === "enlace_personal";
+  const parrafos = [
+    ...cuerpo,
+    ...(yaDiceDuracion ? [] : [duracion]),
+    ...(enlacePersonal && !yaDiceGuardado
+      ? [
+          "Puede guardar su avance y continuar más adelante desde este mismo enlace.",
+        ]
+      : []),
+  ];
 
   const subject =
     textos.asunto ??
@@ -151,27 +160,13 @@ export function correoInvitacion({
   const preview = minutos
     ? `Una conversación guiada de unos ${minutos} minutos. Puede pausar y continuar cuando quiera.`
     : "Una conversación guiada. Puede pausar y continuar cuando quiera.";
-  const notas =
-    enlace.modo === "enlace_personal"
-      ? [
-          "Para entrar, basta con abrir «Comenzar mi entrevista»: le lleva directamente a su entrevista. No necesita escribir su correo, una contraseña ni un código.",
-          ...(yaDiceGuardado
-            ? []
-            : [
-                "Puede guardar su avance y continuar más adelante desde este mismo enlace.",
-              ]),
-          "Este enlace es personal y abre solo su entrevista. Le pedimos no reenviarlo.",
-          ...(enlace.alternativa
-            ? [
-                `Si el enlace no le funciona, entre en ${enlace.alternativa} con ${destinatario.email} y le enviaremos un código de acceso.`,
-              ]
-            : []),
-        ]
-      : [
-          `Para entrar, escriba ${destinatario.email} y le enviaremos un código de acceso a este mismo correo.`,
-          "Puede pausar y volver cuando quiera: su avance queda guardado y retoma donde lo dejó.",
-          "Esta invitación es personal: el acceso queda vinculado a su correo. Le pedimos no reenviarla.",
-        ];
+  const notas = enlacePersonal
+    ? []
+    : [
+        `Para entrar, escriba ${destinatario.email} y le enviaremos un código de acceso a este mismo correo.`,
+        "Puede pausar y volver cuando quiera: su avance queda guardado y retoma donde lo dejó.",
+        "Esta invitación es personal: el acceso queda vinculado a su correo. Le pedimos no reenviarla.",
+      ];
   const { html, text } = renderCorreo(identidad, {
     accion: { etiqueta: "Comenzar mi entrevista", url: enlace.url },
     ayuda: ayuda(identidad),
@@ -180,6 +175,7 @@ export function correoInvitacion({
     notas,
     parrafos,
     preview,
+    respaldoAccion: !enlacePersonal,
     saludo: saludo(destinatario.nombre),
     subject,
     titulo: identidad.titulo ?? "Le invitamos a una entrevista",
