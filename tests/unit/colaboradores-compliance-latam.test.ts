@@ -512,12 +512,25 @@ test("la invitación final entra directo y el agradecimiento habla de usted", ()
   expect(invitacion.remitenteVisible).toBe(
     "Equipo ComplianceLatam vía Majoriti"
   );
-  expect(invitacion.text).toContain("Comenzar mi entrevista");
+  const destino = `https://portal.majoriti.world/e/${token}`;
+  expect(invitacion.text).toContain(`Comenzar mi entrevista: ${destino}`);
   expect(invitacion.text).toContain("no ha utilizado la red");
   expect(invitacion.text).toContain("guardar su avance");
-  expect(invitacion.text).toContain("Este enlace es personal");
-  expect(invitacion.text).toContain("código de acceso");
-  expect(invitacion.html).toContain(`/e/${token}`);
+  expect(invitacion.text).not.toContain("Este enlace es personal");
+  expect(invitacion.text).not.toContain("código de acceso");
+  expect(invitacion.text).not.toContain("basta con abrir");
+  expect(invitacion.html).toContain(`href="${destino}"`);
+  expect(invitacion.html).toContain("¿Tiene alguna pregunta?");
+  expect(invitacion.html).toContain("Enviado a través de Majoriti");
+  expect(invitacion.html).not.toContain("Si el botón no funciona");
+  const boton = invitacion.html.indexOf(">Comenzar mi entrevista</a>");
+  const ayuda = invitacion.html.indexOf("¿Tiene alguna pregunta?");
+  const firma = invitacion.html.indexOf("Equipo ComplianceLatam");
+  const pie = invitacion.html.indexOf("Enviado a través de Majoriti");
+  expect(boton).toBeLessThan(ayuda);
+  expect(ayuda).toBeLessThan(firma);
+  expect(firma).toBeLessThan(pie);
+  expect(invitacion.html.slice(boton, ayuda)).not.toContain("http");
 
   const gracias = correoConfirmacion({
     destinatario: { email: "persona@empresa.test", nombre: "Ana" },
@@ -534,6 +547,8 @@ test("la invitación final entra directo y el agradecimiento habla de usted", ()
   expect(gracias.subject).toBe("Recibimos sus respuestas");
   expect(gracias.text).toContain("Sus respuestas");
   expect(gracias.text).not.toMatch(/\btus\b/);
+  expect(gracias.text).not.toContain("Comenzar mi entrevista");
+  expect(gracias.html).not.toContain("margin:8px 0 24px");
   expect(gracias.replyTo).toBe("crivera@compliancelatam.legal");
 });
 

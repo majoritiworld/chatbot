@@ -31,7 +31,7 @@ Puede guardar su avance y continuar más adelante desde este mismo enlace.
 
 Muchas gracias por su tiempo.
 
-La plantilla añade el botón «Comenzar mi entrevista», el aviso de que el enlace es personal y la alternativa de correo más código. Remitente visible: Equipo ComplianceLatam vía Majoriti, desde `portal@mail.majoriti.world`. Reply-To: crivera@compliancelatam.legal. Firma: Equipo ComplianceLatam.
+La plantilla añade el botón «Comenzar mi entrevista» y, después, la ayuda, la firma y el pie. El texto plano conserva el enlace de la entrevista. El acceso por correo y código sigue disponible y no se explica en esta invitación. Remitente visible: Equipo ComplianceLatam vía Majoriti, desde `portal@mail.majoriti.world`. Reply-To: crivera@compliancelatam.legal. Firma: Equipo ComplianceLatam.
 
 Agradecimiento de la fase, en usted, sin enviarlo a la lista: asunto «Recibimos sus respuestas». Cuerpo: «Gracias por completar la entrevista. Sus respuestas llegaron correctamente a ComplianceLatam y se considerarán en el trabajo del proyecto.»
 
