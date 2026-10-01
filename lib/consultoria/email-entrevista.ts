@@ -33,7 +33,7 @@ import {
   tratoDeInvitacion,
 } from "@/lib/consultoria/invitacion-colaboradores";
 import {
-  copiaOcultaInvitacionEtm,
+  copiaOcultaEtm,
   debeRetenerCorreoEtm,
   esFaseEtm,
   esPruebaSebaEtm,
@@ -225,6 +225,10 @@ export async function enviarCorreoAgradecimiento({
 
   try {
     const data = await enviarCorreoPreparado({
+      copiaOculta: copiaOcultaEtm(
+        asignacion.faseNombre,
+        asignacion.destinatario.email
+      ),
       copiarEquipo: !(
         etm ||
         excepcion ||
@@ -559,7 +563,7 @@ export async function enviarInvitacionPruebaEtm(
       dormir: dormirMs,
       enviar: async () =>
         await enviarCorreoPreparado({
-          copiaOculta: copiaOcultaInvitacionEtm(
+          copiaOculta: copiaOcultaEtm(
             destino.asignacion.faseNombre,
             correoDestino
           ),

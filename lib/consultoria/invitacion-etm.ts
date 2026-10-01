@@ -4,7 +4,7 @@ const fases = new Set<string>(FASES_ETM_TUESDAY);
 
 /**
  * Walkthrough trials approved by Seba on 1 Oct 2026 after his own run:
- * one invitation each, with a hidden copy to him, and the thank-you.
+ * one invitation each and the thank-you, both with a hidden copy to him.
  */
 export const PARTICIPANTES_APROBADOS_ETM: ReadonlySet<string> = new Set([
   "amelia.somavia@emprendetumente.org",
@@ -75,8 +75,8 @@ export function envioCorreoEtmPermitido(
   );
 }
 
-/** Seba gets a hidden copy of each approved trial invitation, never of thank-yous. */
-export function copiaOcultaInvitacionEtm(
+/** Seba gets a hidden copy of the approved trials' invitation and thank-you. */
+export function copiaOcultaEtm(
   faseNombre: string | null,
   email: string | null | undefined
 ) {

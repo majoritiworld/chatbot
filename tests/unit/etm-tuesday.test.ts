@@ -31,7 +31,7 @@ import {
   seccionesDeGuionEtm,
 } from "@/lib/consultoria/guiones/etm-tuesday";
 import {
-  copiaOcultaInvitacionEtm,
+  copiaOcultaEtm,
   debeRetenerCorreoEtm,
   esParticipantePruebaEtm,
   esPruebaSebaEtm,
@@ -292,12 +292,10 @@ test("ETM retiene el lote; pasan Seba y las tres pruebas aprobadas", () => {
         debeRetenerCorreoEtm(fase, { email: ` ${email.toUpperCase()} ` })
       ).toBe(false);
       expect(esPruebaSebaEtm(fase, email)).toBe(false);
-      expect(copiaOcultaInvitacionEtm(fase, email)).toBe("seba@majoriti.world");
+      expect(copiaOcultaEtm(fase, email)).toBe("seba@majoriti.world");
     }
-    expect(copiaOcultaInvitacionEtm(fase, "seba@majoriti.world")).toBeNull();
-    expect(
-      copiaOcultaInvitacionEtm(fase, "otra.persona@emprendetumente.org")
-    ).toBeNull();
+    expect(copiaOcultaEtm(fase, "seba@majoriti.world")).toBeNull();
+    expect(copiaOcultaEtm(fase, "otra.persona@emprendetumente.org")).toBeNull();
     expect(debeRetenerCorreoEtm(fase, { email: " Seba@Majoriti.world " })).toBe(
       false
     );
@@ -323,7 +321,7 @@ test("ETM retiene el lote; pasan Seba y las tres pruebas aprobadas", () => {
   }
   expect(PARTICIPANTES_APROBADOS_ETM.size).toBe(3);
   expect(
-    copiaOcultaInvitacionEtm(
+    copiaOcultaEtm(
       "Entrevistas a colaboradores",
       "gabriel.fuentes@emprendetumente.org"
     )
