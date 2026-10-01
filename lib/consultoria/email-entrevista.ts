@@ -28,9 +28,12 @@ import {
   debeRetenerCorreoColaboradores,
   esExcepcionEnvioPruebaColaboradores,
   excluirDeCampanaColaboradores,
+  pendientesDeLote,
+  tratoDeInvitacion,
 } from "@/lib/consultoria/invitacion-colaboradores";
 import { claveIdempotenciaConfirmacion } from "@/lib/consultoria/marca";
 import {
+  detalleEnvioAceptado,
   dormirMs,
   ErrorEnvioCorreo,
   ejecutarEnvioConReintentos,
@@ -284,6 +287,7 @@ async function prepararCorreoInvitacion(entrevistaId: string) {
     identidad: asignacion.identidad,
     minutos: asignacion.minutos,
     textos,
+    trato: tratoDeInvitacion(asignacion.faseNombre),
   });
   return correo;
 }
@@ -318,16 +322,16 @@ async function enviarEnOrden(
   try {
     const correo = await prepararCorreoInvitacion(entrevistaId);
     const idempotencyKey = claveIdempotenciaInvitacion(entrevistaId);
-    await ejecutarEnvioConReintentos({
+    const aceptado = await ejecutarEnvioConReintentos({
       dormir,
-      enviar: async () => {
-        await enviarCorreoPreparado({ correo, idempotencyKey });
-      },
+      enviar: async () =>
+        await enviarCorreoPreparado({ correo, idempotencyKey }),
       intentosMaximos: ritmo.intentosMaximos,
       intervaloBaseMs: ritmo.intervaloMs,
     });
     const marca = await registrar({
       correo: correoDestino,
+      detalle: detalleEnvioAceptado(aceptado?.id),
       entrevistaId,
       estado: "enviado",
     });
@@ -413,24 +417,32 @@ export async function enviarInvitacionesDeFase(
   const yaEnviadas = new Set(
     (previos ?? []).map((fila) => String(fila.entrevista_id))
   );
+  const sinCorreo = new Set<string>();
   const pruebas = new Set<string>();
   for (const fila of marcas ?? []) {
     const stakeholder = Array.isArray(fila.stakeholder)
       ? fila.stakeholder[0]
       : fila.stakeholder;
+    const entrevistaId = String(fila.id);
+    if (!stakeholder?.email?.trim()) {
+      sinCorreo.add(entrevistaId);
+    }
     if (
       excluirDeCampanaColaboradores(fase.nombre, {
         correo: stakeholder?.email,
         empresa: stakeholder?.firma,
       })
     ) {
-      pruebas.add(String(fila.id));
+      pruebas.add(entrevistaId);
     }
   }
-  const omitir = new Set([...yaEnviadas, ...pruebas]);
-  const pendientes = ids.filter((id) => !omitir.has(id));
+  const lote = pendientesDeLote(ids, {
+    enviados: yaEnviadas,
+    pruebas,
+    sinCorreo,
+  });
   const resultado = await enviarEnOrden(
-    pendientes,
+    lote.pendientes,
     async (fila) => {
       const { error } = await admin.from("invitacion_envio").insert({
         correo: fila.correo,
@@ -449,5 +461,5 @@ export async function enviarInvitacionesDeFase(
     ritmoInvitacionDesdeEntorno(process.env),
     dormirMs
   );
-  return { ...resultado, omitidos: resultado.omitidos + omitir.size };
+  return { ...resultado, omitidos: resultado.omitidos + lote.omitidos };
 }

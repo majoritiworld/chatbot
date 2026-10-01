@@ -8,9 +8,12 @@ export function envioInvitacionesColaboradoresPermitido() {
   return false;
 }
 
-/** One authorized trial. It does not open the phase. */
+/**
+ * The trial Seba can finish now. It does not open the phase.
+ * The earlier assignment 1190524f-79e3-49e8-b090-7000711d21ad stays stored.
+ */
 export const ENTREVISTA_PRUEBA_COLABORADORES =
-  "1190524f-79e3-49e8-b090-7000711d21ad";
+  "c76190ba-49d7-4bae-bc80-91bc6c628bed";
 
 export const EMAIL_PRUEBA_COLABORADORES = "seba@majoriti.world";
 
@@ -62,6 +65,31 @@ export function esParticipantePruebaColaboradores({
     return true;
   }
   return EMPRESA_DE_PRUEBA.test(organizacion);
+}
+
+/** This invitation uses tú. The thank-you of the same phase stays in usted. */
+export function tratoDeInvitacion(faseNombre: string | null) {
+  if (faseNombre?.trim() === NOMBRE_FASE_COLABORADORES) {
+    return "tu" as const;
+  }
+  return "usted" as const;
+}
+
+export function pendientesDeLote(
+  ids: readonly string[],
+  grupos: {
+    enviados: Iterable<string>;
+    pruebas: Iterable<string>;
+    sinCorreo: Iterable<string>;
+  }
+) {
+  const fuera = new Set([
+    ...grupos.enviados,
+    ...grupos.pruebas,
+    ...grupos.sinCorreo,
+  ]);
+  const pendientes = ids.filter((id) => !fuera.has(id));
+  return { omitidos: ids.length - pendientes.length, pendientes };
 }
 
 export function asuntoConPrefijoPrueba(asunto: string) {

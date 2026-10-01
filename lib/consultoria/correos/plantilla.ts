@@ -178,7 +178,7 @@ ${boton}
 ${contenido.notas.map((nota) => parrafoHtml(nota, tenue)).join("\n")}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;"><tr><td style="border-top:1px solid ${BORDE};padding-top:20px;">
 ${parrafoHtml(contenido.ayuda, tenue)}
-<p style="margin:0;font-family:${FUENTE};font-size:16px;font-weight:600;line-height:1.5;color:${TEXTO};">${escapeHtml(contenido.firma)}</p>
+<p style="margin:0;font-family:${FUENTE};font-size:16px;font-weight:600;line-height:1.5;color:${TEXTO};">${escapeHtml(contenido.firma).replace(SALTO_LINEA, "<br />")}</p>
 </td></tr></table>
 </td></tr>
 </table>

@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { pendientesDeLote } from "@/lib/consultoria/invitacion-colaboradores";
 import {
   decisionReintento,
+  detalleEnvioAceptado,
   ErrorEnvioCorreo,
   ejecutarEnvioConReintentos,
   esperaReintentoMs,
@@ -141,4 +143,55 @@ test("stops after the maximum number of uncertain responses", async () => {
   expect(decisionReintento(new Error("validación local"))).toEqual({
     tipo: "no",
   });
+});
+
+test("a simulated provider accepts one id and a resumed batch skips it", async () => {
+  const aceptados = new Map<string, { id: string; subject: string }>();
+  let entregas = 0;
+  const enviarLogico = (entrevistaId: string, subject: string) => {
+    const clave = `entrevista-${entrevistaId}-invitacion`;
+    return ejecutarEnvioConReintentos({
+      dormir,
+      enviar: () => {
+        const previo = aceptados.get(clave);
+        if (previo && previo.subject !== subject) {
+          return Promise.reject(
+            new ErrorEnvioCorreo({
+              codigo: "invalid_idempotent_request",
+              message: "La clave ya se usó con otro contenido",
+              retryAfterMs: null,
+              statusCode: 409,
+            })
+          );
+        }
+        if (previo) {
+          return Promise.resolve(previo);
+        }
+        entregas += 1;
+        const aceptado = { id: `correo-${entregas}`, subject };
+        aceptados.set(clave, aceptado);
+        return Promise.resolve(aceptado);
+      },
+      intentosMaximos: 3,
+      intervaloBaseMs: 1000,
+    });
+  };
+
+  const primero = await enviarLogico("nueva", "cuerpo fijo");
+  const repetido = await enviarLogico("nueva", "cuerpo fijo");
+  expect(repetido.id).toBe(primero.id);
+  expect(detalleEnvioAceptado(primero.id)).toBe("resend:correo-1");
+  expect(entregas).toBe(1);
+  await expect(enviarLogico("nueva", "cuerpo cambiado")).rejects.toThrow(
+    "otro contenido"
+  );
+  expect(entregas).toBe(1);
+
+  const lote = pendientesDeLote(["nueva", "real", "prueba", "vacia"], {
+    enviados: ["nueva"],
+    pruebas: ["prueba"],
+    sinCorreo: ["vacia"],
+  });
+  expect(lote.pendientes).toEqual(["real"]);
+  expect(lote.omitidos).toBe(3);
 });

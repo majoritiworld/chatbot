@@ -123,7 +123,7 @@ export function decisionReintento(
 }
 
 /** Retries one logical send. The caller keeps the same body and idempotency key. */
-export async function ejecutarEnvioConReintentos({
+export async function ejecutarEnvioConReintentos<T>({
   dormir,
   enviar,
   intento = 1,
@@ -131,13 +131,13 @@ export async function ejecutarEnvioConReintentos({
   intervaloBaseMs,
 }: {
   dormir: (ms: number) => Promise<void>;
-  enviar: () => Promise<void>;
+  enviar: () => Promise<T>;
   intento?: number;
   intentosMaximos: number;
   intervaloBaseMs: number;
-}): Promise<void> {
+}): Promise<T> {
   try {
-    await enviar();
+    return await enviar();
   } catch (error) {
     const decision = decisionReintento(error);
     if (decision.tipo === "no" || intento >= intentosMaximos) {
@@ -150,7 +150,7 @@ export async function ejecutarEnvioConReintentos({
         retryAfterMs: decision.retryAfterMs,
       })
     );
-    await ejecutarEnvioConReintentos({
+    return await ejecutarEnvioConReintentos({
       dormir,
       enviar,
       intento: intento + 1,
@@ -158,6 +158,14 @@ export async function ejecutarEnvioConReintentos({
       intervaloBaseMs,
     });
   }
+}
+
+export function detalleEnvioAceptado(id: string | null | undefined) {
+  const limpio = id?.trim() ?? "";
+  if (!limpio) {
+    return null;
+  }
+  return `resend:${limpio}`;
 }
 
 export function dormirMs(ms: number) {

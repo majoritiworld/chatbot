@@ -10,6 +10,17 @@ export const NOMBRE_PLANTILLA_CL_COLABORADORES =
 
 export const MINUTOS_CL_COLABORADORES = 15;
 
+/** Invitation copy for this phase only. The shared template adds the greeting, button, help, signature and footer. */
+export const ASUNTO_INVITACION_CL_COLABORADORES =
+  "Queremos conocer tu experiencia como colaborador de ComplianceLatam";
+
+export const CUERPO_INVITACION_CL_COLABORADORES = [
+  "Desde ComplianceLatam queremos conocer tu experiencia como colaborador, con el objetivo de seguir mejorando nuestra propuesta de valor y generar iniciativas que sean cada vez más relevantes para ti.",
+  "Por eso, te invitamos a participar en una breve entrevista individual a través de la plataforma Majoriti, donde podrás compartirnos tu experiencia, opiniones y sugerencias.",
+  "La entrevista toma aproximadamente 15 minutos. Puedes guardar tu avance y continuar más adelante desde el mismo enlace.",
+  "Muchas gracias desde ya por tu tiempo y colaboración. ¡Para nosotros es muy valioso contar con tu opinión!",
+].join("\n\n");
+
 export const TRATO_CL_COLABORADORES: TratoEntrevista = "usted";
 
 export const INSTRUCCIONES_AGENTE_CL_COLABORADORES = [

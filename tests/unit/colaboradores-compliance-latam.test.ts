@@ -18,6 +18,8 @@ import {
   type TurnoEntrevista,
 } from "@/lib/consultoria/entrevista-contenido";
 import {
+  ASUNTO_INVITACION_CL_COLABORADORES,
+  CUERPO_INVITACION_CL_COLABORADORES,
   NOMBRE_FASE_COLABORADORES,
   seccionesDeGuionClColaboradores,
 } from "@/lib/consultoria/guiones/compliance-latam-colaboradores";
@@ -29,6 +31,8 @@ import {
   envioInvitacionesColaboradoresPermitido,
   esParticipantePruebaColaboradores,
   excluirDeCampanaColaboradores,
+  pendientesDeLote,
+  tratoDeInvitacion,
 } from "@/lib/consultoria/invitacion-colaboradores";
 import { resolverTurnoConObligatorias } from "@/lib/consultoria/obligatorias-turno";
 import {
@@ -431,6 +435,15 @@ test("los correos de esta fase siguen retenidos", () => {
       entrevistaId: ENTREVISTA_PRUEBA_COLABORADORES,
     })
   ).toBe(false);
+  expect(tratoDeInvitacion(NOMBRE_FASE_COLABORADORES)).toBe("tu");
+  expect(tratoDeInvitacion("Entrevistas a Firmas Socias")).toBe("usted");
+  expect(
+    pendientesDeLote(["enviada", "real", "prueba", "vacia"], {
+      enviados: ["enviada"],
+      pruebas: ["prueba"],
+      sinCorreo: ["vacia"],
+    })
+  ).toEqual({ omitidos: 3, pendientes: ["real"] });
 });
 
 test("las pruebas no entran en el conteo ni en la campaña de colaboradores", () => {
@@ -469,7 +482,7 @@ test("las pruebas no entran en el conteo ni en la campaña de colaboradores", ()
 test("la invitación final entra directo y el agradecimiento habla de usted", () => {
   const token = "vista-previa-sin-acceso";
   const enlace = crearEnlaceAcceso({
-    entrevistaId: "1190524f-79e3-49e8-b090-7000711d21ad",
+    entrevistaId: ENTREVISTA_PRUEBA_COLABORADORES,
     permitirLocal: false,
     site: "https://portal.majoriti.world",
     slug: "compliance-latam",
@@ -492,21 +505,15 @@ test("la invitación final entra directo y el agradecimiento habla de usted", ()
     identidad,
     minutos: 15,
     textos: {
-      asunto: asuntoConPrefijoPrueba(
-        "Su experiencia con ComplianceLatam: entrevista de 15 minutos"
-      ),
-      cuerpo: [
-        "Desde ComplianceLatam queremos conocer su experiencia con la red y entender cómo podemos ser más útiles en su trabajo.",
-        "Le invitamos a una entrevista individual de aproximadamente 15 minutos en la plataforma Majoriti. Su perspectiva nos sirve incluso si hasta ahora ha participado poco o no ha utilizado la red.",
-        "Puede guardar su avance y continuar más adelante desde este mismo enlace.",
-        "Muchas gracias por su tiempo.",
-      ].join("\n\n"),
+      asunto: asuntoConPrefijoPrueba(ASUNTO_INVITACION_CL_COLABORADORES),
+      cuerpo: CUERPO_INVITACION_CL_COLABORADORES,
       firma: "Equipo ComplianceLatam",
       remitente: "Equipo ComplianceLatam",
     },
+    trato: "tu",
   });
   expect(invitacion.subject).toBe(
-    "[PRUEBA] Su experiencia con ComplianceLatam: entrevista de 15 minutos"
+    `[PRUEBA] ${ASUNTO_INVITACION_CL_COLABORADORES}`
   );
   expect(invitacion.replyTo).toBe("crivera@compliancelatam.legal");
   expect(invitacion.remitenteVisible).toBe(
@@ -514,18 +521,26 @@ test("la invitación final entra directo y el agradecimiento habla de usted", ()
   );
   const destino = `https://portal.majoriti.world/e/${token}`;
   expect(invitacion.text).toContain(`Comenzar mi entrevista: ${destino}`);
-  expect(invitacion.text).toContain("no ha utilizado la red");
-  expect(invitacion.text).toContain("guardar su avance");
+  expect(invitacion.text).toContain("guardar tu avance");
+  expect(invitacion.text.match(/guardar tu avance/g)).toHaveLength(1);
+  expect(invitacion.text.match(/Hola, Ana:/g)).toHaveLength(1);
+  expect(invitacion.text).not.toContain("guardar su avance");
   expect(invitacion.text).not.toContain("Este enlace es personal");
   expect(invitacion.text).not.toContain("código de acceso");
   expect(invitacion.text).not.toContain("basta con abrir");
   expect(invitacion.html).toContain(`href="${destino}"`);
-  expect(invitacion.html).toContain("¿Tiene alguna pregunta?");
+  expect(invitacion.html).not.toContain(`>${destino}<`);
+  expect(invitacion.html).toContain(
+    "¿Tienes alguna pregunta? Responde a este correo o escribe a crivera@compliancelatam.legal."
+  );
+  expect(invitacion.html).not.toContain("¿Tiene alguna pregunta?");
+  expect(invitacion.html).not.toContain("Le invitamos");
+  expect(invitacion.html).toContain("Saludos,<br />Equipo ComplianceLatam");
   expect(invitacion.html).toContain("Enviado a través de Majoriti");
   expect(invitacion.html).not.toContain("Si el botón no funciona");
   const boton = invitacion.html.indexOf(">Comenzar mi entrevista</a>");
-  const ayuda = invitacion.html.indexOf("¿Tiene alguna pregunta?");
-  const firma = invitacion.html.indexOf("Equipo ComplianceLatam");
+  const ayuda = invitacion.html.indexOf("¿Tienes alguna pregunta?");
+  const firma = invitacion.html.indexOf("Saludos,");
   const pie = invitacion.html.indexOf("Enviado a través de Majoriti");
   expect(boton).toBeLessThan(ayuda);
   expect(ayuda).toBeLessThan(firma);

@@ -28,7 +28,8 @@ const CIERRE_CONFIRMACION =
   "Su entrevista está completa. No necesita hacer nada más.";
 const YA_CERRADA = /nada más/i;
 const MENCIONA_MINUTOS = /\bminutos\b/i;
-const MENCIONA_GUARDADO = /guardar su avance|avance queda guardado/i;
+const MENCIONA_GUARDADO = /guardar (?:su|tu) avance|avance queda guardado/i;
+const PREFIJO_PRUEBA = "[PRUEBA] ";
 
 export function remitenteVisible(cliente: string, configurado: string | null) {
   const base = configurado?.trim() || cliente;
@@ -39,7 +40,10 @@ function saludo(nombre: string | null) {
   return nombre ? `Hola, ${nombre}:` : "Hola:";
 }
 
-function ayuda(identidad: IdentidadCorreo) {
+function ayuda(identidad: IdentidadCorreo, trato: "tu" | "usted") {
+  if (trato === "tu") {
+    return `¿Tienes alguna pregunta? Responde a este correo o escribe a ${identidad.contactoEmail}.`;
+  }
   const quien = identidad.contactoNombre
     ? `${identidad.contactoNombre} (${identidad.contactoEmail})`
     : identidad.contactoEmail;
@@ -48,6 +52,36 @@ function ayuda(identidad: IdentidadCorreo) {
 
 function firma(identidad: IdentidadCorreo, textos: TextosCorreo) {
   return textos.firma ?? `Equipo ${identidad.cliente}`;
+}
+
+function previewInvitacion(minutos: number | null, trato: "tu" | "usted") {
+  if (trato === "tu" && minutos) {
+    return `Una conversación de unos ${minutos} minutos. Puedes pausar y continuar cuando quieras.`;
+  }
+  if (trato === "tu") {
+    return "Una conversación guiada. Puedes pausar y continuar cuando quieras.";
+  }
+  if (minutos) {
+    return `Una conversación guiada de unos ${minutos} minutos. Puede pausar y continuar cuando quiera.`;
+  }
+  return "Una conversación guiada. Puede pausar y continuar cuando quiera.";
+}
+
+function tituloInvitacion(
+  identidad: IdentidadCorreo,
+  subject: string,
+  trato: "tu" | "usted"
+) {
+  if (identidad.titulo) {
+    return identidad.titulo;
+  }
+  if (trato !== "tu") {
+    return "Le invitamos a una entrevista";
+  }
+  if (subject.startsWith(PREFIJO_PRUEBA)) {
+    return subject.slice(PREFIJO_PRUEBA.length);
+  }
+  return subject;
 }
 
 function nombreIniciativa(identidad: IdentidadCorreo) {
@@ -92,7 +126,7 @@ export function correoConfirmacion({
   const preview = `${identidad.cliente} confirma que su entrevista quedó completa.`;
   const { html, text } = renderCorreo(identidad, {
     accion: null,
-    ayuda: ayuda(identidad),
+    ayuda: ayuda(identidad, "usted"),
     comercial,
     firma: firma(identidad, textos),
     notas: [],
@@ -121,12 +155,14 @@ export function correoInvitacion({
   identidad,
   minutos,
   textos,
+  trato = "usted",
 }: {
   destinatario: { email: string; nombre: string | null };
   enlace: EnlaceAcceso;
   identidad: IdentidadCorreo;
   minutos: number | null;
   textos: TextosCorreo;
+  trato?: "tu" | "usted";
 }): CorreoPreparado {
   const iniciativa = nombreIniciativa(identidad);
   const duracion = minutos
@@ -144,8 +180,18 @@ export function correoInvitacion({
     MENCIONA_GUARDADO.test(parrafo)
   );
   const enlacePersonal = enlace.modo === "enlace_personal";
+  const textoAyuda = ayuda(identidad, trato);
+  const textoFirma =
+    trato === "tu" && !firma(identidad, textos).startsWith("Saludos")
+      ? `Saludos,\n${firma(identidad, textos)}`
+      : firma(identidad, textos);
+  const saludoTexto = saludo(destinatario.nombre);
+  const piezasPlantilla = new Set([saludoTexto, textoAyuda, textoFirma]);
+  const cuerpoVisible = cuerpo.filter(
+    (parrafo) => !piezasPlantilla.has(parrafo)
+  );
   const parrafos = [
-    ...cuerpo,
+    ...cuerpoVisible,
     ...(yaDiceDuracion ? [] : [duracion]),
     ...(enlacePersonal && !yaDiceGuardado
       ? [
@@ -157,9 +203,7 @@ export function correoInvitacion({
   const subject =
     textos.asunto ??
     `${identidad.cliente} le invita a una entrevista${identidad.titulo ? ` — ${identidad.titulo}` : ""}`;
-  const preview = minutos
-    ? `Una conversación guiada de unos ${minutos} minutos. Puede pausar y continuar cuando quiera.`
-    : "Una conversación guiada. Puede pausar y continuar cuando quiera.";
+  const preview = previewInvitacion(minutos, trato);
   const notas = enlacePersonal
     ? []
     : [
@@ -167,18 +211,19 @@ export function correoInvitacion({
         "Puede pausar y volver cuando quiera: su avance queda guardado y retoma donde lo dejó.",
         "Esta invitación es personal: el acceso queda vinculado a su correo. Le pedimos no reenviarla.",
       ];
+  const titulo = tituloInvitacion(identidad, subject, trato);
   const { html, text } = renderCorreo(identidad, {
     accion: { etiqueta: "Comenzar mi entrevista", url: enlace.url },
-    ayuda: ayuda(identidad),
+    ayuda: textoAyuda,
     comercial: null,
-    firma: firma(identidad, textos),
+    firma: textoFirma,
     notas,
     parrafos,
     preview,
     respaldoAccion: !enlacePersonal,
-    saludo: saludo(destinatario.nombre),
+    saludo: saludoTexto,
     subject,
-    titulo: identidad.titulo ?? "Le invitamos a una entrevista",
+    titulo,
   });
 
   return {

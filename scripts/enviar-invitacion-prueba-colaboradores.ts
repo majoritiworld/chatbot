@@ -5,6 +5,7 @@ import {
   EMAIL_PRUEBA_COLABORADORES,
   ENTREVISTA_PRUEBA_COLABORADORES,
 } from "@/lib/consultoria/invitacion-colaboradores";
+import { detalleEnvioAceptado } from "@/lib/consultoria/ritmo-invitacion";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 config({ path: ".env.local" });
@@ -90,9 +91,10 @@ async function main() {
     throw error;
   }
 
+  const marca = detalleEnvioAceptado(aceptado?.id);
   const { error: errorRegistro } = await admin.from("invitacion_envio").insert({
     correo: EMAIL_PRUEBA_COLABORADORES,
-    detalle: "prueba autorizada",
+    detalle: marca ? `prueba autorizada; ${marca}` : "prueba autorizada",
     entrevista_id: ENTREVISTA_PRUEBA_COLABORADORES,
     estado: "enviado",
   });

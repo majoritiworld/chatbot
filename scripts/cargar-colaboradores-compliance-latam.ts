@@ -5,6 +5,8 @@ import path from "node:path";
 import { planificarColaboradores } from "@/lib/consultoria/cargas/compliance-latam-colaboradores";
 import { preguntasDeSecciones } from "@/lib/consultoria/entrevista-contenido";
 import {
+  ASUNTO_INVITACION_CL_COLABORADORES,
+  CUERPO_INVITACION_CL_COLABORADORES,
   INSTRUCCIONES_AGENTE_CL_COLABORADORES,
   MINUTOS_CL_COLABORADORES,
   NOMBRE_FASE_COLABORADORES,
@@ -15,17 +17,6 @@ import {
 import { esProyectoComplianceLatam } from "@/lib/consultoria/guiones/compliance-latam-fase-1";
 import { cifrarSecreto } from "@/lib/consultoria/token-cifrado";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-/** Copy of this phase only. The common template adds access and saving notes. */
-const ASUNTO_INVITACION_COLABORADORES =
-  "Su experiencia con ComplianceLatam: entrevista de 15 minutos";
-
-const CUERPO_INVITACION_COLABORADORES = [
-  "Desde ComplianceLatam queremos conocer su experiencia con la red y entender cómo podemos ser más útiles en su trabajo.",
-  "Le invitamos a una entrevista individual de aproximadamente 15 minutos en la plataforma Majoriti. Su perspectiva nos sirve incluso si hasta ahora ha participado poco o no ha utilizado la red.",
-  "Puede guardar su avance y continuar más adelante desde este mismo enlace.",
-  "Muchas gracias por su tiempo.",
-].join("\n\n");
 
 const PLANILLA =
   process.argv[2] ?? "/Users/salbagli/Downloads/Planilla Majoriti.xlsx";
@@ -307,8 +298,8 @@ async function asegurarFase(admin: Admin, proyectoId: string) {
   const { error: errorTextos } = await admin
     .from("fase")
     .update({
-      invitacion_asunto: ASUNTO_INVITACION_COLABORADORES,
-      invitacion_cuerpo: CUERPO_INVITACION_COLABORADORES,
+      invitacion_asunto: ASUNTO_INVITACION_CL_COLABORADORES,
+      invitacion_cuerpo: CUERPO_INVITACION_CL_COLABORADORES,
       minutos: MINUTOS_CL_COLABORADORES,
     })
     .eq("id", faseId);
