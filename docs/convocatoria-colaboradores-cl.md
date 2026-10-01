@@ -39,11 +39,14 @@ La prueba autorizada usa esa misma invitación con el prefijo «[PRUEBA]» en el
 
 ## Envío por lotes
 
-El botón de la fase sigue rechazado en servidor: la convocatoria general no está habilitada. Cuando se autorice, el lote recorre las entrevistas de una en una, omite quien ya tiene un envío registrado y omite las pruebas, y guarda cada resultado. Pendiente de ese envío masivo: controlar el ritmo y reintentar cuando Resend responda un límite. El reintento no debe repetir un mensaje que Resend ya aceptó: la clave de idempotencia dura 24 horas y el registro local en estado enviado también omite ese destinatario. Hoy no hay pausa entre mensajes ni un reintento específico de esos límites. No hay recordatorios programados.
+El botón de la fase sigue rechazado en servidor: la convocatoria general no está habilitada. Cuando se autorice, el lote recorre las entrevistas de una en una, omite quien ya tiene un envío en estado enviado, omite las pruebas y guarda cada resultado. Un lote interrumpido se retoma por esos registros: los errores vuelven a entrar y los enviados no.
+
+La clave de Resend de esta cuenta solo puede enviar, así que no se puede leer su cupo. La documentación pública de Resend parte de 2 solicitudes por segundo. El lote espera 1 segundo entre mensajes (`INVITACION_RITMO_MS`, entre 200 y 60000). Ante un límite, una cuota o una respuesta incierta reintenta hasta 5 veces (`INVITACION_INTENTOS_MAX`, entre 1 y 8). Si llega `Retry-After`, espera al menos ese plazo, con un máximo de 15 minutos. Si no llega, la espera crece desde el ritmo base y se detiene en 60 segundos.
+
+Cada reintento usa la misma clave `entrevista-{id}-invitacion` y el mismo contenido armado para ese envío. No se genera otra clave. Si Resend indica que esa clave ya se usó con otro contenido, el envío queda en error y no se sustituye la clave. Dos ejecuciones a la vez comparten esa clave; el índice único de un envío en estado enviado impide un segundo registro. No hay recordatorios programados.
 
 ## Pendiente antes de convocar
 
 - Decidir si las respuestas siguen identificadas y, solo entonces, aplicar el aviso propuesto en [Identidad de las entrevistas a colaboradores](identidad-entrevistas-colaboradores.md).
-- Controlar el ritmo del envío masivo y reintentar los límites de Resend sin duplicar mensajes ya aceptados.
-- Confirmar el envío general. Hasta entonces `envioInvitacionesColaboradoresPermitido` sigue en falso y el lote no sale.
+- Confirmar el envío general. Hasta entonces `envioInvitacionesColaboradoresPermitido` sigue en falso y el lote no sale. El ritmo y los reintentos ya están en el lote; no activan la convocatoria.
 - Corregir, si se quieren incluir, las tres filas sin correo. No inventar direcciones.

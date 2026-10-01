@@ -30,6 +30,13 @@ import {
   excluirDeCampanaColaboradores,
 } from "@/lib/consultoria/invitacion-colaboradores";
 import { claveIdempotenciaConfirmacion } from "@/lib/consultoria/marca";
+import {
+  dormirMs,
+  ErrorEnvioCorreo,
+  ejecutarEnvioConReintentos,
+  leerRetryAfterMs,
+  ritmoInvitacionDesdeEntorno,
+} from "@/lib/consultoria/ritmo-invitacion";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export class CorreoBloqueadoError extends Error {
@@ -92,24 +99,45 @@ async function enviarCorreoPreparado({
 
   const baseUrl = process.env.RESEND_BASE_URL?.trim();
   const resend = baseUrl ? new Resend(apiKey, { baseUrl }) : new Resend(apiKey);
-  const { data, error } = await resend.emails.send(
-    {
-      from: remitenteConNombre(from, correo.remitenteVisible),
-      html: correo.html,
-      replyTo: correo.replyTo,
-      subject: correo.subject,
-      text: correo.text,
-      to: [correo.destinatario],
-      ...(copiar && { bcc: [copiaEquipo] }),
-    },
-    { idempotencyKey }
-  );
-
-  if (error) {
-    throw new Error(error.message);
+  let resultado: Awaited<ReturnType<typeof resend.emails.send>>;
+  try {
+    resultado = await resend.emails.send(
+      {
+        from: remitenteConNombre(from, correo.remitenteVisible),
+        html: correo.html,
+        replyTo: correo.replyTo,
+        subject: correo.subject,
+        text: correo.text,
+        to: [correo.destinatario],
+        ...(copiar && { bcc: [copiaEquipo] }),
+      },
+      { idempotencyKey }
+    );
+  } catch (error) {
+    throw new ErrorEnvioCorreo(
+      {
+        codigo: "network",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No hubo respuesta del proveedor",
+        retryAfterMs: null,
+        statusCode: null,
+      },
+      { cause: error }
+    );
   }
 
-  return data;
+  if (resultado.error) {
+    throw new ErrorEnvioCorreo({
+      codigo: resultado.error.name,
+      message: resultado.error.message,
+      retryAfterMs: leerRetryAfterMs(resultado.headers),
+      statusCode: resultado.error.statusCode,
+    });
+  }
+
+  return resultado.data;
 }
 
 /**
@@ -189,6 +217,14 @@ export function claveIdempotenciaInvitacion(entrevistaId: string) {
  * are disabled. The link is always built here from the assignment.
  */
 export async function enviarCorreoInvitacion(entrevistaId: string) {
+  const correo = await prepararCorreoInvitacion(entrevistaId);
+  return await enviarCorreoPreparado({
+    correo,
+    idempotencyKey: claveIdempotenciaInvitacion(entrevistaId),
+  });
+}
+
+async function prepararCorreoInvitacion(entrevistaId: string) {
   if (!invitacionesHabilitadas()) {
     throw new Error(INVITACIONES_DESHABILITADAS);
   }
@@ -249,10 +285,7 @@ export async function enviarCorreoInvitacion(entrevistaId: string) {
     minutos: asignacion.minutos,
     textos,
   });
-  return await enviarCorreoPreparado({
-    correo,
-    idempotencyKey: claveIdempotenciaInvitacion(entrevistaId),
-  });
+  return correo;
 }
 
 export type ResultadoInvitacionesFase = {
@@ -271,31 +304,56 @@ async function enviarEnOrden(
     detalle?: string;
     entrevistaId: string;
     estado: "enviado" | "error";
-  }) => Promise<void>
+  }) => Promise<"nuevo" | "ya">,
+  ritmo: { intentosMaximos: number; intervaloMs: number },
+  dormir: (ms: number) => Promise<void>
 ): Promise<ResultadoInvitacionesFase> {
   const [entrevistaId, ...resto] = pendientes;
   if (!entrevistaId) {
     return { ...SIN_ENVIOS };
   }
   const destino = await resolverAsignacionCorreo(entrevistaId, "invitacion");
-  const correo = destino.ok ? destino.asignacion.destinatario.email : "";
-  let enviado = true;
+  const correoDestino = destino.ok ? destino.asignacion.destinatario.email : "";
+  let cuenta: "enviado" | "error" | "omitido" = "enviado";
   try {
-    await enviarCorreoInvitacion(entrevistaId);
-    await registrar({ correo, entrevistaId, estado: "enviado" });
+    const correo = await prepararCorreoInvitacion(entrevistaId);
+    const idempotencyKey = claveIdempotenciaInvitacion(entrevistaId);
+    await ejecutarEnvioConReintentos({
+      dormir,
+      enviar: async () => {
+        await enviarCorreoPreparado({ correo, idempotencyKey });
+      },
+      intentosMaximos: ritmo.intentosMaximos,
+      intervaloBaseMs: ritmo.intervaloMs,
+    });
+    const marca = await registrar({
+      correo: correoDestino,
+      entrevistaId,
+      estado: "enviado",
+    });
+    if (marca === "ya") {
+      cuenta = "omitido";
+    }
   } catch (error) {
-    enviado = false;
+    cuenta = "error";
     await registrar({
-      correo,
+      correo: correoDestino,
       detalle: error instanceof Error ? error.message : "Error de envío",
       entrevistaId,
       estado: "error",
     });
   }
-  const siguiente = await enviarEnOrden(resto, registrar);
-  return enviado
-    ? { ...siguiente, enviados: siguiente.enviados + 1 }
-    : { ...siguiente, errores: siguiente.errores + 1 };
+  if (resto.length > 0 && ritmo.intervaloMs > 0) {
+    await dormir(ritmo.intervaloMs);
+  }
+  const siguiente = await enviarEnOrden(resto, registrar, ritmo, dormir);
+  if (cuenta === "enviado") {
+    return { ...siguiente, enviados: siguiente.enviados + 1 };
+  }
+  if (cuenta === "omitido") {
+    return { ...siguiente, omitidos: siguiente.omitidos + 1 };
+  }
+  return { ...siguiente, errores: siguiente.errores + 1 };
 }
 
 /**
@@ -371,13 +429,25 @@ export async function enviarInvitacionesDeFase(
   }
   const omitir = new Set([...yaEnviadas, ...pruebas]);
   const pendientes = ids.filter((id) => !omitir.has(id));
-  const resultado = await enviarEnOrden(pendientes, async (fila) => {
-    await admin.from("invitacion_envio").insert({
-      correo: fila.correo,
-      detalle: fila.detalle ?? null,
-      entrevista_id: fila.entrevistaId,
-      estado: fila.estado,
-    });
-  });
+  const resultado = await enviarEnOrden(
+    pendientes,
+    async (fila) => {
+      const { error } = await admin.from("invitacion_envio").insert({
+        correo: fila.correo,
+        detalle: fila.detalle ?? null,
+        entrevista_id: fila.entrevistaId,
+        estado: fila.estado,
+      });
+      if (error?.code === "23505") {
+        return "ya";
+      }
+      if (error) {
+        throw new Error(error.message);
+      }
+      return "nuevo";
+    },
+    ritmoInvitacionDesdeEntorno(process.env),
+    dormirMs
+  );
   return { ...resultado, omitidos: resultado.omitidos + omitir.size };
 }
