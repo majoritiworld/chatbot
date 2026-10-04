@@ -179,6 +179,7 @@ async function FaseContenido({
         consentimientoEn={entrevista.consentimiento_en}
         correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
         correoUsuario={portalUser.email}
+        emprendimiento={entrevista.stakeholder_firma}
         entrevistaId={entrevista.id}
         estadoInicial={entrevista.estado}
         flujoEstadoInicial={entrevista.flujo_estado}

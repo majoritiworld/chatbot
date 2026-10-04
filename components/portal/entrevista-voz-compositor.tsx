@@ -12,6 +12,7 @@ const BOTON_GRABACION = `flex ${BOTON_ICONO_COMPOSITOR_ENTREVISTA} items-center 
 export function EntrevistaVozCompositor({
   avisoVoz,
   cancelarGrabacion,
+  destacar,
   canvasRef,
   detenerGrabacion,
   duracionNodoRef,
@@ -23,6 +24,7 @@ export function EntrevistaVozCompositor({
 }: {
   avisoVoz: string | null;
   cancelarGrabacion: () => void;
+  destacar?: boolean;
   canvasRef: Ref<HTMLCanvasElement>;
   detenerGrabacion: () => void;
   duracionNodoRef: Ref<HTMLSpanElement>;
@@ -88,9 +90,11 @@ export function EntrevistaVozCompositor({
       <Button
         aria-keyshortcuts="Alt+Space"
         aria-label="Hablar"
-        className={`${BOTON_ICONO_COMPOSITOR_ENTREVISTA} p-0`}
-        size="icon-lg"
+        className={`${BOTON_ICONO_COMPOSITOR_ENTREVISTA} p-0${
+          destacar ? " mic-invite motion-reduce:animate-none" : ""
+        }`}
         onClick={empezarGrabacion}
+        size="icon-lg"
         type="button"
         variant="outline"
       >

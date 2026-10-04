@@ -95,6 +95,9 @@ type ActiveChatContextValue = {
   setGuardadoEnCurso: Dispatch<SetStateAction<boolean>>;
   /** True once the server stored the close offer the close endpoint will read. */
   ofertaCierrePersistida: boolean;
+  /** Brief part ends here. Unset keeps the single close button. */
+  profundizacionDesde?: number;
+  recorridoBreve: boolean;
   demoAislada: boolean;
   demoVoz?: ModoVozEntrevista;
   /** Greeting and the replies before "¿Comenzamos?" was accepted. Never sent to the model. */
@@ -124,6 +127,8 @@ export function ActiveChatProvider({
   mensajesIniciales,
   numeroSecciones,
   onSeccionCompletada,
+  profundizacionDesde,
+  recorridoBreve = false,
   seccionId,
 }: {
   children: ReactNode;
@@ -136,6 +141,8 @@ export function ActiveChatProvider({
   mensajesIniciales?: ChatMessage[];
   numeroSecciones?: number;
   onSeccionCompletada?: (data: SectionCompletedData) => void;
+  profundizacionDesde?: number;
+  recorridoBreve?: boolean;
   seccionId?: string;
 }) {
   const pathname = usePathname();
@@ -549,7 +556,9 @@ export function ActiveChatProvider({
       numeroSecciones,
       ofertaCierrePersistida,
       onSeccionCompletada,
+      profundizacionDesde,
       progresoGuardado,
+      recorridoBreve,
       regenerate,
       reintentarMensajeFallido,
       seccionId,
@@ -591,7 +600,9 @@ export function ActiveChatProvider({
       numeroSecciones,
       ofertaCierrePersistida,
       onSeccionCompletada,
+      profundizacionDesde,
       progresoGuardado,
+      recorridoBreve,
       regenerate,
       reintentarMensajeFallido,
       seccionId,

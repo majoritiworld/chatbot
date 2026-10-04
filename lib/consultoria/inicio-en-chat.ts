@@ -27,6 +27,10 @@ export type BloqueInformativo = {
  */
 export type InicioEnChat = {
   asistente: string;
+  /** Short introduction and voice hint, enabled explicitly by the guide. */
+  recorridoBreve?: boolean;
+  /** Welcome that names a venture. Used only when the base has a clear name. */
+  propositoEmprendimiento?: string;
   /** Validated with real participants. Null until then. */
   duracionMinutos: number | null;
   ia: BloqueInformativo[];
@@ -74,6 +78,10 @@ export function parseInicioEnChat(value: unknown): InicioEnChat | undefined {
   const crudo = value as Record<string, unknown>;
   const inicio = {
     asistente: texto(crudo.asistente),
+    ...(crudo.recorridoBreve === true ? { recorridoBreve: true } : {}),
+    ...(texto(crudo.propositoEmprendimiento).includes("{{emprendimiento}}")
+      ? { propositoEmprendimiento: texto(crudo.propositoEmprendimiento) }
+      : {}),
     duracionMinutos:
       typeof crudo.duracionMinutos === "number" &&
       Number.isInteger(crudo.duracionMinutos) &&
@@ -128,17 +136,81 @@ export function lineaDuracion(
 
 export const PREGUNTA_COMENZAR = "¿Comenzamos?";
 
+export const AVISO_VOZ =
+  "Pulsa el micrófono para probar y di «sí» o «comenzar».";
+
+const MARCA_ACENTO = /\p{M}/gu;
+const NOMBRES_AMBIGUOS = new Set([
+  "emprendimiento",
+  "empresa",
+  "etm",
+  "etm tuesday",
+  "mentoria",
+  "n/a",
+  "na",
+  "negocio",
+  "ninguna",
+  "ninguno",
+  "proyecto",
+  "sin nombre",
+  "startup",
+]);
+
+/** A short name from the base. A sentence, a generic word or a blank stays out. */
+export function nombrePropioCorto(valor: string | null | undefined) {
+  const nombre = valor?.trim().replace(/\s+/g, " ") ?? "";
+  if (!nombre || nombre.length > 40) {
+    return null;
+  }
+  if (/[?¿!¡@]|\d{2,}/.test(nombre)) {
+    return null;
+  }
+  const normal = nombre
+    .normalize("NFD")
+    .replace(MARCA_ACENTO, "")
+    .toLowerCase();
+  if (NOMBRES_AMBIGUOS.has(normal)) {
+    return null;
+  }
+  const palabras = nombre.split(" ");
+  if (palabras.length > 4 || palabras.some((palabra) => palabra.length > 24)) {
+    return null;
+  }
+  return nombre;
+}
+
 export function saludoInicial({
+  emprendimiento,
   inicio,
   nombre,
   numeroPreguntas,
 }: {
+  emprendimiento?: string | null;
   inicio: InicioEnChat;
   nombre?: string | null;
   numeroPreguntas: number;
 }) {
   const primerNombre = nombre?.trim().split(/\s+/)[0];
   const saludo = primerNombre ? `Hola, ${primerNombre}.` : "Hola.";
+  if (inicio.recorridoBreve) {
+    const propio = nombrePropioCorto(emprendimiento);
+    const personalizado = Boolean(inicio.propositoEmprendimiento && propio);
+    const proposito =
+      personalizado && propio && inicio.propositoEmprendimiento
+        ? inicio.propositoEmprendimiento.replaceAll(
+            "{{emprendimiento}}",
+            propio
+          )
+        : inicio.proposito;
+    return [
+      personalizado
+        ? `${saludo} ${proposito}`
+        : `${saludo} Soy ${inicio.asistente}.`,
+      ...(personalizado ? [] : [proposito]),
+      PREGUNTA_COMENZAR,
+      AVISO_VOZ,
+    ].join("\n\n");
+  }
   return [
     `${saludo} Soy ${inicio.asistente}.`,
     `${inicio.proposito} ${lineaDuracion(inicio, numeroPreguntas)}`,

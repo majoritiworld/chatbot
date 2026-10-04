@@ -100,6 +100,8 @@ export type SeccionEntrevista = {
   /** One chat for every guide question. Other projects leave this unset and
    * keep a screen and a close button per section. */
   conversacionContinua?: boolean;
+  /** Optional questions start here, only after an explicit choice to continue. */
+  profundizacionDesde?: number;
   /** Opens in the chat with a greeting instead of the welcome screens. */
   inicioEnChat?: InicioEnChat;
   /** What the person had to live for some objectives to apply. */
@@ -182,6 +184,7 @@ export function seccionesPublicas(
   return secciones.map(
     ({
       conversacionContinua,
+      profundizacionDesde,
       descripcion,
       id,
       inicioEnChat,
@@ -189,6 +192,7 @@ export function seccionesPublicas(
       titulo,
     }) => ({
       ...(conversacionContinua ? { conversacionContinua: true as const } : {}),
+      ...(typeof profundizacionDesde === "number" ? { profundizacionDesde } : {}),
       descripcion,
       id,
       ...(inicioEnChat ? { inicioEnChat } : {}),
@@ -260,6 +264,7 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
     const {
       actividad,
       conversacionContinua,
+      profundizacionDesde,
       descripcion,
       escucha,
       etiquetaOrganizacion,
@@ -313,6 +318,7 @@ export function parseSecciones(value: unknown): SeccionEntrevista[] {
         ...(conversacionContinua === true
           ? { conversacionContinua: true as const }
           : {}),
+        ...(typeof profundizacionDesde === "number" && Number.isInteger(profundizacionDesde) && profundizacionDesde > 0 && profundizacionDesde < preguntasValidas.length ? { profundizacionDesde } : {}),
         descripcion: typeof descripcion === "string" ? descripcion.trim() : "",
         ...(escuchaValida ? { escucha: escuchaValida } : {}),
         id,
@@ -349,6 +355,7 @@ export function clonarSecciones(
 ): SeccionEntrevista[] {
   return secciones.map((seccion) => ({
     ...(seccion.actividad ? { actividad: seccion.actividad } : {}),
+    ...(typeof seccion.profundizacionDesde === "number" ? { profundizacionDesde: seccion.profundizacionDesde } : {}),
     descripcion: seccion.descripcion,
     ...(seccion.escucha ? { escucha: { ...seccion.escucha } } : {}),
     id: crypto.randomUUID(),

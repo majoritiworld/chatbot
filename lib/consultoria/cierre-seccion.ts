@@ -7,6 +7,7 @@ import {
 } from "@/lib/consultoria/entrevista-contenido";
 import { etiquetaCierreTema } from "@/lib/consultoria/entrevista-piloto";
 import {
+  MENSAJE_CONTINUAR_PROFUNDIZACION,
   MENSAJE_CONTINUAR_SECCION,
   MENSAJE_FINALIZAR_SECCION,
   MENSAJE_FORZAR_CIERRE_SECCION,
@@ -195,6 +196,68 @@ export function ofertaCierreVigenteEnChat(messages: ChatMessage[]) {
   return messages.some((message) => mensajeOfreceCierreListo(message));
 }
 
+export function eligioProfundizacion(messages: ChatMessage[]) {
+  return messages.some(
+    (message) =>
+      message.role === "user" &&
+      textoUsuario(message).trim() === MENSAJE_CONTINUAR_PROFUNDIZACION
+  );
+}
+
+export function profundizacionYaIniciada(
+  messages: ChatMessage[],
+  desde: number
+) {
+  return messages.some((message) => {
+    if (message.role !== "assistant") {
+      return false;
+    }
+    const indice = message.metadata?.indiceObligatoria;
+    return typeof indice === "number" && indice >= desde;
+  });
+}
+
+/**
+ * An earlier close offer must not block the optional deepening. The offer
+ * blocks only until the person chooses to continue.
+ */
+export function ofertaImpideNuevasPreguntas(messages: ChatMessage[]) {
+  let ultimaOferta = -1;
+  let ultimoContinuar = -1;
+  for (const [indice, message] of messages.entries()) {
+    if (mensajeOfreceCierreListo(message)) {
+      ultimaOferta = indice;
+    }
+    if (
+      message.role === "user" &&
+      textoUsuario(message).trim() === MENSAJE_CONTINUAR_PROFUNDIZACION
+    ) {
+      ultimoContinuar = indice;
+    }
+  }
+  if (ultimaOferta < 0) {
+    return false;
+  }
+  return ultimoContinuar < ultimaOferta;
+}
+
+/** The brief part is done and the person has not opened the deepening yet. */
+export function esEleccionProfundizacion(
+  messages: ChatMessage[],
+  desde: number | undefined
+) {
+  if (typeof desde !== "number") {
+    return false;
+  }
+  if (
+    eligioProfundizacion(messages) ||
+    profundizacionYaIniciada(messages, desde)
+  ) {
+    return false;
+  }
+  return ofertaCierreVigenteEnChat(messages);
+}
+
 export function ultimoUsuarioPideFinalizar(messages: ChatMessage[]) {
   const mensaje = messages.findLast((item) => item.role === "user");
   if (!mensaje) {
@@ -242,6 +305,7 @@ export function partesCierreSinDuplicar<T extends { type: string }>(
 }
 
 const MENSAJES_DE_CONTROL = new Set([
+  MENSAJE_CONTINUAR_PROFUNDIZACION,
   MENSAJE_CONTINUAR_SECCION,
   MENSAJE_FINALIZAR_SECCION,
   MENSAJE_FORZAR_CIERRE_SECCION,

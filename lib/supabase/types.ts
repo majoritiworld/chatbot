@@ -70,6 +70,7 @@ export type Entrevista = {
   ultima_actividad?: string | null;
   /** Populated when resolving for the interview chat prompt. */
   stakeholder_nombre?: string | null;
+  stakeholder_descripcion?: string | null;
   stakeholder_firma?: string | null;
   stakeholder_email?: string | null;
   proyecto_cliente?: string | null;

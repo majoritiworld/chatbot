@@ -6,8 +6,11 @@ import {
 } from "@/lib/ai/prompts";
 import {
   debeForzarOfertaCierre,
+  eligioProfundizacion,
   herramientasCierreActivas,
   ofertaCierreVigenteEnChat,
+  ofertaImpideNuevasPreguntas,
+  profundizacionYaIniciada,
   respuestasEnSeccion,
   seguimientosHechosEnSeccion,
   textoConversacionCierre,
@@ -46,6 +49,8 @@ export type PlanSeguimientos = {
   /** Continuous mode: guidance that replaces the generic one for this turn. */
   guiaTurno?: string;
   motivoCierre?: MotivoCierreSeccion;
+  /** Brief part is done: offer finish or optional deepening, no new question. */
+  ofrecerProfundizacion?: boolean;
   /** Set when the flow decided to ask this follow-up now. */
   seguimientoSiguiente?: string;
   seguimientosHechos: number;
@@ -66,11 +71,21 @@ export async function planificarSeguimientos({
   seccionesPrevias: ResumenSeccionPrevia[];
 }): Promise<PlanSeguimientos> {
   if (esConversacionContinua(seccion)) {
-    if (ofertaCierreVigenteEnChat(messages)) {
+    const conProfundizacion = typeof seccion.profundizacionDesde === "number";
+    const bloquea = conProfundizacion
+      ? ofertaImpideNuevasPreguntas(messages)
+      : ofertaCierreVigenteEnChat(messages);
+    if (bloquea) {
+      const desde = seccion.profundizacionDesde ?? 0;
+      const eleccion =
+        conProfundizacion &&
+        !eligioProfundizacion(messages) &&
+        !profundizacionYaIniciada(messages, desde);
       return {
         clase: "cierre",
         forzarOferta: true,
         motivoCierre: "limite",
+        ...(eleccion ? { ofrecerProfundizacion: true } : {}),
         seguimientosHechos: 1,
       };
     }

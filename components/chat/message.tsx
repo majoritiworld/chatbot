@@ -1,9 +1,12 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { useCallback } from "react";
+import { AvisoVoz } from "@/components/portal/aviso-voz";
 import { CerrarSeccionEnChat } from "@/components/portal/cerrar-seccion-en-chat";
 import { PausaSeccionEnChat } from "@/components/portal/pausa-seccion-en-chat";
 import { partesCierreSinDuplicar } from "@/lib/consultoria/cierre-seccion";
+import { MENSAJE_CONTINUAR_PROFUNDIZACION } from "@/lib/consultoria/finalizar-seccion";
+import { AVISO_VOZ } from "@/lib/consultoria/inicio-en-chat";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
@@ -25,6 +28,17 @@ import { MessageActions } from "./message-actions";
 import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
 import { Weather } from "./weather";
+
+function separarAvisoVoz(texto: string) {
+  const marca = `\n\n${AVISO_VOZ}`;
+  if (!texto.endsWith(marca) && texto !== AVISO_VOZ) {
+    return { aviso: null, cuerpo: texto };
+  }
+  return {
+    aviso: AVISO_VOZ,
+    cuerpo: texto.slice(0, texto.length - AVISO_VOZ.length).trimEnd(),
+  };
+}
 
 function WaitingText({ esEntrevista }: { esEntrevista?: boolean }) {
   const { waitingStatus } = useDataStream();
@@ -133,6 +147,17 @@ const PurePreviewMessage = ({
 
   useDataStream();
 
+  const textoUsuario = (message.parts ?? [])
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("")
+    .trim();
+  if (
+    message.role === "user" &&
+    textoUsuario === MENSAJE_CONTINUAR_PROFUNDIZACION
+  ) {
+    return null;
+  }
+
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
 
@@ -218,6 +243,9 @@ const PurePreviewMessage = ({
     }
 
     if (type === "text") {
+      const separado = esEntrevista
+        ? separarAvisoVoz(part.text)
+        : { aviso: null, cuerpo: part.text };
       return (
         <MessageContent
           className={cn(
@@ -235,7 +263,14 @@ const PurePreviewMessage = ({
           data-testid="message-content"
           key={key}
         >
-          <MessageResponse>{sanitizeText(part.text)}</MessageResponse>
+          {separado.cuerpo ? (
+            <MessageResponse>{sanitizeText(separado.cuerpo)}</MessageResponse>
+          ) : null}
+          {separado.aviso ? (
+            <div className="mt-4">
+              <AvisoVoz texto={separado.aviso} />
+            </div>
+          ) : null}
         </MessageContent>
       );
     }

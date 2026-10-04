@@ -44,6 +44,7 @@ export function EntrevistaEnCurso({
   consentimientoEn,
   correoAgradecimientoEn,
   correoUsuario,
+  emprendimiento,
   entrevistaId,
   estadoInicial,
   flujoEstadoInicial,
@@ -59,6 +60,7 @@ export function EntrevistaEnCurso({
   consentimientoEn?: string | null;
   correoAgradecimientoEn?: string | null;
   correoUsuario?: string | null;
+  emprendimiento?: string | null;
   entrevistaId: string;
   estadoInicial: string;
   flujoEstadoInicial: FlujoEntrevista;
@@ -371,6 +373,7 @@ export function EntrevistaEnCurso({
   );
   const saludo = configInicio
     ? saludoInicial({
+        emprendimiento,
         inicio: configInicio,
         nombre: stakeholderNombre,
         numeroPreguntas: seccionInicio?.preguntas.length ?? 0,

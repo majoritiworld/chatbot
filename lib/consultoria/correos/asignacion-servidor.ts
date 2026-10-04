@@ -41,6 +41,7 @@ export function permitirOrigenLocal() {
 type FilaStakeholder = {
   apellido: string | null;
   email: string | null;
+  firma: string | null;
   nombre: string | null;
   proyecto_id: string | null;
 };
@@ -185,7 +186,7 @@ export async function resolverAsignacionCorreo(
   const { data: entrevista, error } = await admin
     .from("entrevista")
     .select(
-      `id, stakeholder:stakeholder_id(email, nombre, apellido, proyecto_id), plantilla:plantilla_id(proyecto_id, fase:fase_id(id, nombre, ${COLUMNAS_FASE}))`
+      `id, stakeholder:stakeholder_id(email, nombre, apellido, firma, proyecto_id), plantilla:plantilla_id(proyecto_id, fase:fase_id(id, nombre, ${COLUMNAS_FASE}))`
     )
     .eq("id", entrevistaId)
     .maybeSingle();

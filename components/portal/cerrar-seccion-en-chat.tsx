@@ -15,7 +15,10 @@ import { useActiveChat } from "@/hooks/use-active-chat";
 import { useCerrarSeccionEntrevista } from "@/hooks/use-cerrar-seccion-entrevista";
 import {
   agenteOfrecioCierreListo,
+  eligioProfundizacion,
+  esEleccionProfundizacion,
   ofertaCierreVigenteEnChat,
+  profundizacionYaIniciada,
 } from "@/lib/consultoria/cierre-seccion";
 import {
   avisoEntregaAlFinalizar,
@@ -37,12 +40,19 @@ export function CerrarSeccionEnChat({
     messages,
     numeroSecciones,
     ofertaCierrePersistida,
+    profundizacionDesde,
+    recorridoBreve,
     sendMessage,
     setInput,
     status,
   } = useActiveChat();
-  const { busy, errorCierre, pedirCierre, seccionListaParaCerrar } =
-    useCerrarSeccionEntrevista();
+  const {
+    busy,
+    continuarProfundizacion,
+    errorCierre,
+    pedirCierre,
+    seccionListaParaCerrar,
+  } = useCerrarSeccionEntrevista();
   const [confirmarBorrador, setConfirmarBorrador] = useState(false);
   const [confirmarEntrega, setConfirmarEntrega] = useState(false);
   const esUltimo =
@@ -94,11 +104,21 @@ export function CerrarSeccionEnChat({
     pedirCierre();
   }, [pedirCierre]);
 
+  const seguirProfundizando = useCallback(() => {
+    continuarProfundizacion();
+  }, [continuarProfundizacion]);
+
   const lastOfreció = agenteOfrecioCierreListo(messages);
+  const profundizacionAbierta =
+    typeof profundizacionDesde === "number" &&
+    (eligioProfundizacion(messages) ||
+      profundizacionYaIniciada(messages, profundizacionDesde));
   const ofrecio =
     visible &&
     ofertaCierreVigenteEnChat(messages) &&
+    !(profundizacionAbierta && !lastOfreció) &&
     (placement === "inline" ? lastOfreció : !lastOfreció);
+  const eleccion = esEleccionProfundizacion(messages, profundizacionDesde);
   const guardandoCierre =
     ofrecio &&
     !ofertaCierrePersistida &&
@@ -122,13 +142,19 @@ export function CerrarSeccionEnChat({
     return null;
   }
 
-  let etiqueta = conversacionContinua
-    ? "Enviar entrevista"
-    : etiquetaCierreTema(esUltimo);
+  const cierreBreve = recorridoBreve || eleccion;
+  let etiqueta = "Enviar entrevista";
+  if (!conversacionContinua) {
+    etiqueta = etiquetaCierreTema(esUltimo);
+  } else if (cierreBreve) {
+    etiqueta = "Finalizar";
+  }
   if (guardandoCierre) {
     etiqueta = "Guardando…";
   } else if (busy) {
-    if (conversacionContinua) {
+    if (cierreBreve) {
+      etiqueta = "Finalizando…";
+    } else if (conversacionContinua) {
       etiqueta = "Enviando…";
     } else if (esUltimo) {
       etiqueta = "Finalizando…";
@@ -138,7 +164,7 @@ export function CerrarSeccionEnChat({
   }
 
   return (
-    <div className="pt-3">
+    <div className="flex flex-wrap gap-2 pt-3">
       <Button
         className="h-11 rounded-full px-4"
         data-testid="entrevista-cerrar-tema"
@@ -149,6 +175,17 @@ export function CerrarSeccionEnChat({
       >
         {etiqueta}
       </Button>
+      {eleccion ? (
+        <Button
+          className="h-11 rounded-full px-4"
+          data-testid="entrevista-continuar-profundizacion"
+          disabled={busy || guardandoCierre}
+          onClick={seguirProfundizando}
+          type="button"
+        >
+          Continuar
+        </Button>
+      ) : null}
       {errorCierre ? (
         <p className="pt-2 text-destructive text-sm" role="alert">
           {errorCierre} La conversación sigue aquí. Puedes volver a intentarlo.

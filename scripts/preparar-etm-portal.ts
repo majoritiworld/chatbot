@@ -8,6 +8,8 @@
  *   MODO=verificacion Fictitious people (RONDA=<n>) with a personal link, to
  *                     check the journey without using the real assignments.
  *                     SOLO_VERIFICACION=mentor keeps one of them.
+ *   MODO=v2           New local demo interviews for the brief-plus-deepening
+ *                     guide. Never updates an existing interview. Local only.
  *
  * Dry run unless APLICAR=1. On a non-local database it also needs
  * CONFIRMAR_PROYECTO=etm-tuesday. LOGO_ETM=<png> uploads the brand logo.
@@ -47,7 +49,10 @@ type Admin = NonNullable<ReturnType<typeof createAdminClient>>;
 type Persona = {
   apellido: string;
   audiencia: AudienciaEtm;
+  descripcion?: string;
   email: string;
+  firma?: string;
+  genero?: "femenino" | "masculino";
   nombre: string;
 };
 
@@ -117,7 +122,187 @@ function verificacion(ronda: string): Persona[] {
   ];
 }
 
-function personasDe(modo: "pruebas" | "seba" | "verificacion", ronda: string) {
+const DEMO_V2: Persona[] = [
+  {
+    apellido: "Salas",
+    audiencia: "mentores",
+    email: "bruno.salas.v2@example.test",
+    nombre: "Bruno",
+  },
+  {
+    apellido: "Arancibia",
+    audiencia: "mentoreados",
+    descripcion:
+      "Emprendimiento de cerámica. Están evaluando quitar la transcripción de notas de su producto.",
+    email: "sofia.arancibia.v2@example.test",
+    firma: "Taller Sur",
+    nombre: "Sofía",
+  },
+  {
+    apellido: "Cruz",
+    audiencia: "sponsors",
+    email: "elena.cruz.v2@example.test",
+    nombre: "Elena",
+  },
+  {
+    apellido: "Lagos",
+    audiencia: "mentoreados",
+    descripcion:
+      "Emprendimiento de cerámica. Están evaluando quitar la transcripción de notas de su producto.",
+    email: "amanda.lagos.v2@example.test",
+    firma: "Taller Sur",
+    nombre: "Amanda",
+  },
+  {
+    apellido: "Peña",
+    audiencia: "mentoreados",
+    descripcion:
+      "Emprendimiento de cerámica. Están evaluando quitar la transcripción de notas de su producto.",
+    email: "laura.pena.v2@example.test",
+    firma: "Taller Sur",
+    nombre: "Laura",
+  },
+  {
+    apellido: "Soto",
+    audiencia: "mentoreados",
+    descripcion:
+      "Emprendimiento de cerámica. Están evaluando quitar la transcripción de notas de su producto.",
+    email: "camila.soto.v2@example.test",
+    firma: "Taller Sur",
+    nombre: "Camila",
+  },
+  {
+    apellido: "Ríos",
+    audiencia: "mentoreados",
+    descripcion:
+      "Emprendimiento de cerámica. Están evaluando quitar la transcripción de notas de su producto.",
+    email: "martina.rios.v2@example.test",
+    firma: "Taller Sur",
+    nombre: "Martina",
+  },
+  {
+    apellido: "Vidal",
+    audiencia: "mentoreados",
+    descripcion:
+      "Emprendimiento de cerámica. Están evaluando quitar la transcripción de notas de su producto.",
+    email: "renata.vidal.v2@example.test",
+    firma: "Taller Sur",
+    nombre: "Renata",
+  },
+  {
+    apellido: "Mora",
+    audiencia: "mentoreados",
+    descripcion:
+      "Emprendimiento de cerámica. Están evaluando quitar la transcripción de notas de su producto.",
+    email: "isabel.mora.v2@example.test",
+    firma: "Taller Sur",
+    nombre: "Isabel",
+  },
+  {
+    apellido: "Rojas",
+    audiencia: "mentores",
+    email: "catalina.rojas.v2@example.test",
+    genero: "femenino",
+    nombre: "Catalina",
+  },
+  {
+    apellido: "Silva",
+    audiencia: "mentores",
+    email: "antonia.silva.v2@example.test",
+    genero: "femenino",
+    nombre: "Antonia",
+  },
+  {
+    apellido: "Fuentes",
+    audiencia: "mentores",
+    email: "fernanda.fuentes.v2@example.test",
+    genero: "femenino",
+    nombre: "Fernanda",
+  },
+  {
+    apellido: "Riquelme",
+    audiencia: "sponsors",
+    email: "paula.riquelme.v2@example.test",
+    nombre: "Paula",
+  },
+  {
+    apellido: "Godoy",
+    audiencia: "sponsors",
+    email: "valeria.godoy.v2@example.test",
+    nombre: "Valeria",
+  },
+  {
+    apellido: "Paredes",
+    audiencia: "sponsors",
+    email: "andres.paredes.v2@example.test",
+    nombre: "Andrés",
+  },
+  {
+    apellido: "Reyes",
+    audiencia: "sponsors",
+    email: "joaquin.reyes.v2@example.test",
+    nombre: "Joaquín",
+  },
+  {
+    apellido: "Herrera",
+    audiencia: "sponsors",
+    email: "tomas.herrera.v2@example.test",
+    nombre: "Tomás",
+  },
+  {
+    apellido: "Núñez",
+    audiencia: "sponsors",
+    email: "josefa.nunez.v2@example.test",
+    nombre: "Josefa",
+  },
+  {
+    apellido: "Contreras",
+    audiencia: "sponsors",
+    email: "ines.contreras.v2@example.test",
+    nombre: "Inés",
+  },
+  {
+    apellido: "Vidal",
+    audiencia: "sponsors",
+    email: "clara.vidal.v2@example.test",
+    nombre: "Clara",
+  },
+  {
+    apellido: "Salas",
+    audiencia: "sponsors",
+    email: "diego.salas.v2@example.test",
+    nombre: "Diego",
+  },
+  {
+    apellido: "Soto",
+    audiencia: "sponsors",
+    email: "marina.soto.v2@example.test",
+    nombre: "Marina",
+  },
+  {
+    apellido: "Bravo",
+    audiencia: "mentores",
+    email: "mateo.bravo.v2@example.test",
+    genero: "masculino",
+    nombre: "Mateo",
+  },
+  {
+    apellido: "Castro",
+    audiencia: "mentoreados",
+    descripcion: "Emprendimiento de logística para ferias.",
+    email: "lucia.castro.v2@example.test",
+    firma: "Kalos",
+    nombre: "Lucía",
+  },
+];
+
+function personasDe(
+  modo: "pruebas" | "seba" | "verificacion" | "v2",
+  ronda: string
+) {
+  if (modo === "v2") {
+    return DEMO_V2;
+  }
   if (modo === "pruebas") {
     return PRUEBAS;
   }
@@ -154,8 +339,16 @@ function entorno() {
     );
   }
   const modo = process.env.MODO;
-  if (modo !== "pruebas" && modo !== "seba" && modo !== "verificacion") {
-    throw new Error("MODO debe ser pruebas, seba o verificacion");
+  if (
+    modo !== "pruebas" &&
+    modo !== "seba" &&
+    modo !== "verificacion" &&
+    modo !== "v2"
+  ) {
+    throw new Error("MODO debe ser pruebas, seba, verificacion o v2");
+  }
+  if (modo === "v2" && !local) {
+    throw new Error("La demo v2 solo se crea en una base local.");
   }
   const ronda = process.env.RONDA?.trim() ?? "";
   if (modo === "verificacion" && !/^\d{1,3}$/.test(ronda)) {
@@ -333,13 +526,15 @@ async function crearAsignacion(
   }
 ) {
   const { persona } = datos;
-  const secciones = seccionesDeGuionEtm(persona.audiencia);
+  const secciones = seccionesDeGuionEtm(persona.audiencia, persona.genero);
   const stakeholder = await unico(
     admin
       .from("stakeholder")
       .insert({
         apellido: persona.apellido,
+        ...(persona.descripcion ? { descripcion: persona.descripcion } : {}),
         email: persona.email,
+        ...(persona.firma ? { firma: persona.firma } : {}),
         nombre: persona.nombre,
         proyecto_id: datos.proyectoId,
       })
@@ -443,8 +638,24 @@ async function main() {
     // biome-ignore lint/performance/noAwaitInLoops: a few rows, fixed order
     const previa = await asignacionExistente(admin, proyectoId, persona.email);
     if (previa) {
+      let enlace = "";
+      if (modo === "v2" || modo === "verificacion") {
+        let entrevistas: Array<{ id?: string }> = [];
+        if (Array.isArray(previa.entrevista)) {
+          entrevistas = previa.entrevista;
+        } else if (previa.entrevista) {
+          entrevistas = [previa.entrevista];
+        }
+        const entrevistaId = entrevistas.at(0)?.id;
+        if (typeof entrevistaId === "string") {
+          const token = await asegurarEnlaceEntrevista(entrevistaId);
+          enlace = token
+            ? ` enlace=${siteUrl()}/e/${token}`
+            : " enlace=(sin secreto)";
+        }
+      }
       escribir(
-        `ya existe ${persona.audiencia} ${persona.nombre} stakeholder=${previa.id}`
+        `ya existe ${persona.audiencia} ${persona.nombre} stakeholder=${previa.id}${enlace}`
       );
       continue;
     }
@@ -462,7 +673,7 @@ async function main() {
       proyectoId,
     });
     let enlace = "";
-    if (modo === "verificacion") {
+    if (modo === "verificacion" || modo === "v2") {
       const token = await asegurarEnlaceEntrevista(entrevistaId);
       enlace = token
         ? ` enlace=${siteUrl()}/e/${token}`

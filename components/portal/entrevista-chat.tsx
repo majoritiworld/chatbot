@@ -303,6 +303,8 @@ export function EntrevistaChat({
           mensajesIniciales={mensajesIniciales}
           numeroSecciones={numeroSecciones}
           onSeccionCompletada={onSeccionCompletada}
+          profundizacionDesde={seccion.profundizacionDesde}
+          recorridoBreve={seccion.inicioEnChat?.recorridoBreve === true}
           seccionId={seccion.id}
         >
           <EntrevistaChatCuerpo

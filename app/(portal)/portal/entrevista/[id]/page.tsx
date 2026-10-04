@@ -69,6 +69,7 @@ async function EntrevistaContenido({ id }: { id: Promise<string> }) {
           consentimientoEn={enlace.entrevista.consentimiento_en}
           correoAgradecimientoEn={enlace.entrevista.correo_agradecimiento_en}
           correoUsuario={enlace.entrevista.stakeholder_email}
+          emprendimiento={enlace.entrevista.stakeholder_firma}
           entrevistaId={enlace.entrevista.id}
           estadoInicial={enlace.entrevista.estado}
           flujoEstadoInicial={enlace.entrevista.flujo_estado}
@@ -243,6 +244,7 @@ async function EntrevistaPropia({
         consentimientoEn={entrevista.consentimiento_en}
         correoAgradecimientoEn={entrevista.correo_agradecimiento_en}
         correoUsuario={correoUsuario}
+        emprendimiento={entrevista.stakeholder_firma}
         entrevistaId={entrevista.id}
         estadoInicial={entrevista.estado}
         flujoEstadoInicial={entrevista.flujo_estado}

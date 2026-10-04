@@ -31,6 +31,7 @@ const CIERRE_CONFIRMACION = {
 const YA_CERRADA = /nada más/i;
 const MENCIONA_MINUTOS = /\bminutos\b/i;
 const MENCIONA_GUARDADO = /guardar (?:su|tu) avance|avance queda guardado/i;
+const INVITACION_YA_EXPLICA_LA_VOZ = /con tu voz/i;
 const PREFIJO_PRUEBA = "[PRUEBA] ";
 
 export function remitenteVisible(cliente: string, configurado: string | null) {
@@ -194,8 +195,10 @@ export function correoInvitacion({
   const yaDiceDuracion = cuerpo.some((parrafo) =>
     MENCIONA_MINUTOS.test(parrafo)
   );
-  const yaDiceGuardado = cuerpo.some((parrafo) =>
-    MENCIONA_GUARDADO.test(parrafo)
+  const yaDiceGuardado = cuerpo.some(
+    (parrafo) =>
+      MENCIONA_GUARDADO.test(parrafo) ||
+      INVITACION_YA_EXPLICA_LA_VOZ.test(parrafo)
   );
   const enlacePersonal = enlace.modo === "enlace_personal";
   const textoAyuda = ayuda(identidad, trato);

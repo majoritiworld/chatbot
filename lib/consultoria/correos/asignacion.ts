@@ -36,6 +36,7 @@ export type FilasAsignacionCorreo = {
   stakeholder: {
     apellido?: string | null;
     email?: string | null;
+    firma?: string | null;
     nombre?: string | null;
     proyecto_id?: string | null;
   } | null;
@@ -52,6 +53,7 @@ export type AsignacionCorreo = {
   accesoEnlacePersonal: boolean;
   destinatario: {
     email: string;
+    firma: string | null;
     nombre: string | null;
     nombreCompleto: string;
   };
@@ -155,6 +157,7 @@ export function evaluarAsignacionCorreo(
       accesoEnlacePersonal: fase?.acceso_enlace_personal === true,
       destinatario: {
         email,
+        firma: texto(stakeholder.firma),
         nombre: texto(stakeholder.nombre),
         nombreCompleto: nombreCompleto(
           stakeholder.nombre,

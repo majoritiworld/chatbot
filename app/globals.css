@@ -352,6 +352,25 @@ textarea:focus-visible {
   }
 }
 
+@keyframes mic-invite {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgb(64 64 64 / 0%);
+  }
+  35% {
+    opacity: 0.4;
+    box-shadow: 0 0 0 0 rgb(64 64 64 / 0%);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgb(64 64 64 / 32%);
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 9px rgb(64 64 64 / 0%);
+  }
+}
+
 @keyframes subtle-lift {
   from {
     transform: translateY(0);
@@ -404,6 +423,10 @@ textarea:focus-visible {
 
 @utility voice-pulse-transcribing {
   animation: voice-pulse-transcribing 1.4s ease-out infinite;
+}
+
+@utility mic-invite {
+  animation: mic-invite 1.6s ease-in-out infinite;
 }
 
 .ProseMirror {

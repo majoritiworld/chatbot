@@ -24,3 +24,28 @@ export function opcionesModeloEntrevista(
 ): SharedV4ProviderOptions {
   return MODELOS_ENTREVISTA[id];
 }
+
+/** Local model comparison, restricted to explicitly listed fictitious interviews. */
+export function modeloPruebaLocalEtm({
+  entrevistaId,
+  email,
+  recorridoBreve,
+}: {
+  entrevistaId: string;
+  email: string | null | undefined;
+  recorridoBreve: boolean;
+}): ModeloEntrevista | undefined {
+  if (!recorridoBreve || !email?.endsWith("@example.test")) return;
+  const permitidas = (process.env.ETM_ENTREVISTAS_PRUEBA ?? "").split(",");
+  if (!permitidas.includes(entrevistaId)) return;
+  try {
+    const host = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname;
+    if (host !== "localhost" && host !== "127.0.0.1") return;
+    const origen = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "").hostname;
+    if (origen !== "localhost" && origen !== "127.0.0.1") return;
+  } catch {
+    return;
+  }
+  const modelo = process.env.ETM_MODELO_PRUEBA;
+  return esModeloEntrevista(modelo) ? modelo : undefined;
+}

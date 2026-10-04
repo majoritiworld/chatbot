@@ -8,13 +8,20 @@ import {
   resumenCierreSimulado,
   textoTurnoSimulado,
 } from "@/lib/ai/entrevista-simulada";
-import { planificarConversacionContinua } from "@/lib/consultoria/conversacion-continua";
+import {
+  partesDePregunta,
+  planificarConversacionContinua,
+  promptConversacionContinua,
+  textoFijoRecorridoBreve,
+} from "@/lib/consultoria/conversacion-continua";
 import {
   correoRecordatorio,
   destinatariosRecordatorio,
 } from "@/lib/consultoria/correos/recordatorio";
+import { correoInvitacion } from "@/lib/consultoria/correos/variantes";
 import { seccionesDeGuionClFase2 } from "@/lib/consultoria/guiones/compliance-latam-fase-2";
 import {
+  ASUNTO_INVITACION_MENTOREADO_CORTO,
   type AudienciaEtm,
   AVISO_RESPUESTAS_ETM,
   asuntoInvitacionEtm,
@@ -23,6 +30,7 @@ import {
   CUERPO_AGRADECIMIENTO_ETM,
   CUERPO_RECORDATORIO_ETM,
   cuerpoInvitacionEtm,
+  cuerpoInvitacionMentoreadoCorto,
   FASES_ETM_TUESDAY,
   INSTRUCCIONES_AGENTE_ETM,
   inicioEnChatEtm,
@@ -65,20 +73,355 @@ function mensaje(
   };
 }
 
-test("cada pauta aprobada es una conversación de cinco preguntas", () => {
+test("cada pauta aprobada deja la profundización aparte de las preguntas principales", () => {
   for (const audiencia of AUDIENCIAS) {
     const [seccion] = seccionesDeGuionEtm(audiencia);
+    const principales = audiencia === "sponsors" ? 4 : 3;
     expect(seccion).toBeTruthy();
     expect(seccion?.conversacionContinua).toBe(true);
-    expect(seccion?.preguntas).toHaveLength(5);
-    expect(seccion?.seguimientos).toHaveLength(5);
+    expect(seccion?.profundizacionDesde).toBe(principales);
+    expect(seccion?.inicioEnChat?.recorridoBreve).toBe(true);
+    expect(seccion?.preguntas).toHaveLength(principales + 3);
+    expect(seccion?.seguimientos).toHaveLength(principales + 3);
     expect(seccion?.maxSeguimientos).toBe(MAX_SEGUIMIENTOS_ETM);
-    expect(cuerpoInvitacionEtm(audiencia)).not.toMatch(/minutos/i);
+    expect(cuerpoInvitacionEtm(audiencia)).not.toMatch(
+      /minutos|cinco preguntas/i
+    );
+    expect(bienvenidaEtm(audiencia)).not.toMatch(/cinco preguntas|minutos/i);
   }
-  expect(preguntasPrincipalesEtm("mentores")[0]).toMatch(/motivó/i);
-  expect(preguntasPrincipalesEtm("mentoreados")[0]).toMatch(/necesitabas/i);
-  expect(preguntasPrincipalesEtm("sponsors")[0]).toMatch(/buscaban/i);
-  expect(INSTRUCCIONES_AGENTE_ETM).toMatch(/como máximo un seguimiento/i);
+  expect(preguntasPrincipalesEtm("mentores", "masculino")[0]).toBe(
+    "¿Qué te motivó a participar como mentor en el ETM Tuesday?"
+  );
+  expect(preguntasPrincipalesEtm("mentores", "femenino")[0]).toBe(
+    "¿Qué te motivó a participar como mentora en el ETM Tuesday?"
+  );
+  expect(preguntasPrincipalesEtm("mentores")[1]).toMatch(
+    /match con tu mentoreado\/a fue bueno/i
+  );
+  expect(preguntasPrincipalesEtm("mentores")[2]).toMatch(
+    /más difícil o frustrante/i
+  );
+  expect(preguntasPrincipalesEtm("mentores")[3]).toMatch(
+    /Volverías a participar/i
+  );
+  expect(preguntasPrincipalesEtm("mentoreados")[0]).toMatch(
+    /programa de mentoría/i
+  );
+  expect(preguntasPrincipalesEtm("mentoreados")[1]).toMatch(
+    /match con tu mentor/i
+  );
+  expect(preguntasPrincipalesEtm("mentoreados")[3]).toMatch(
+    /decisión concreta/i
+  );
+  expect(preguntasPrincipalesEtm("sponsors")[0]).toMatch(/como sponsor/i);
+  expect(preguntasPrincipalesEtm("sponsors")[1]).toMatch(/te sorprendió/i);
+  expect(preguntasPrincipalesEtm("sponsors")[2]).toMatch(
+    /organización y comunicación con ETM/i
+  );
+  expect(preguntasPrincipalesEtm("sponsors")[3]).toMatch(/en una frase/i);
+  expect(preguntasPrincipalesEtm("sponsors")[4]).toMatch(
+    /esperabas que pasara/i
+  );
+  expect(preguntasPrincipalesEtm("sponsors")[6]).toMatch(/ETM Tuesday/i);
+  expect(INSTRUCCIONES_AGENTE_ETM).toMatch(/aclaración natural/i);
+  expect(INSTRUCCIONES_AGENTE_ETM).toMatch(
+    /Un seguimiento no es una de esas preguntas/i
+  );
+  expect(INSTRUCCIONES_AGENTE_ETM).toMatch(/No fuerces un nexo/i);
+});
+
+test("la invitación corta de mentoreado nombra el emprendimiento y no agrega párrafos", () => {
+  const cuerpo = cuerpoInvitacionMentoreadoCorto("Amel.ia");
+  const correo = correoInvitacion({
+    destinatario: {
+      email: "amelia.somavia@emprendetumente.org",
+      nombre: "Amelia",
+    },
+    enlace: {
+      entrevistaId: "c205286e-bd41-49c8-bcbf-f5c996004a52",
+      modo: "enlace_personal",
+      url: "https://portal.majoriti.world/e/token",
+    },
+    identidad: {
+      cliente: "ETM Tuesday",
+      color: null,
+      contactoEmail: CONTACTO_EMAIL_ETM,
+      contactoNombre: null,
+      logoUrl: null,
+      titulo: ASUNTO_INVITACION_MENTOREADO_CORTO,
+    },
+    minutos: null,
+    textos: {
+      asunto: ASUNTO_INVITACION_MENTOREADO_CORTO,
+      cuerpo,
+      firma: "Equipo ETM Tuesday",
+      remitente: null,
+    },
+    trato: "tu",
+  });
+  expect(correo.subject).toBe(ASUNTO_INVITACION_MENTOREADO_CORTO);
+  expect(correo.text).toContain(
+    "En EtM Tuesday queremos conocer cómo viviste tu mentoría con Amel.ia en el EtM Tuesday!"
+  );
+  expect(correo.text).toContain("o mejor aún, con tu voz.");
+  expect(correo.text).toContain("unos minutos de tu tiempo.");
+  expect(correo.text).not.toContain("guardar tu avance");
+  expect(correo.text).not.toContain("cinco preguntas");
+  expect(correo.text).not.toContain("quedan asociadas a tu nombre");
+});
+
+test("un sí para comenzar no responde la primera pregunta", () => {
+  const [seccion] = seccionesDeGuionEtm("sponsors");
+  if (!seccion) {
+    throw new Error("sin pauta");
+  }
+  const comienzo = planificarConversacionContinua({
+    messages: [mensaje("user", "si")],
+    seccion,
+  });
+  expect(comienzo.clase).toBe("obligatoria");
+  expect(comienzo.indiceObligatoria).toBe(0);
+  expect(comienzo.seguimientoSiguiente).toBe(
+    "¿Cómo describirías tu experiencia como sponsor en este evento?"
+  );
+  expect(
+    textoFijoRecorridoBreve({
+      clase: comienzo.clase,
+      pregunta: comienzo.seguimientoSiguiente,
+      recorridoBreve: true,
+    })
+  ).toBe(comienzo.seguimientoSiguiente);
+
+  const despuesDelEjemplo = planificarConversacionContinua({
+    messages: [
+      mensaje("user", "si"),
+      mensaje(
+        "assistant",
+        "¿Podrías darme un ejemplo concreto de qué cambiarías?",
+        { clase: "seguimiento", indiceObligatoria: 0 }
+      ),
+      mensaje("user", "El tiempo de las mesas."),
+    ],
+    seccion,
+  });
+  expect(despuesDelEjemplo.clase).toBe("obligatoria");
+  expect(despuesDelEjemplo.indiceObligatoria).toBe(0);
+});
+
+test("después de una respuesta el agente conversa y la primera pregunta sigue fija", () => {
+  const [seccion] = seccionesDeGuionEtm("sponsors");
+  if (!seccion) {
+    throw new Error("sin pauta");
+  }
+  const pregunta = seccion.preguntas[1] ?? "";
+  expect(
+    textoFijoRecorridoBreve({
+      clase: "obligatoria",
+      pregunta: seccion.preguntas[0],
+      recorridoBreve: true,
+    })
+  ).toBe(seccion.preguntas[0]);
+  expect(
+    textoFijoRecorridoBreve({
+      clase: "obligatoria",
+      conversar: true,
+      pregunta,
+      recorridoBreve: true,
+    })
+  ).toBeUndefined();
+  const guia = promptConversacionContinua({
+    preguntaActual: pregunta,
+    recorridoBreve: true,
+    trato: "tu",
+    turno: "objetivo",
+  });
+  expect(guia).toMatch(/significó para ella/i);
+  expect(guia).toMatch(/historial completo/i);
+  expect(guia).toMatch(/no recites un hecho/i);
+  expect(guia).toContain(pregunta);
+  expect(guia).not.toMatch(/tal como está/);
+});
+
+test("un cambio ya dicho reemplaza la pregunta genérica de la organización", () => {
+  const guia = promptConversacionContinua({
+    escucha: {
+      ultimaRespuesta:
+        "Cambiaría que el programa del día se envíe con más anticipación.",
+    },
+    preguntaActual:
+      "¿Sentiste que la organización y comunicación con ETM fue fluida?",
+    recorridoBreve: true,
+    trato: "tu",
+    turno: "objetivo",
+  });
+  expect(guia).toMatch(/programa del día se envíe/i);
+  expect(guia).toMatch(/si todo fue fluido/);
+});
+
+test("un problema de coordinación anterior reemplaza la pregunta genérica", () => {
+  const guia = promptConversacionContinua({
+    dicho:
+      "Mejoraría la coordinación previa. La ubicación del stand nos la confirmaron el día anterior.",
+    escucha: {
+      ultimaRespuesta:
+        "Me sorprendió lo abiertos que estaban los emprendedores.",
+    },
+    preguntaActual:
+      "¿Sentiste que la organización y comunicación con ETM fue fluida?",
+    recorridoBreve: true,
+    trato: "tu",
+    turno: "objetivo",
+  });
+  expect(guia).toMatch(/coordinación/i);
+  expect(guia).toMatch(/Última respuesta/i);
+  expect(guia).toMatch(/si todo fue fluido/);
+});
+
+test("la cobertura semántica validada también cubre objetivos compuestos", () => {
+  const [seccion] = seccionesDeGuionEtm("sponsors");
+  if (!seccion) {
+    throw new Error("sin pauta");
+  }
+  const plan = planificarConversacionContinua({
+    lectura: {
+      cubiertos: [2],
+      negativa: false,
+      profundizar: false,
+      tipo: "sustantiva",
+    },
+    messages: [
+      mensaje("assistant", seccion.preguntas[1] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 1,
+      }),
+      mensaje(
+        "user",
+        "Me sorprendió lo abiertos que estaban los emprendedores."
+      ),
+    ],
+    seccion,
+  });
+  expect(plan.indiceObligatoria).toBe(3);
+});
+
+test("no pide resumir un valor que ya está dicho", () => {
+  const [seccion] = seccionesDeGuionEtm("sponsors");
+  if (!seccion) {
+    throw new Error("sin pauta");
+  }
+  const plan = planificarConversacionContinua({
+    lectura: {
+      cubiertos: [3],
+      negativa: false,
+      profundizar: false,
+      tipo: "sustantiva",
+    },
+    messages: [
+      mensaje("assistant", seccion.preguntas[0] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 0,
+      }),
+      mensaje(
+        "user",
+        "Salimos con dos reuniones agendadas con personas a las que podemos ayudar. Nos costó preparar el stand con tan poco aviso."
+      ),
+      mensaje("assistant", seccion.preguntas[1] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 1,
+      }),
+      mensaje(
+        "user",
+        "Me sorprendió lo abiertos que estaban los emprendedores."
+      ),
+      mensaje("assistant", seccion.preguntas[2] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 2,
+      }),
+      mensaje("user", "A medias. La persona de contacto respondió rápido."),
+    ],
+    seccion,
+  });
+  expect(plan.clase).toBe("cierre");
+  expect(plan.indiceObligatoria).toBeUndefined();
+});
+
+test("una respuesta concreta y breve no abre otra subpregunta", () => {
+  const [seccion] = seccionesDeGuionEtm("mentores", "femenino");
+  if (!seccion) {
+    throw new Error("sin pauta");
+  }
+  const [experiencia] = partesDePregunta(seccion.preguntas[1] ?? "");
+  const [mejor] = partesDePregunta(seccion.preguntas[2] ?? "");
+  const corta = planificarConversacionContinua({
+    messages: [
+      mensaje("assistant", experiencia ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 1,
+      }),
+      mensaje("user", "Duró veinte minutos."),
+    ],
+    seccion,
+  });
+  expect(corta.clase).toBe("obligatoria");
+  expect(corta.indiceObligatoria).toBe(2);
+  expect(corta.seguimientoSiguiente).toBe(mejor);
+
+  const concreta = planificarConversacionContinua({
+    messages: [
+      mensaje("assistant", seccion.preguntas[1] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 1,
+      }),
+      mensaje("user", "No calzamos: hablamos de temas distintos."),
+    ],
+    seccion,
+  });
+  expect(concreta.clase).toBe("obligatoria");
+  expect(concreta.indiceObligatoria).toBe(2);
+  expect(concreta.seguimientoSiguiente).toBe(mejor);
+});
+
+test("un seguimiento no reemplaza la pregunta de la guía ni el cierre", () => {
+  const [seccion] = seccionesDeGuionEtm("mentoreados");
+  const pregunta = seccion?.preguntas[1] ?? "";
+  expect(
+    textoFijoRecorridoBreve({
+      clase: "obligatoria",
+      pregunta,
+      recorridoBreve: true,
+    })
+  ).toBe(pregunta);
+  expect(
+    textoFijoRecorridoBreve({
+      clase: "seguimiento",
+      pregunta,
+      recorridoBreve: true,
+    })
+  ).toBeUndefined();
+  expect(
+    textoFijoRecorridoBreve({
+      clase: "cierre",
+      ofrecerProfundizacion: true,
+      recorridoBreve: true,
+    })
+  ).toMatch(/Ya recorrimos los temas principales/);
+  expect(
+    textoFijoRecorridoBreve({
+      clase: "cierre",
+      nombre: "Renata",
+      organizacion: "Taller Sur",
+      recorridoBreve: true,
+    })
+  ).toBe(
+    "Gracias, Renata. Te deseo lo mejor con Taller Sur. Puedes finalizar con el botón Finalizar."
+  );
+  expect(
+    textoFijoRecorridoBreve({
+      clase: "obligatoria",
+      pregunta,
+      recorridoBreve: false,
+    })
+  ).toBeUndefined();
 });
 
 test("un seguimiento por objetivo y se respeta no sé, la aclaración y lo ya contado", () => {
@@ -146,8 +489,8 @@ test("un seguimiento por objetivo y se respeta no sé, la aclaración y lo ya co
     ],
     seccion,
   });
-  expect(trasAclaracion.clase).not.toBe("seguimiento");
-  expect(trasAclaracion.indiceObligatoria).toBe(1);
+  expect(trasAclaracion.clase).toBe("seguimiento");
+  expect(trasAclaracion.indiceObligatoria).toBe(0);
 
   const cubreLoSiguiente = planificarConversacionContinua({
     messages: [
@@ -157,13 +500,14 @@ test("un seguimiento por objetivo y se respeta no sé, la aclaración y lo ya co
       }),
       mensaje(
         "user",
-        "Buscábamos presencia y la experiencia quedó por debajo. Lo más valioso que se llevaron de su participación fue una reunión, sin otros resultados. El evento aportó para posicionarse en el ecosistema de emprendimiento e inversión. Trabajar con el equipo para preparar la participación fue claro. Si pudiera cambiar una sola cosa de la próxima participación para que fuera más valiosa, sería el montaje."
+        "Me sorprendió de forma positiva y también negativamente. La organización y la comunicación fueron fluidas y funcionó el aviso. Si tuvieras que resumir el evento en una frase, dirías que ordenó la agenda."
       ),
     ],
     seccion,
   });
   expect(cubreLoSiguiente.clase).toBe("cierre");
   expect(cubreLoSiguiente.forzarOferta).toBe(true);
+  expect(cubreLoSiguiente.ofrecerProfundizacion).toBe(true);
 
   const negativa = planificarConversacionContinua({
     messages: [
@@ -186,7 +530,7 @@ test("un seguimiento por objetivo y se respeta no sé, la aclaración y lo ya co
       }),
       mensaje(
         "user",
-        "Buscábamos visibilidad y la experiencia quedó por debajo."
+        "Buscábamos visibilidad con otras personas del programa y la experiencia quedó por debajo de lo que esperábamos para el emprendimiento."
       ),
     ],
     seccion,
@@ -206,6 +550,123 @@ test("un seguimiento por objetivo y se respeta no sé, la aclaración y lo ya co
   });
   expect(omision.clase).not.toBe("seguimiento");
   expect(omision.indiceObligatoria).toBe(2);
+
+  const repetida = planificarConversacionContinua({
+    messages: [
+      mensaje("assistant", seccion.preguntas[0] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 0,
+      }),
+      mensaje("user", "el input del mentor"),
+      mensaje("assistant", seccion.preguntas[1] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 1,
+      }),
+      mensaje("user", "el input del mentor"),
+    ],
+    seccion,
+  });
+  expect(repetida.clase).toBe("seguimiento");
+  expect(repetida.indiceObligatoria).toBe(1);
+
+  const segundaVez = planificarConversacionContinua({
+    messages: [
+      mensaje("assistant", seccion.preguntas[0] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 0,
+      }),
+      mensaje("user", "Bien"),
+      mensaje("assistant", "¿Qué estaba pasando en ese momento?", {
+        clase: "seguimiento",
+        indiceObligatoria: 0,
+      }),
+      mensaje("user", "Bien"),
+    ],
+    seccion,
+  });
+  expect(segundaVez.clase).toBe("obligatoria");
+  expect(segundaVez.indiceObligatoria).toBe(1);
+
+  const ultima = seccion.preguntas.length - 1;
+  const impacto = planificarConversacionContinua({
+    messages: [
+      mensaje("user", "Continuar con la profundización"),
+      mensaje("assistant", seccion.preguntas[ultima] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: ultima,
+      }),
+      mensaje(
+        "user",
+        "Definitivamente. Pregúntenle a él, pero por mi parte diría que sí."
+      ),
+    ],
+    seccion,
+  });
+  expect(impacto.clase).toBe("cierre");
+  expect(impacto.ofrecerProfundizacion).toBeUndefined();
+
+  const agradecimiento = planificarConversacionContinua({
+    messages: [
+      mensaje("user", "Continuar con la profundización"),
+      mensaje("assistant", seccion.preguntas[ultima] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: ultima,
+      }),
+      mensaje("user", "Sí"),
+      mensaje("assistant", "¿Qué pasó en ese momento?", {
+        clase: "seguimiento",
+        indiceObligatoria: ultima,
+      }),
+      mensaje("user", "su agradecimiento genuino"),
+    ],
+    seccion,
+  });
+  expect(agradecimiento.clase).toBe("cierre");
+
+  const si = planificarConversacionContinua({
+    messages: [
+      mensaje("assistant", seccion.preguntas[2] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 2,
+      }),
+      mensaje("user", "Sí"),
+    ],
+    seccion,
+  });
+  expect(si.clase).toBe("seguimiento");
+  expect(si.indiceObligatoria).toBe(2);
+
+  const frase = planificarConversacionContinua({
+    messages: [
+      mensaje("user", "Continuar con la profundización"),
+      mensaje("assistant", seccion.preguntas[3] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 3,
+      }),
+      mensaje("user", "Definitivamente. Son dos horas que llenan el corazón."),
+      mensaje("assistant", "¿Qué pasó para que digas eso?", {
+        clase: "seguimiento",
+        indiceObligatoria: 3,
+      }),
+      mensaje("user", "A veces no habrá match, pero hay que jugársela."),
+    ],
+    seccion,
+  });
+  expect(frase.clase).toBe("obligatoria");
+  expect(frase.indiceObligatoria).toBe(4);
+
+  const porHoy = planificarConversacionContinua({
+    messages: [
+      mensaje("assistant", seccion.preguntas[4] ?? "", {
+        clase: "obligatoria",
+        indiceObligatoria: 4,
+      }),
+      mensaje("user", "creo que estoy por hoy"),
+    ],
+    seccion,
+  });
+  expect(porHoy.clase).toBe("cierre");
+  expect(porHoy.ofrecerProfundizacion).toBeUndefined();
 });
 
 test("las tres pautas tratan breve, no sé y elogio igual, y ComplianceLatam sigue por secciones", () => {

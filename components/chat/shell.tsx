@@ -26,6 +26,7 @@ import {
   useArtifactSelector,
 } from "@/hooks/use-artifact";
 import { useSaludoProgresivo } from "@/hooks/use-saludo-progresivo";
+import { AVISO_VOZ } from "@/lib/consultoria/inicio-en-chat";
 import type {
   Attachment,
   ChatMessage,
@@ -80,6 +81,7 @@ export function ChatShell({
     inicioEnviando,
     inicioPendiente,
     mensajesInicio,
+    recorridoBreve,
   } = useActiveChat();
 
   const saludo = useSaludoProgresivo({
@@ -87,6 +89,11 @@ export function ChatShell({
     pendiente: inicioPendiente,
     sinHistorial: messages.length === 0,
   });
+  const textoSaludo = (saludo.mensajes[0]?.parts ?? [])
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("");
+  const destacarMicrofono =
+    recorridoBreve && inicioPendiente && textoSaludo.includes(AVISO_VOZ);
   const completarSaludoRef = useRef(saludo.completar);
   completarSaludoRef.current = saludo.completar;
   const inicioPendienteRef = useRef(inicioPendiente);
@@ -277,6 +284,7 @@ export function ChatShell({
                   composerAction={composerAction}
                   demoAislada={demoAislada}
                   demoVoz={demoVoz}
+                  destacarMicrofono={destacarMicrofono}
                   editingMessage={editingMessage}
                   esEntrevista={esEntrevista}
                   hayMensajeFallido={hayMensajeFallido}

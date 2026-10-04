@@ -6,6 +6,31 @@ import {
 } from "@/lib/consultoria/entrevista-contenido";
 import type { ChatMessage } from "@/lib/types";
 
+export function mensajeTurnoFijo({
+  conOferta,
+  id,
+  metadata,
+  texto,
+}: {
+  conOferta: boolean;
+  id: string;
+  metadata: ChatMessage["metadata"];
+  texto: string;
+}): ChatMessage {
+  const parts: NonNullable<ChatMessage["parts"]> = [
+    { text: texto, type: "text" },
+  ];
+  if (conOferta) {
+    parts.push(parteOfertaCierreReconstruida(id));
+  }
+  return {
+    id,
+    metadata,
+    parts,
+    role: "assistant",
+  };
+}
+
 function parteOfertaCierreReconstruida(
   turnoId: string
 ): NonNullable<ChatMessage["parts"]>[number] {

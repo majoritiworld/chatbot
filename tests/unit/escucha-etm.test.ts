@@ -64,7 +64,8 @@ function seccionMentores() {
   if (!seccion) {
     throw new Error("sin pauta");
   }
-  return seccion;
+  // These cases exercise the original listening mode; v2 has its own suite.
+  return { ...seccion, profundizacionDesde: undefined };
 }
 
 const seccion = seccionMentores();

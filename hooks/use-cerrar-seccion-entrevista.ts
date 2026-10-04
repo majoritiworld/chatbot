@@ -5,7 +5,10 @@ import { toast } from "sonner";
 import { useActiveChat } from "@/hooks/use-active-chat";
 import { ofertaCierreVigenteEnChat } from "@/lib/consultoria/cierre-seccion";
 import { avisoGuardadoRespuestas } from "@/lib/consultoria/entrevista-piloto";
-import { MENSAJE_CONTINUAR_SECCION } from "@/lib/consultoria/finalizar-seccion";
+import {
+  MENSAJE_CONTINUAR_PROFUNDIZACION,
+  MENSAJE_CONTINUAR_SECCION,
+} from "@/lib/consultoria/finalizar-seccion";
 import type { SectionCompletedData } from "@/lib/types";
 
 function avanceDeCierre(data: unknown): SectionCompletedData | null {
@@ -128,6 +131,10 @@ export function useCerrarSeccionEntrevista() {
     enviar(MENSAJE_CONTINUAR_SECCION);
   }, [enviar]);
 
+  const continuarProfundizacion = useCallback(() => {
+    enviar(MENSAJE_CONTINUAR_PROFUNDIZACION);
+  }, [enviar]);
+
   const guardarProgreso = useCallback(() => {
     if (!(entrevistaId && seccionId)) {
       toast.error("No se pudo guardar el progreso");
@@ -184,6 +191,7 @@ export function useCerrarSeccionEntrevista() {
   return {
     busy,
     continuar,
+    continuarProfundizacion,
     errorCierre,
     exitoCierre,
     forzarCierre,

@@ -65,7 +65,7 @@ const ENTREVISTA_SELECT = `
   correo_agradecimiento_en,
   notion_transcripcion_id,
   resumen,
-  stakeholder:stakeholder_id ( id, nombre, apellido, firma, email, proyecto_id, proyecto:proyecto_id ( cliente ) )
+  stakeholder:stakeholder_id ( id, nombre, apellido, firma, descripcion, email, proyecto_id, proyecto:proyecto_id ( cliente ) )
 `;
 
 type ProyectoEmbed = {
@@ -76,6 +76,7 @@ type StakeholderEmbed = {
   id: string;
   nombre: string;
   apellido: string | null;
+  descripcion?: string | null;
   firma: string | null;
   email: string;
   proyecto_id?: string | null;
@@ -187,6 +188,7 @@ function toEntrevista(row: EntrevistaRow): Entrevista {
     seccion_actual: row.seccion_actual,
     secciones,
     secciones_completadas: parseSeccionesCompletadas(row.secciones_completadas),
+    stakeholder_descripcion: stakeholder?.descripcion?.trim() || null,
     stakeholder_email: stakeholder?.email ?? null,
     stakeholder_firma: stakeholder?.firma ?? null,
     stakeholder_id: row.stakeholder_id,

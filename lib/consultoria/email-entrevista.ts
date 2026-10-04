@@ -5,6 +5,7 @@ import { asegurarEnlaceEntrevista } from "@/lib/consultoria/acceso-entrevista";
 import { siteUrl } from "@/lib/consultoria/auth";
 import { remitenteConNombre } from "@/lib/consultoria/comunicacion";
 import {
+  type AsignacionCorreo,
   MENSAJES_BLOQUEO,
   type MotivoBloqueoCorreo,
 } from "@/lib/consultoria/correos/asignacion";
@@ -23,6 +24,12 @@ import {
   correoInvitacion,
 } from "@/lib/consultoria/correos/variantes";
 import { debeBloquearCorreoEntrevista } from "@/lib/consultoria/entrevista-piloto";
+import {
+  ASUNTO_INVITACION_MENTOREADO_CORTO,
+  cuerpoInvitacionMentoreadoCorto,
+  NOMBRE_FASE_MENTOREADOS,
+} from "@/lib/consultoria/guiones/etm-tuesday";
+import { nombrePropioCorto } from "@/lib/consultoria/inicio-en-chat";
 import {
   asuntoConPrefijoPrueba,
   confirmacionSinCopia,
@@ -267,6 +274,21 @@ export async function enviarCorreoInvitacion(entrevistaId: string) {
   });
 }
 
+function invitacionMentoreadoCorta(asignacion: AsignacionCorreo) {
+  if (asignacion.faseNombre !== NOMBRE_FASE_MENTOREADOS) {
+    return null;
+  }
+  const emprendimiento = nombrePropioCorto(asignacion.destinatario.firma);
+  if (!emprendimiento) {
+    return null;
+  }
+  return {
+    ...asignacion.textos.invitacion,
+    asunto: ASUNTO_INVITACION_MENTOREADO_CORTO,
+    cuerpo: cuerpoInvitacionMentoreadoCorto(emprendimiento),
+  };
+}
+
 async function prepararCorreoInvitacion(entrevistaId: string) {
   if (!invitacionesHabilitadas()) {
     throw new Error(INVITACIONES_DESHABILITADAS);
@@ -313,21 +335,25 @@ async function prepararCorreoInvitacion(entrevistaId: string) {
     );
   }
 
+  const mentoreado = invitacionMentoreadoCorta(asignacion);
+  const textosBase = mentoreado ?? asignacion.textos.invitacion;
   const textos =
     excepcion ||
     esPruebaSebaEtm(asignacion.faseNombre, asignacion.destinatario.email)
       ? {
-          ...asignacion.textos.invitacion,
+          ...textosBase,
           asunto: asuntoConPrefijoPrueba(
-            asignacion.textos.invitacion.asunto ??
+            textosBase.asunto ??
               `${asignacion.identidad.cliente} le invita a una entrevista`
           ),
         }
-      : asignacion.textos.invitacion;
+      : textosBase;
   const correo = correoInvitacion({
     destinatario: asignacion.destinatario,
     enlace,
-    identidad: asignacion.identidad,
+    identidad: mentoreado
+      ? { ...asignacion.identidad, titulo: ASUNTO_INVITACION_MENTOREADO_CORTO }
+      : asignacion.identidad,
     minutos: asignacion.minutos,
     textos,
     trato: esFaseEtm(asignacion.faseNombre)

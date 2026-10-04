@@ -181,6 +181,7 @@ function PureMultimodalInput({
   composerAction,
   demoAislada,
   demoVoz,
+  destacarMicrofono = false,
   esEntrevista,
   input,
   setInput,
@@ -205,6 +206,7 @@ function PureMultimodalInput({
   composerAction?: ReactNode;
   demoAislada?: boolean;
   demoVoz?: ModoVozEntrevista;
+  destacarMicrofono?: boolean;
   esEntrevista?: boolean;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
@@ -952,6 +954,7 @@ function PureMultimodalInput({
                 avisoVoz={vozEntrevista.avisoVoz}
                 cancelarGrabacion={vozEntrevista.cancelarGrabacion}
                 canvasRef={vozEntrevista.canvasRef}
+                destacar={destacarMicrofono}
                 detenerGrabacion={vozEntrevista.detenerGrabacion}
                 duracionNodoRef={vozEntrevista.duracionNodoRef}
                 empezarGrabacion={handleEmpezarVozEntrevista}
@@ -1107,6 +1110,9 @@ export const MultimodalInput = memo(
       return false;
     }
     if (prevProps.demoVoz !== nextProps.demoVoz) {
+      return false;
+    }
+    if (prevProps.destacarMicrofono !== nextProps.destacarMicrofono) {
       return false;
     }
     if (prevProps.messages.length !== nextProps.messages.length) {

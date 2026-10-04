@@ -1,3 +1,4 @@
+import { modeloPruebaLocalEtm } from "@/lib/consultoria/modelos-entrevista";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -27,9 +28,11 @@ import {
   respuestasEnSeccion,
 } from "@/lib/consultoria/cierre-seccion";
 import {
+  dichoPorLaPersona,
   ejemploDelObjetivo,
   esConversacionContinua,
   promptConversacionContinua,
+  textoFijoRecorridoBreve,
   turnoDeClase,
 } from "@/lib/consultoria/conversacion-continua";
 import {
@@ -42,7 +45,10 @@ import {
   registrarTurnosEntrevista,
 } from "@/lib/consultoria/entrevistas";
 import { textoKickoffEntrevista } from "@/lib/consultoria/kickoff-entrevista";
-import { mensajesATurnos } from "@/lib/consultoria/mensajes-a-turnos";
+import {
+  mensajesATurnos,
+  mensajeTurnoFijo,
+} from "@/lib/consultoria/mensajes-a-turnos";
 import {
   MENSAJE_ACEPTA_INDICACIONES,
   MENSAJE_CUENTA_NO_PUEDE_RESPONDER,
@@ -108,7 +114,19 @@ export async function POST(request: Request) {
       ).toResponse();
     }
 
-    const seccion = entrevista.secciones.at(entrevista.seccion_actual);
+    const original = entrevista.secciones.at(entrevista.seccion_actual);
+    const modeloLocal = modeloPruebaLocalEtm({
+      entrevistaId: entrevista.id,
+      email: entrevista.stakeholder_email,
+      recorridoBreve: original?.inicioEnChat?.recorridoBreve === true,
+    });
+    const seccion =
+      original && modeloLocal
+        ? {
+            ...original,
+            escucha: { modeloAgente: modeloLocal, modeloLectura: modeloLocal },
+          }
+        : original;
     if (
       !seccionId ||
       !seccion ||
@@ -212,6 +230,7 @@ export async function POST(request: Request) {
       guiaTurno,
       indiceObligatoria,
       motivoCierre,
+      ofrecerProfundizacion,
       seguimientoSiguiente,
       seguimientosHechos,
     } = await planificarSeguimientos({
@@ -225,8 +244,89 @@ export async function POST(request: Request) {
       ...(typeof indiceObligatoria === "number" ? { indiceObligatoria } : {}),
     };
 
+    const textoFijo = textoFijoRecorridoBreve({
+      clase,
+      conversar: clase === "obligatoria" && (indiceObligatoria ?? 0) > 0,
+      nombre: entrevista.stakeholder_nombre,
+      ofrecerProfundizacion,
+      organizacion: entrevista.stakeholder_firma,
+      pregunta:
+        seguimientoSiguiente ?? seccion.preguntas[indiceObligatoria ?? 0],
+      recorridoBreve: seccion.inicioEnChat?.recorridoBreve === true,
+    });
+
     const stream = createUIMessageStream({
-      execute: ({ writer: dataStream }) => {
+      execute: async ({ writer: dataStream }) => {
+        if (textoFijo) {
+          const messageId = generateUUID();
+          const textoId = generateUUID();
+          const conOferta = clase === "cierre";
+          dataStream.write({
+            messageId,
+            messageMetadata: metadataTurno,
+            type: "start",
+          });
+          dataStream.write({ id: textoId, type: "text-start" });
+          dataStream.write({
+            delta: textoFijo,
+            id: textoId,
+            type: "text-delta",
+          });
+          dataStream.write({ id: textoId, type: "text-end" });
+          if (conOferta) {
+            const toolCallId = `oferta-cierre-${messageId}`;
+            dataStream.write({
+              input: { listo: true },
+              toolCallId,
+              toolName: "ofrecerCierreSeccion",
+              type: "tool-input-available",
+            });
+            dataStream.write({
+              output: { ok: true },
+              toolCallId,
+              type: "tool-output-available",
+            });
+          }
+          try {
+            await guardarTurno(
+              mensajesATurnos(
+                [
+                  mensajeTurnoFijo({
+                    conOferta,
+                    id: messageId,
+                    metadata: metadataTurno,
+                    texto: textoFijo,
+                  }),
+                ],
+                seccion.id,
+                { persistirOfertaEjecutada: true }
+              )
+            );
+          } catch (error) {
+            // biome-ignore lint/style/useErrorCause: this subclass forwards options.cause to Error
+            throw new ErrorGuardadoTranscripcion({ cause: error });
+          }
+          if (seccion.inicioEnChat) {
+            dataStream.write({
+              data: { seccionId: seccion.id },
+              transient: true,
+              type: "data-turno-guardado",
+            });
+          }
+          if (conOferta) {
+            dataStream.write({
+              data: { seccionId: seccion.id },
+              transient: true,
+              type: "data-oferta-cierre-persistida",
+            });
+          }
+          dataStream.write({
+            messageMetadata: metadataTurno,
+            type: "finish",
+          });
+          return;
+        }
+
         let avancePendiente: SectionCompletedData | undefined;
         let ofertaPersistida = false;
         const herramientas = {
@@ -272,6 +372,9 @@ export async function POST(request: Request) {
           }),
           instructions: continua
             ? promptConversacionContinua({
+                contextoPrecargado: entrevista.stakeholder_descripcion,
+                objetivoCompleto: seccion.preguntas[indiceObligatoria ?? 0],
+                dicho: dichoPorLaPersona(uiMessages),
                 ejemploSeguimiento: ejemploDelObjetivo(
                   seccion,
                   indiceObligatoria
@@ -286,10 +389,12 @@ export async function POST(request: Request) {
                   .join("\n"),
                 motivoCierre,
                 nombre: entrevista.stakeholder_nombre,
+                ofrecerProfundizacion,
                 organizacion: entrevista.stakeholder_firma,
                 preguntaActual:
                   seguimientoSiguiente ??
                   seccion.preguntas[indiceObligatoria ?? 0],
+                recorridoBreve: seccion.inicioEnChat?.recorridoBreve === true,
                 trato: entrevista.trato,
                 turno: turnoDeClase(clase),
               })

@@ -14,13 +14,14 @@ import {
 } from "@/lib/consultoria/modelos-entrevista";
 import type { ChatMessage } from "@/lib/types";
 
-const LIMITE_MS = 8000;
+const LIMITE_MS = 20000;
 
 const lecturaSchema = z.object({
-  cubiertos: z.array(
+  cobertura: z.array(
     z.object({
       evidencia: z.string(),
       indice: z.number().int(),
+      estado: z.enum(["cubierto", "parcial", "pendiente"]),
     })
   ),
   foco: z.string(),
@@ -50,7 +51,7 @@ foco: copia literal de 1 a 6 palabras de la última respuesta, la parte a la que
 
 negativa: true solo si la persona expresa malestar con sus palabras (frustración, molestia, decepción, incomodidad). Contar que algo faltó o salió corto no basta. No infieras emociones que no expresa.
 
-cubiertos: objetivos posteriores al activo que la persona ya respondió en cualquier momento, aunque sea con otras palabras. Para cada uno copia en evidencia la frase literal suya (al menos tres palabras) que lo responde. No cuentes una mención de pasada, una palabra en común ni lo que dijo el entrevistador. Ante la duda, no lo incluyas.`;
+cobertura: devuelve una entrada para CADA objetivo posterior al activo, con su índice y estado cubierto, parcial o pendiente. Revisa TODO el historial del participante, no solo su última respuesta. Evalúa el significado, no coincidencias de palabras con la guía. Marca cubierto los objetivos posteriores al activo que la persona ya respondió en cualquier momento, aunque sea con otras palabras. Para cada uno copia en evidencia la frase literal suya (al menos tres palabras) que lo responde. No cuentes una mención de pasada, una palabra en común ni lo que dijo el entrevistador. Ante la duda, marca parcial. Para pendiente, evidencia puede ser vacía. Para parcial, copia lo que ya está respondido, sin marcar todo el objetivo cubierto. Si ya explicó qué valoró de participar, con una frase de varias palabras, el objetivo de resumir ese valor en una frase está cubierto y la evidencia es esa frase. Si una línea contiene varias preguntas, márcala cubierta solo cuando las partes relevantes ya están contestadas. Una respuesta puede cubrir un objetivo aunque no use ninguna palabra de la pregunta. Explicar un beneficio concreto ya responde a una síntesis de valor: no exigir otro resumen. Si contó solo lo que falló en la organización pero no cómo fue el resto de la coordinación, ese objetivo sigue parcialmente pendiente.`;
 
 function textoMensaje(message: ChatMessage) {
   return (message.parts ?? [])
@@ -116,7 +117,12 @@ export async function leerRespuesta({
     return validarLectura({
       activo,
       dicho,
-      lectura: output,
+      lectura: {
+        ...output,
+        cubiertos: output.cobertura.filter(
+          (item) => item.estado === "cubierto"
+        ),
+      },
       objetivos: objetivos.length,
       texto,
     });
