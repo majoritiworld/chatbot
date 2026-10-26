@@ -1,11 +1,11 @@
-export const DEFAULT_CHAT_MODEL = "xai/grok-4.1-fast-non-reasoning";
+export const DEFAULT_CHAT_MODEL = "openai/gpt-5.4-mini";
 
 export const titleModel = {
   description: "Fast model for title generation",
-  gatewayOrder: ["xai"],
-  id: "xai/grok-4.1-fast-non-reasoning",
-  name: "Grok 4.1 Fast",
-  provider: "xai",
+  gatewayOrder: ["openai"],
+  id: "openai/gpt-5.4-mini",
+  name: "GPT-5.4 mini",
+  provider: "openai",
 };
 
 export type ModelCapabilities = {
@@ -55,11 +55,11 @@ export const chatModels: ChatModel[] = [
     reasoningEffort: "low",
   },
   {
-    description: "Fast non-reasoning model with tool use",
-    gatewayOrder: ["xai"],
-    id: "xai/grok-4.1-fast-non-reasoning",
-    name: "Grok 4.1 Fast",
-    provider: "xai",
+    description: "Fast model with tool use",
+    gatewayOrder: ["openai"],
+    id: "openai/gpt-5.4-mini",
+    name: "GPT-5.4 mini",
+    provider: "openai",
   },
 ];
 
