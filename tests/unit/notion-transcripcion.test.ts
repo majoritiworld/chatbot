@@ -425,6 +425,7 @@ test("las pruebas de recorrido de ETM no llegan a Notion, solo dentro de ETM", (
     "Amelia.Somavia@emprendetumente.org",
     "juan.lobos@emprendetumente.org",
     "seba@majoriti.world",
+    "dani@majoriti.world",
   ]) {
     expect(
       fueraDeNotionEtm({

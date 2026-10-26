@@ -25,11 +25,14 @@ import {
 } from "@/lib/consultoria/correos/variantes";
 import { debeBloquearCorreoEntrevista } from "@/lib/consultoria/entrevista-piloto";
 import {
+  ASUNTO_INVITACION_EXPERIENCIA_CORTO,
   ASUNTO_INVITACION_MENTOREADO_CORTO,
+  cuerpoInvitacionExperienciaCorta,
   cuerpoInvitacionMentoreadoCorto,
   NOMBRE_FASE_MENTOREADOS,
+  NOMBRE_FASE_MENTORES,
+  NOMBRE_FASE_SPONSORS,
 } from "@/lib/consultoria/guiones/etm-tuesday";
-import { nombrePropioCorto } from "@/lib/consultoria/inicio-en-chat";
 import {
   asuntoConPrefijoPrueba,
   confirmacionSinCopia,
@@ -278,15 +281,33 @@ function invitacionMentoreadoCorta(asignacion: AsignacionCorreo) {
   if (asignacion.faseNombre !== NOMBRE_FASE_MENTOREADOS) {
     return null;
   }
-  const emprendimiento = nombrePropioCorto(asignacion.destinatario.firma);
-  if (!emprendimiento) {
-    return null;
-  }
   return {
     ...asignacion.textos.invitacion,
     asunto: ASUNTO_INVITACION_MENTOREADO_CORTO,
-    cuerpo: cuerpoInvitacionMentoreadoCorto(emprendimiento),
+    cuerpo: cuerpoInvitacionMentoreadoCorto(),
   };
+}
+
+function invitacionEtmCorta(asignacion: AsignacionCorreo) {
+  const mentoreado = invitacionMentoreadoCorta(asignacion);
+  if (mentoreado) {
+    return mentoreado;
+  }
+  if (asignacion.faseNombre === NOMBRE_FASE_MENTORES) {
+    return {
+      ...asignacion.textos.invitacion,
+      asunto: ASUNTO_INVITACION_EXPERIENCIA_CORTO,
+      cuerpo: cuerpoInvitacionExperienciaCorta("mentores"),
+    };
+  }
+  if (asignacion.faseNombre === NOMBRE_FASE_SPONSORS) {
+    return {
+      ...asignacion.textos.invitacion,
+      asunto: ASUNTO_INVITACION_EXPERIENCIA_CORTO,
+      cuerpo: cuerpoInvitacionExperienciaCorta("sponsors"),
+    };
+  }
+  return null;
 }
 
 async function prepararCorreoInvitacion(entrevistaId: string) {
@@ -335,8 +356,8 @@ async function prepararCorreoInvitacion(entrevistaId: string) {
     );
   }
 
-  const mentoreado = invitacionMentoreadoCorta(asignacion);
-  const textosBase = mentoreado ?? asignacion.textos.invitacion;
+  const corta = invitacionEtmCorta(asignacion);
+  const textosBase = corta ?? asignacion.textos.invitacion;
   const textos =
     excepcion ||
     esPruebaSebaEtm(asignacion.faseNombre, asignacion.destinatario.email)
@@ -351,8 +372,11 @@ async function prepararCorreoInvitacion(entrevistaId: string) {
   const correo = correoInvitacion({
     destinatario: asignacion.destinatario,
     enlace,
-    identidad: mentoreado
-      ? { ...asignacion.identidad, titulo: ASUNTO_INVITACION_MENTOREADO_CORTO }
+    identidad: corta
+      ? {
+          ...asignacion.identidad,
+          titulo: corta.asunto ?? asignacion.identidad.titulo,
+        }
       : asignacion.identidad,
     minutos: asignacion.minutos,
     textos,

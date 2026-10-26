@@ -1,4 +1,3 @@
-import { modeloPruebaLocalEtm } from "@/lib/consultoria/modelos-entrevista";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -56,7 +55,10 @@ import {
   MENSAJE_NO_PUEDE_RESPONDER,
   MENSAJE_SECCION_INACTIVA,
 } from "@/lib/consultoria/mensajes-chat";
-import { opcionesModeloEntrevista } from "@/lib/consultoria/modelos-entrevista";
+import {
+  modeloPruebaLocalEtm,
+  opcionesModeloEntrevista,
+} from "@/lib/consultoria/modelos-entrevista";
 import {
   herramientasDelTurno,
   pasosTurnoEntrevista,
@@ -116,8 +118,8 @@ export async function POST(request: Request) {
 
     const original = entrevista.secciones.at(entrevista.seccion_actual);
     const modeloLocal = modeloPruebaLocalEtm({
-      entrevistaId: entrevista.id,
       email: entrevista.stakeholder_email,
+      entrevistaId: entrevista.id,
       recorridoBreve: original?.inicioEnChat?.recorridoBreve === true,
     });
     const seccion =
@@ -244,12 +246,18 @@ export async function POST(request: Request) {
       ...(typeof indiceObligatoria === "number" ? { indiceObligatoria } : {}),
     };
 
+    const emprendimientoGenerico = Boolean(
+      seccion.inicioEnChat?.propositoEmprendimiento
+    );
     const textoFijo = textoFijoRecorridoBreve({
       clase,
       conversar: clase === "obligatoria" && (indiceObligatoria ?? 0) > 0,
+      emprendimientoGenerico,
       nombre: entrevista.stakeholder_nombre,
       ofrecerProfundizacion,
-      organizacion: entrevista.stakeholder_firma,
+      organizacion: emprendimientoGenerico
+        ? null
+        : entrevista.stakeholder_firma,
       pregunta:
         seguimientoSiguiente ?? seccion.preguntas[indiceObligatoria ?? 0],
       recorridoBreve: seccion.inicioEnChat?.recorridoBreve === true,
@@ -373,12 +381,12 @@ export async function POST(request: Request) {
           instructions: continua
             ? promptConversacionContinua({
                 contextoPrecargado: entrevista.stakeholder_descripcion,
-                objetivoCompleto: seccion.preguntas[indiceObligatoria ?? 0],
                 dicho: dichoPorLaPersona(uiMessages),
                 ejemploSeguimiento: ejemploDelObjetivo(
                   seccion,
                   indiceObligatoria
                 ),
+                emprendimientoGenerico,
                 escucha,
                 guiaTurno,
                 instrucciones: [
@@ -389,8 +397,11 @@ export async function POST(request: Request) {
                   .join("\n"),
                 motivoCierre,
                 nombre: entrevista.stakeholder_nombre,
+                objetivoCompleto: seccion.preguntas[indiceObligatoria ?? 0],
                 ofrecerProfundizacion,
-                organizacion: entrevista.stakeholder_firma,
+                organizacion: emprendimientoGenerico
+                  ? null
+                  : entrevista.stakeholder_firma,
                 preguntaActual:
                   seguimientoSiguiente ??
                   seccion.preguntas[indiceObligatoria ?? 0],
@@ -403,7 +414,9 @@ export async function POST(request: Request) {
                 descripcionSeccion: seccion.descripcion,
                 esUltimoTema,
                 etiquetaOrganizacion: seccion.etiquetaOrganizacion,
-                firmaEntrevistado: entrevista.stakeholder_firma,
+                firmaEntrevistado: emprendimientoGenerico
+                  ? null
+                  : entrevista.stakeholder_firma,
                 instruccionesEntrevista: entrevista.instrucciones_agente,
                 instruccionesSeccion: seccion.instrucciones,
                 maxSeguimientos: seccion.maxSeguimientos,

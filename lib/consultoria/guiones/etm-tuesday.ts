@@ -257,12 +257,34 @@ export function cuerpoInvitacionEtm(audiencia: AudienciaEtm) {
 
 /** Subject and heading of the short mentee invitation. */
 export const ASUNTO_INVITACION_MENTOREADO_CORTO =
-  "Evalua tu mentoría en EtM Tuesday";
+  "Evalua tu mentoría en EtMtuesday";
 
-/** The Resend body for a mentee whose venture name is already known. */
-export function cuerpoInvitacionMentoreadoCorto(emprendimiento: string) {
+/** The Resend body for a mentee. It never names the venture. */
+export function cuerpoInvitacionMentoreadoCorto() {
   return [
-    `En EtM Tuesday queremos conocer cómo viviste tu mentoría con ${emprendimiento} en el EtM Tuesday!`,
+    "En EtMtuesday queremos conocer cómo viviste tu mentoría con tu emprendimiento",
+    "Es una conversación guiada con nuestro agente, y puedes responderla por escrito, o mejor aún, con tu voz.",
+    "¡Ayúdanos a construir una mejor experiencia para futuros emprendedores con unos minutos de tu tiempo!",
+  ].join("\n\n");
+}
+
+/** Subject and heading of the short mentor and sponsor invitation. */
+export const ASUNTO_INVITACION_EXPERIENCIA_CORTO =
+  "Evalua tu experiencia en EtM Tuesday";
+
+const APERTURA_INVITACION_EXPERIENCIA = {
+  mentores:
+    "En EtM Tuesday queremos conocer cómo viviste tu mentoría en el EtM Tuesday!",
+  sponsors:
+    "En EtM Tuesday queremos conocer cómo viviste tu participación en el EtM Tuesday!",
+} as const;
+
+/** The Resend body for a mentor or a sponsor. */
+export function cuerpoInvitacionExperienciaCorta(
+  audiencia: keyof typeof APERTURA_INVITACION_EXPERIENCIA
+) {
+  return [
+    APERTURA_INVITACION_EXPERIENCIA[audiencia],
     "Es una conversación guiada con nuestro agente, y puedes responderla por escrito, o mejor aún, con tu voz.",
     "Ayúdanos a construir una mejor experiencia para futuros emprendedores con unos minutos de tu tiempo.",
   ].join("\n\n");

@@ -901,23 +901,58 @@ export function instruccionesContextoPrecargado(
   ].join("\n");
 }
 
-const FRASE_ELECCION =
-  "Ya recorrimos los temas principales. Puedes finalizar aquí o, si tienes un ratito más, continuar con algunas preguntas de profundización.";
+function primerNombrePropio(nombre?: string | null) {
+  const propio = nombrePropioCorto(nombre);
+  if (!propio) {
+    return null;
+  }
+  const [primero] = propio.split(" ");
+  return primero ?? null;
+}
+
+function fraseEleccion(nombre?: string | null) {
+  const persona = primerNombrePropio(nombre);
+  const gracias = persona ? `Gracias, ${persona}.` : "Gracias.";
+  return `${gracias} Te agradecemos el tiempo. Si quieres, ya puedes finalizar. Pero si tienes un ratito más, en verdad nos encantaría continuar con un par de preguntas de profundización.`;
+}
 
 function agradecimientoFinal({
+  emprendimientoGenerico = false,
   nombre,
   organizacion,
 }: {
+  emprendimientoGenerico?: boolean;
   nombre?: string | null;
   organizacion?: string | null;
 }) {
   const persona = nombrePropioCorto(nombre);
-  const emprendimiento = nombrePropioCorto(organizacion);
+  const emprendimiento = emprendimientoGenerico
+    ? null
+    : nombrePropioCorto(organizacion);
   const gracias = persona ? `Gracias, ${persona}.` : "Gracias.";
-  const deseo = emprendimiento
-    ? `Te deseo lo mejor con ${emprendimiento}.`
-    : "Te deseo lo mejor.";
+  let deseo = "Te deseo lo mejor.";
+  if (emprendimientoGenerico) {
+    deseo = "Te deseo lo mejor con tu emprendimiento.";
+  } else if (emprendimiento) {
+    deseo = `Te deseo lo mejor con ${emprendimiento}.`;
+  }
   return `${gracias} ${deseo} Puedes finalizar con el botón Finalizar.`;
+}
+
+function lineaParticipante({
+  emprendimientoGenerico,
+  nombre,
+  organizacion,
+}: {
+  emprendimientoGenerico: boolean;
+  nombre?: string | null;
+  organizacion?: string | null;
+}) {
+  const persona = nombre?.trim() || "sin nombre";
+  if (emprendimientoGenerico) {
+    return `Participante: ${persona}. No tienes el nombre de su emprendimiento. Cuando te refieras a él, di «tu emprendimiento». No inventes un nombre.`;
+  }
+  return `Participante: ${persona}. Organización: ${organizacion?.trim() || "sin dato"}.`;
 }
 
 /** The opening question and the close line are spoken as written. After a
@@ -925,6 +960,7 @@ function agradecimientoFinal({
 export function textoFijoRecorridoBreve({
   clase,
   conversar = false,
+  emprendimientoGenerico = false,
   nombre,
   ofrecerProfundizacion = false,
   organizacion,
@@ -933,6 +969,7 @@ export function textoFijoRecorridoBreve({
 }: {
   clase: string;
   conversar?: boolean;
+  emprendimientoGenerico?: boolean;
   nombre?: string | null;
   ofrecerProfundizacion?: boolean;
   organizacion?: string | null;
@@ -953,9 +990,13 @@ export function textoFijoRecorridoBreve({
     return;
   }
   if (ofrecerProfundizacion) {
-    return FRASE_ELECCION;
+    return fraseEleccion(nombre);
   }
-  return agradecimientoFinal({ nombre, organizacion });
+  return agradecimientoFinal({
+    emprendimientoGenerico,
+    nombre,
+    organizacion,
+  });
 }
 
 export function promptConversacionContinua({
@@ -967,6 +1008,7 @@ export function promptConversacionContinua({
   ejemploSeguimiento,
   escucha,
   guiaTurno,
+  emprendimientoGenerico = false,
   instrucciones,
   motivoCierre,
   nombre,
@@ -982,6 +1024,8 @@ export function promptConversacionContinua({
   recorridoBreve?: boolean;
   ofrecerProfundizacion?: boolean;
   ejemploSeguimiento?: string;
+  /** Mentee chats say «tu emprendimiento» and never a venture name. */
+  emprendimientoGenerico?: boolean;
   escucha?: GuiaEscucha;
   guiaTurno?: string;
   instrucciones?: string;
@@ -998,7 +1042,11 @@ export function promptConversacionContinua({
       trato === "usted"
         ? "Trata a la persona de usted."
         : "Trata a la persona de tú.",
-      `Participante: ${nombre ?? "sin nombre"}. Organización: ${organizacion ?? "sin dato"}.`,
+      lineaParticipante({
+        emprendimientoGenerico,
+        nombre,
+        organizacion,
+      }),
       "ESCUCHAR Y RESPONDER: antes de la siguiente pregunta, responde brevemente a lo que la persona acaba de compartir. Reacciona a lo que significó para ella, no recites un hecho ni conviertas su respuesta en un informe. Una frase cotidiana suele bastar. Ante una respuesta rica o una emoción explícita, ese reconocimiento forma parte del turno: no lo omitas por sistema. Ante un sí/no, una respuesta de trámite o la elección de continuar, ve directamente a la pregunta. Varía de manera natural; no uses una plantilla de empatía.",
       "Puedes decir «qué bueno» si la persona valoró algo, «qué pena» si expresa decepción o agradecer una observación concreta. No la felicites por opinar, no inventes emociones ni añadas entusiasmo. Una experiencia mixta sigue siendo mixta; no reduzcas todo a la crítica ni la tapes con optimismo. No exageres resultados pendientes. Evita convertir la conversación en terapia o dar consejos.",
       "Como referencia de tono, no como texto para copiar: si alguien cuenta que su mentora dedicó tiempo a escucharle y eso le sirvió, «Qué bueno que tuviste ese espacio para conversar» responde al significado. «Tu mentora te escuchó durante la sesión» solo repite un dato. Si cuenta que esperó toda la tarde y finalmente cancelaron, «Qué pena que después de esperar no pudieras tener la sesión» reconoce lo ocurrido sin inventar emociones.",
@@ -1022,9 +1070,19 @@ export function promptConversacionContinua({
       .filter(Boolean)
       .join("\n\n");
   }
-  const persona = nombre?.trim()
-    ? `La persona se llama ${nombre.trim()}.${organizacion?.trim() ? ` Su organización es ${organizacion.trim()}.` : ""}`
-    : "No tienes el nombre de la persona.";
+  let persona = "No tienes el nombre de la persona.";
+  if (emprendimientoGenerico) {
+    persona = lineaParticipante({
+      emprendimientoGenerico,
+      nombre,
+      organizacion,
+    });
+  } else if (nombre?.trim()) {
+    const organizacionTexto = organizacion?.trim()
+      ? ` Su organización es ${organizacion.trim()}.`
+      : "";
+    persona = `La persona se llama ${nombre.trim()}.${organizacionTexto}`;
+  }
   const tratoLinea =
     trato === "usted"
       ? "Trata de usted, con cercanía profesional."
@@ -1083,7 +1141,7 @@ Formula una sola pregunta a partir de lo que acaba de decir, dentro de ese objet
   if (recorridoBreve && turno === "cierre") {
     const limite = guiaTurno ? `${guiaTurno} ` : "";
     guia = ofrecerProfundizacion
-      ? `${limite}La parte principal terminó. Di exactamente: «${FRASE_ELECCION}» Muestra la herramienta ofrecerCierreSeccion: la interfaz ofrece Finalizar y Continuar. No hagas todavía otra pregunta. No afirmes que obtuviste información que la persona omitió.`
+      ? `${limite}La parte principal terminó. Di exactamente: «${fraseEleccion(nombre)}» Muestra la herramienta ofrecerCierreSeccion: la interfaz ofrece Finalizar y Continuar. No hagas todavía otra pregunta. No afirmes que obtuviste información que la persona omitió.`
       : `${limite}Agradece brevemente. Di que puede finalizar con el botón Finalizar. No hagas más preguntas. No vuelvas a ofrecer preguntas de profundización. No afirmes que obtuviste información que la persona omitió. Muestra la herramienta ofrecerCierreSeccion.`;
     cierreDeTurno =
       "No vuelvas a pedir profundización. No des por respondidos los temas omitidos.";

@@ -15,10 +15,14 @@ export const PARTICIPANTES_APROBADOS_ETM: ReadonlySet<string> = new Set([
 /** Seba's own run. Its mail carries [PRUEBA] in the subject. */
 export const EMAIL_PRUEBA_SEBA_ETM = "seba@majoriti.world";
 
+/** Dani Rojas, internal mentee trial. Out of Notion. Her invitation stays held. */
+export const EMAIL_PRUEBA_DANI_ETM = "dani@majoriti.world";
+
 /** Internal trials. Out of the real pilot and out of Notion. */
 export const PARTICIPANTES_PRUEBA_ETM: ReadonlySet<string> = new Set([
   ...PARTICIPANTES_APROBADOS_ETM,
   EMAIL_PRUEBA_SEBA_ETM,
+  EMAIL_PRUEBA_DANI_ETM,
 ]);
 
 const HOSTS_INTERCEPTOR = new Set(["127.0.0.1", "localhost"]);

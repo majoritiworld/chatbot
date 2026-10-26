@@ -21,6 +21,7 @@ import {
 import { correoInvitacion } from "@/lib/consultoria/correos/variantes";
 import { seccionesDeGuionClFase2 } from "@/lib/consultoria/guiones/compliance-latam-fase-2";
 import {
+  ASUNTO_INVITACION_EXPERIENCIA_CORTO,
   ASUNTO_INVITACION_MENTOREADO_CORTO,
   type AudienciaEtm,
   AVISO_RESPUESTAS_ETM,
@@ -30,6 +31,7 @@ import {
   CUERPO_AGRADECIMIENTO_ETM,
   CUERPO_RECORDATORIO_ETM,
   cuerpoInvitacionEtm,
+  cuerpoInvitacionExperienciaCorta,
   cuerpoInvitacionMentoreadoCorto,
   FASES_ETM_TUESDAY,
   INSTRUCCIONES_AGENTE_ETM,
@@ -130,8 +132,8 @@ test("cada pauta aprobada deja la profundización aparte de las preguntas princi
   expect(INSTRUCCIONES_AGENTE_ETM).toMatch(/No fuerces un nexo/i);
 });
 
-test("la invitación corta de mentoreado nombra el emprendimiento y no agrega párrafos", () => {
-  const cuerpo = cuerpoInvitacionMentoreadoCorto("Amel.ia");
+test("la invitación corta de mentoreado habla del emprendimiento sin nombrarlo y no agrega párrafos", () => {
+  const cuerpo = cuerpoInvitacionMentoreadoCorto();
   const correo = correoInvitacion({
     destinatario: {
       email: "amelia.somavia@emprendetumente.org",
@@ -160,14 +162,72 @@ test("la invitación corta de mentoreado nombra el emprendimiento y no agrega p�
     trato: "tu",
   });
   expect(correo.subject).toBe(ASUNTO_INVITACION_MENTOREADO_CORTO);
+  expect(correo.text).toContain("Hola, Amelia:");
   expect(correo.text).toContain(
-    "En EtM Tuesday queremos conocer cómo viviste tu mentoría con Amel.ia en el EtM Tuesday!"
+    "En EtMtuesday queremos conocer cómo viviste tu mentoría con tu emprendimiento"
   );
   expect(correo.text).toContain("o mejor aún, con tu voz.");
-  expect(correo.text).toContain("unos minutos de tu tiempo.");
+  expect(correo.text).toContain(
+    "¡Ayúdanos a construir una mejor experiencia para futuros emprendedores con unos minutos de tu tiempo!"
+  );
   expect(correo.text).not.toContain("guardar tu avance");
   expect(correo.text).not.toContain("cinco preguntas");
   expect(correo.text).not.toContain("quedan asociadas a tu nombre");
+});
+
+test("la invitación corta de mentor y sponsor nombra el segmento y no agrega párrafos", () => {
+  for (const caso of [
+    {
+      apertura:
+        "En EtM Tuesday queremos conocer cómo viviste tu mentoría en el EtM Tuesday!",
+      audiencia: "mentores",
+      nombre: "Juan Pablo",
+    },
+    {
+      apertura:
+        "En EtM Tuesday queremos conocer cómo viviste tu participación en el EtM Tuesday!",
+      audiencia: "sponsors",
+      nombre: "Claudia",
+    },
+  ] as const) {
+    const cuerpo = cuerpoInvitacionExperienciaCorta(caso.audiencia);
+    const correo = correoInvitacion({
+      destinatario: {
+        email: "persona@example.test",
+        nombre: caso.nombre,
+      },
+      enlace: {
+        entrevistaId: "c205286e-bd41-49c8-bcbf-f5c996004a52",
+        modo: "enlace_personal",
+        url: "https://portal.majoriti.world/e/token",
+      },
+      identidad: {
+        cliente: "ETM Tuesday",
+        color: null,
+        contactoEmail: CONTACTO_EMAIL_ETM,
+        contactoNombre: null,
+        logoUrl: null,
+        titulo: ASUNTO_INVITACION_EXPERIENCIA_CORTO,
+      },
+      minutos: null,
+      textos: {
+        asunto: ASUNTO_INVITACION_EXPERIENCIA_CORTO,
+        cuerpo,
+        firma: "Equipo ETM Tuesday",
+        remitente: null,
+      },
+      trato: "tu",
+    });
+    expect(correo.subject).toBe("Evalua tu experiencia en EtM Tuesday");
+    expect(correo.text).toContain(`Hola, ${caso.nombre}:`);
+    expect(correo.text).toContain(caso.apertura);
+    expect(correo.text).toContain("o mejor aún, con tu voz.");
+    expect(correo.text).toContain(
+      "Ayúdanos a construir una mejor experiencia para futuros emprendedores con unos minutos de tu tiempo."
+    );
+    expect(correo.text).not.toContain("guardar tu avance");
+    expect(correo.text).not.toContain("cinco preguntas");
+  }
 });
 
 test("un sí para comenzar no responde la primera pregunta", () => {
@@ -401,20 +461,35 @@ test("un seguimiento no reemplaza la pregunta de la guía ni el cierre", () => {
   expect(
     textoFijoRecorridoBreve({
       clase: "cierre",
+      nombre: "Bruno Salas",
       ofrecerProfundizacion: true,
       recorridoBreve: true,
     })
-  ).toMatch(/Ya recorrimos los temas principales/);
+  ).toBe(
+    "Gracias, Bruno. Te agradecemos el tiempo. Si quieres, ya puedes finalizar. Pero si tienes un ratito más, en verdad nos encantaría continuar con un par de preguntas de profundización."
+  );
   expect(
     textoFijoRecorridoBreve({
       clase: "cierre",
+      emprendimientoGenerico: true,
       nombre: "Renata",
       organizacion: "Taller Sur",
       recorridoBreve: true,
     })
   ).toBe(
-    "Gracias, Renata. Te deseo lo mejor con Taller Sur. Puedes finalizar con el botón Finalizar."
+    "Gracias, Renata. Te deseo lo mejor con tu emprendimiento. Puedes finalizar con el botón Finalizar."
   );
+  const pauta = promptConversacionContinua({
+    emprendimientoGenerico: true,
+    nombre: "Renata",
+    organizacion: "Taller Sur",
+    preguntaActual: "¿Sentiste que hubo match con tu mentor/a?",
+    recorridoBreve: true,
+    trato: "tu",
+    turno: "objetivo",
+  });
+  expect(pauta).toContain("di «tu emprendimiento»");
+  expect(pauta).not.toContain("Taller Sur");
   expect(
     textoFijoRecorridoBreve({
       clase: "obligatoria",

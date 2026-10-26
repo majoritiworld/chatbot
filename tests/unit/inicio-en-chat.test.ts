@@ -134,7 +134,7 @@ test("el saludo del recorrido breve explica la profundización y el micrófono",
   });
   const parrafos = saludo.split("\n\n");
   expect(parrafos[0]).toBe(
-    "Hola, Gael. Soy el asistente de entrevistas de ETM Tuesday."
+    "Hola, Gael. Queremos saber cómo te fue en la mentoría de ETM Tuesday con tu emprendimiento: qué te aportó y qué podríamos mejorar."
   );
   expect(saludo).not.toMatch(
     /cinco preguntas|minutos|repregunta|asociadas a tu nombre/
@@ -160,7 +160,7 @@ test("el saludo del recorrido breve explica la profundización y el micrófono",
   ).toMatch(/aproximadamente 8 minutos/);
 });
 
-test("la bienvenida del mentoreado nombra el emprendimiento solo si es un nombre", () => {
+test("la bienvenida del mentoreado dice tu emprendimiento y no usa el nombre", () => {
   const inicio = seccionDe("mentoreados").inicioEnChat;
   if (!inicio) {
     throw new Error("sin inicio");
@@ -172,8 +172,9 @@ test("la bienvenida del mentoreado nombra el emprendimiento solo si es un nombre
     numeroPreguntas: 5,
   });
   expect(saludo.split("\n\n")[0]).toBe(
-    "Hola, Sofía. Queremos saber cómo te fue en la mentoría de ETM Tuesday con tu emprendimiento, Taller Sur: qué te aportó y qué podríamos mejorar."
+    "Hola, Sofía. Queremos saber cómo te fue en la mentoría de ETM Tuesday con tu emprendimiento: qué te aportó y qué podríamos mejorar."
   );
+  expect(saludo).not.toMatch(/Taller Sur/);
   expect(nombrePropioCorto("Taller Sur")).toBe("Taller Sur");
   expect(nombrePropioCorto("emprendimiento")).toBeNull();
   expect(nombrePropioCorto("el taller donde hacemos cerámica")).toBeNull();
@@ -184,7 +185,7 @@ test("la bienvenida del mentoreado nombra el emprendimiento solo si es un nombre
     numeroPreguntas: 5,
   });
   expect(general.split("\n\n")[0]).toBe(
-    "Hola, Sofía. Soy el asistente de entrevistas de ETM Tuesday."
+    "Hola, Sofía. Queremos saber cómo te fue en la mentoría de ETM Tuesday con tu emprendimiento: qué te aportó y qué podríamos mejorar."
   );
   expect(general).not.toMatch(/Taller Sur|startup/);
 });
@@ -220,7 +221,7 @@ test("privacidad no promete anonimato ni plazos y dice quién ve y procesa", () 
     expect(todo).toMatch(/no es anónima/);
     expect(todo).toMatch(/consultadas por Majoriti/);
     expect(todo).not.toMatch(/equipo de EtM|las revisan/i);
-    expect(todo).toMatch(/IA de terceros/);
+    expect(todo).toMatch(/OpenAI/);
     expect(todo).toMatch(/puede interpretar mal/i);
   }
 });
@@ -393,13 +394,14 @@ test("una oferta anterior no impide continuar y el contexto precargado es un dat
   expect(trasBreve.ofrecerProfundizacion).toBe(true);
   const cierre = promptConversacionContinua({
     motivoCierre: trasBreve.motivoCierre,
+    nombre: "Bruno Salas",
     ofrecerProfundizacion: true,
     recorridoBreve: true,
     trato: "tu",
     turno: "cierre",
   });
   expect(cierre).toContain(
-    "Ya recorrimos los temas principales. Puedes finalizar aquí o, si tienes un ratito más, continuar con algunas preguntas de profundización."
+    "Gracias, Bruno. Te agradecemos el tiempo. Si quieres, ya puedes finalizar. Pero si tienes un ratito más, en verdad nos encantaría continuar con un par de preguntas de profundización."
   );
   expect(cierre).not.toMatch(/recomendar/);
 

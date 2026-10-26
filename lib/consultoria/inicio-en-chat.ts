@@ -140,6 +140,7 @@ export const AVISO_VOZ =
   "Pulsa el micrófono para probar y di «sí» o «comenzar».";
 
 const MARCA_ACENTO = /\p{M}/gu;
+const MARCA_EMPRENDIMIENTO = /,?\s*\{\{emprendimiento\}\}/g;
 const NOMBRES_AMBIGUOS = new Set([
   "emprendimiento",
   "empresa",
@@ -180,7 +181,6 @@ export function nombrePropioCorto(valor: string | null | undefined) {
 }
 
 export function saludoInicial({
-  emprendimiento,
   inicio,
   nombre,
   numeroPreguntas,
@@ -193,20 +193,18 @@ export function saludoInicial({
   const primerNombre = nombre?.trim().split(/\s+/)[0];
   const saludo = primerNombre ? `Hola, ${primerNombre}.` : "Hola.";
   if (inicio.recorridoBreve) {
-    const propio = nombrePropioCorto(emprendimiento);
-    const personalizado = Boolean(inicio.propositoEmprendimiento && propio);
-    const proposito =
-      personalizado && propio && inicio.propositoEmprendimiento
-        ? inicio.propositoEmprendimiento.replaceAll(
-            "{{emprendimiento}}",
-            propio
-          )
-        : inicio.proposito;
+    const plantilla = inicio.propositoEmprendimiento;
+    const proposito = plantilla
+      ? plantilla
+          .replace(MARCA_EMPRENDIMIENTO, "")
+          .replace(/\s{2,}/g, " ")
+          .trim()
+      : inicio.proposito;
     return [
-      personalizado
+      plantilla
         ? `${saludo} ${proposito}`
         : `${saludo} Soy ${inicio.asistente}.`,
-      ...(personalizado ? [] : [proposito]),
+      ...(plantilla ? [] : [proposito]),
       PREGUNTA_COMENZAR,
       AVISO_VOZ,
     ].join("\n\n");
