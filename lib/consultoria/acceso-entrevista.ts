@@ -339,6 +339,48 @@ export async function entrarConEnlace(
   return { entrevistaId: fila.entrevista_id, ok: true };
 }
 
+/**
+ * Refuses only a signed-in account of someone else or a committee account.
+ * An interview cookie left in this browser is replaced by the open link.
+ */
+export async function rechazoEnlaceAbierto(email: string) {
+  const habitual = await sesionHabitualPortal();
+  const decision = decidirCookieFrenteASesionHabitual({
+    emailCookie: email,
+    emailHabitual: habitual.email,
+    haySesionHabitual: habitual.hay,
+    rolHabitual: habitual.rol,
+  });
+  if (decision === "ajena") {
+    return MENSAJE_SESION_AJENA;
+  }
+  if (decision === "comite") {
+    return MENSAJE_CUENTA_NO_PUEDE_RESPONDER;
+  }
+  return null;
+}
+
+/** Opens an interview the open link just created, through its personal link. */
+export async function abrirEntrevistaDeEnlaceAbierto({
+  email,
+  entrevistaId,
+}: {
+  email: string;
+  entrevistaId: string;
+}) {
+  const token = await asegurarEnlaceEntrevista(entrevistaId);
+  if (!token) {
+    return false;
+  }
+  await abrirSesionEntrevista({
+    email: normalizarEmail(email),
+    enlace: hashTokenEnlace(token),
+    entrevistaId,
+    via: "enlace",
+  });
+  return true;
+}
+
 /** False as well before the migration adds the setting. */
 export async function proyectoTieneAccesoSoloCorreo(proyectoId: string) {
   const admin = createAdminClient();
