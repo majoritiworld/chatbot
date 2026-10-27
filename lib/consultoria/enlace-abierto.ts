@@ -167,6 +167,7 @@ export async function crearEntrevistaDeEnlaceAbierto(
       estado: "abierta",
       formato_resumen: plantilla.formato_resumen,
       instrucciones_agente: plantilla.instrucciones_agente,
+      origen: "enlace_abierto",
       plantilla_id: plantilla.id,
       preguntas: plantilla.preguntas,
       secciones,
